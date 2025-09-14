@@ -8,6 +8,11 @@ const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const isProd = process.env.NODE_ENV === 'production';
+const fs = require('fs');
+const clientRoot = path.join(__dirname, 'client');
+const clientDist = path.join(clientRoot, 'dist');
+let viteServer = null; // in dev, populated with Vite middleware
 
 // Places API FieldMask to request specific fields (do not use env var per user request)
 // API reference: https://developers.google.com/maps/documentation/places/web-service/nearby-search
@@ -52,7 +57,8 @@ if (!process.env.RWGPS_CLIENT_ID || !process.env.RWGPS_CLIENT_SECRET || !process
   console.warn('Missing env vars. See .env.example');
 }
 
-// Serve static assets but do not automatically serve index.html so we can inject the API key
+// In production serve built client; in dev Vite middleware will be attached later
+app.use(express.static(clientDist, { index: false }));
 app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 app.use(express.json());
 app.use(session({
@@ -236,13 +242,51 @@ app.post('/api/search-along-route', async (req, res) => {
 });
 
 // Serve index.html with injected Google API key so frontend gets the correct key at runtime
-const fs = require('fs');
-app.get('/', (req, res) => {
-  const p = path.join(__dirname, 'public', 'index.html');
-  let html = fs.readFileSync(p, 'utf8');
-  const key = process.env.GOOGLE_API_KEY || '';
-  html = html.replace('__GOOGLE_API_KEY__', key);
-  res.send(html);
+app.get('/', async (req, res, next) => {
+  try{
+    const key = process.env.GOOGLE_API_KEY || '';
+    // Dev: use Vite to transform index.html for HMR and plugins
+    if (!isProd && viteServer){
+      const indexPath = path.join(clientRoot, 'index.html');
+      let html = fs.readFileSync(indexPath, 'utf8');
+      // Let Vite perform its transforms first (it may rewrite or inject scripts).
+      html = await viteServer.transformIndexHtml(req.originalUrl || '/', html);
+  // Inject the Google API key last so transforms won't undo the replacement.
+  // Use a global replacement so any Vite-inserted content that contains the
+  // placeholder doesn't consume the first match and leave others intact.
+  html = html.replace(/__GOOGLE_API_KEY__/g, key);
+      return res.status(200).set({ 'Content-Type': 'text/html' }).end(html);
+    }
+    // Prod: serve prebuilt client or fallback to public
+    let p = path.join(clientDist, 'index.html');
+    if (!fs.existsSync(p)) {
+      p = path.join(__dirname, 'public', 'index.html');
+    }
+    let html = fs.readFileSync(p, 'utf8');
+  // Replace all occurrences in production build as well.
+  html = html.replace(/__GOOGLE_API_KEY__/g, key);
+    return res.send(html);
+  }catch(e){ next(e); }
 });
 
-app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
+// Start server; in dev attach Vite middleware for a single unified server
+async function start(){
+  if (!isProd){
+    try{
+      const vitePath = require.resolve('vite', { paths: [clientRoot] });
+      const vite = require(vitePath);
+      viteServer = await vite.createServer({
+        root: clientRoot,
+        server: { middlewareMode: true },
+        appType: 'custom'
+      });
+      app.use(viteServer.middlewares);
+      console.log('Vite dev middleware attached');
+    }catch(err){
+      console.warn('Vite not available; falling back to static serving. To enable unified dev server, install vite in client and run with NODE_ENV!=production. Error:', err && err.message);
+    }
+  }
+  app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT} (${isProd ? 'prod' : 'dev'})`));
+}
+
+start();
