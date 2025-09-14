@@ -10,8 +10,8 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const isProd = process.env.NODE_ENV === 'production';
 const fs = require('fs');
-const clientRoot = path.join(__dirname, 'client');
-const clientDist = path.join(clientRoot, 'dist');
+const clientRoot = __dirname;
+const clientDist = path.join(__dirname, 'dist');
 let viteServer = null; // in dev, populated with Vite middleware
 
 // Places API FieldMask to request specific fields (do not use env var per user request)
@@ -247,7 +247,7 @@ app.get('/', async (req, res, next) => {
     const key = process.env.GOOGLE_API_KEY || '';
     // Dev: use Vite to transform index.html for HMR and plugins
     if (!isProd && viteServer){
-      const indexPath = path.join(clientRoot, 'index.html');
+      const indexPath = path.join(__dirname, 'index.html');
       let html = fs.readFileSync(indexPath, 'utf8');
       // Let Vite perform its transforms first (it may rewrite or inject scripts).
       html = await viteServer.transformIndexHtml(req.originalUrl || '/', html);
@@ -258,9 +258,9 @@ app.get('/', async (req, res, next) => {
       return res.status(200).set({ 'Content-Type': 'text/html' }).end(html);
     }
     // Prod: serve prebuilt client or fallback to public
-    let p = path.join(clientDist, 'index.html');
+    let p = path.join(__dirname, 'dist', 'index.html');
     if (!fs.existsSync(p)) {
-      p = path.join(__dirname, 'public', 'index.html');
+      p = path.join(__dirname, 'index.html');
     }
     let html = fs.readFileSync(p, 'utf8');
   // Replace all occurrences in production build as well.
@@ -273,10 +273,10 @@ app.get('/', async (req, res, next) => {
 async function start(){
   if (!isProd){
     try{
-      const vitePath = require.resolve('vite', { paths: [clientRoot] });
+      const vitePath = require.resolve('vite', { paths: [__dirname] });
       const vite = require(vitePath);
       viteServer = await vite.createServer({
-        root: clientRoot,
+        root: __dirname,
         server: { middlewareMode: true },
         appType: 'custom'
       });
