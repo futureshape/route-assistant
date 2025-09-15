@@ -1,6 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
+import { Check, ChevronsUpDown } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Sidebar,
@@ -40,6 +55,9 @@ export default function App(){
   const [map, setMap] = useState<any>(null)
   const [authenticated, setAuthenticated] = useState(false)
   const [routes, setRoutes] = useState<any[]>([])
+  const [open, setOpen] = useState(false)
+  const [value, setValue] = useState("")
+  const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null)
   const [routePolyline, setRoutePolyline] = useState<any>(null)
   const [markers, setMarkers] = useState<any[]>([])
   const [query, setQuery] = useState('')
@@ -144,18 +162,60 @@ export default function App(){
             <SidebarGroup>
               <SidebarGroupLabel>Your Routes</SidebarGroupLabel>
               <SidebarGroupContent>
-                <ScrollArea className="h-48">
-                  <div className="space-y-2 p-2">
-                    {routes.map((rt: any) => (
-                      <div key={rt.id} className="text-sm">
-                        <div className="font-medium mb-1">{rt.name}</div>
-                        <Button onClick={()=>showRoute(rt.id)} size="sm" className="w-full">
-                          Show Route
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
+                <div className="p-2">
+                  <Popover open={open} onOpenChange={setOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={open}
+                        className="w-full justify-between"
+                      >
+                        <span className="truncate">
+                          {value || "Select route..."}
+                        </span>
+                        <ChevronsUpDown className="opacity-50 flex-shrink-0" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
+                      <Command>
+                        <CommandInput placeholder="Search route..." className="h-9" />
+                        <CommandList>
+                          <CommandEmpty>No route found.</CommandEmpty>
+                          <CommandGroup>
+                            {routes.map((route) => (
+                              <CommandItem
+                                key={route.id}
+                                value={route.name}
+                                onSelect={(currentValue: string) => {
+                                  setValue(currentValue === value ? "" : currentValue)
+                                  setOpen(false)
+                                  if (currentValue !== value) {
+                                    const selectedRoute = routes.find(r => r.name === currentValue)
+                                    if (selectedRoute) {
+                                      setSelectedRouteId(selectedRoute.id.toString())
+                                      showRoute(selectedRoute.id)
+                                    }
+                                  } else {
+                                    setSelectedRouteId(null)
+                                  }
+                                }}
+                              >
+                                <span className="truncate">{route.name}</span>
+                                <Check
+                                  className={cn(
+                                    "ml-auto h-4 w-4 flex-shrink-0",
+                                    selectedRouteId === route.id.toString() ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
               </SidebarGroupContent>
             </SidebarGroup>
           )}
