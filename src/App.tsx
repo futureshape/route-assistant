@@ -120,17 +120,30 @@ export default function App(){
   }
 
   const fetchAuthState = async () => {
+    console.log('[fetchAuthState] Starting authentication check')
     const r = await fetch('/api/session')
+    console.log('[fetchAuthState] Session response status:', r.status, r.ok)
     const j = await r.json()
+    console.log('[fetchAuthState] Session data:', j)
     setAuthenticated(j.authenticated)
     
     if (j.authenticated) {
+      console.log('[fetchAuthState] User is authenticated, fetching routes')
       const rr = await fetch('/api/routes')
+      console.log('[fetchAuthState] Routes response status:', rr.status, rr.ok)
       if (rr.ok) {
         const jj = await rr.json()
-        setRoutes(jj.routes || [])
+        console.log('[fetchAuthState] Routes data received:', jj)
+        const routesArray = jj.routes || []
+        console.log('[fetchAuthState] Setting routes array:', routesArray.length, 'routes')
+        setRoutes(routesArray)
+      } else {
+        console.error('[fetchAuthState] Failed to fetch routes')
+        const routesErrorText = await rr.text()
+        console.error('[fetchAuthState] Routes error response:', routesErrorText)
       }
     } else {
+      console.log('[fetchAuthState] User not authenticated, clearing routes')
       setRoutes([])
     }
   }
@@ -146,25 +159,66 @@ export default function App(){
   },[mapsReady, mapRef, map])
 
   async function showRoute(id: any){
+    console.log('[showRoute] Starting with id:', id, 'type:', typeof id)
+    console.log('[showRoute] Map available:', !!map)
+    console.log('[showRoute] Google Maps ready:', !!window.google)
+    
     clearMarkers()
+    
+    console.log('[showRoute] Fetching route data from /api/route/' + id)
     const r = await fetch(`/api/route/${id}`)
-    if (!r.ok){ alert('Failed to load route'); return }
+    console.log('[showRoute] Route fetch response status:', r.status, r.ok)
+    
+    if (!r.ok){ 
+      console.error('[showRoute] Failed to load route, status:', r.status)
+      const errorText = await r.text()
+      console.error('[showRoute] Error response:', errorText)
+      alert('Failed to load route'); 
+      return 
+    }
+    
     const j = await r.json()
+    console.log('[showRoute] Route data received:', j)
+    
     const enc = j.route && j.route.encoded_polyline
-    if (!enc){ alert('Route has no encoded_polyline'); return }
+    console.log('[showRoute] Encoded polyline:', enc ? `${enc.slice(0, 50)}...` : 'MISSING')
+    
+    if (!enc){ 
+      console.error('[showRoute] Route has no encoded_polyline')
+      alert('Route has no encoded_polyline'); 
+      return 
+    }
+    
     window.lastFetchedEncodedPolyline = enc
+    console.log('[showRoute] Decoding polyline...')
     const path = window.google.maps.geometry.encoding.decodePath(enc)
-    if (routePolyline){ routePolyline.setMap(null) }
+    console.log('[showRoute] Decoded path points:', path.length)
+    
+    if (routePolyline){ 
+      console.log('[showRoute] Removing existing polyline')
+      routePolyline.setMap(null) 
+    }
+    
+    console.log('[showRoute] Creating new polyline')
     const pl = new window.google.maps.Polyline({ path, strokeColor:'#007bff', strokeWeight:4 })
     pl.setMap(map)
     setRoutePolyline(pl)
-    const bounds = new window.google.maps.LatLngBounds(); path.forEach((p: any)=>bounds.extend(p)); if(map) map.fitBounds(bounds)
+    
+    console.log('[showRoute] Fitting map bounds to route')
+    const bounds = new window.google.maps.LatLngBounds(); 
+    path.forEach((p: any)=>bounds.extend(p)); 
+    if(map) map.fitBounds(bounds)
     
     // Fetch elevation data
     try {
+      console.log('[showRoute] Fetching elevation data from /api/route/' + id + '/elevation')
       const elevResponse = await fetch(`/api/route/${id}/elevation`)
+      console.log('[showRoute] Elevation fetch response status:', elevResponse.status, elevResponse.ok)
+      
       if (elevResponse.ok) {
         const elevData = await elevResponse.json()
+        console.log('[showRoute] Elevation data received:', elevData)
+        
         // Transform elevation data for chart
         const chartData = elevData.elevationData?.map((point: any, index: number) => ({
           distance: Number((point.distance / 1000).toFixed(2)), // Convert to km with 2 decimal places
@@ -172,6 +226,7 @@ export default function App(){
           distanceM: point.distance, // Keep original distance in meters for tooltip
           index
         })) || []
+        
         setElevationData(chartData)
         
         // Store track points for map hover functionality
@@ -179,17 +234,22 @@ export default function App(){
         const fullRouteData = j.route?.track_points || []
         setTrackPoints(fullRouteData)
         
-        console.log('Elevation data loaded:', chartData.length, 'points')
+        console.log('[showRoute] Elevation data loaded:', chartData.length, 'points')
+        console.log('[showRoute] Track points loaded:', fullRouteData.length, 'points')
       } else {
-        console.warn('Failed to fetch elevation data:', elevResponse.status)
+        console.warn('[showRoute] Failed to fetch elevation data:', elevResponse.status)
+        const elevErrorText = await elevResponse.text()
+        console.warn('[showRoute] Elevation error response:', elevErrorText)
         setElevationData([])
         setTrackPoints([])
       }
     } catch (error) {
-      console.error('Failed to fetch elevation data:', error)
+      console.error('[showRoute] Failed to fetch elevation data:', error)
       setElevationData([])
       setTrackPoints([])
     }
+    
+    console.log('[showRoute] Completed successfully')
   }
 
   // Handle chart hover to show position on map
@@ -337,7 +397,7 @@ export default function App(){
                         className="w-full justify-between"
                       >
                         <span className="truncate">
-                          {value || "Select route..."}
+                          {value ? routes.find(r => r.id.toString() === value)?.name || "Route not found" : "Select route..."}
                         </span>
                         <ChevronsUpDown className="opacity-50 flex-shrink-0" />
                       </Button>
@@ -351,17 +411,28 @@ export default function App(){
                             {routes.map((route) => (
                               <CommandItem
                                 key={route.id}
-                                value={route.name}
+                                value={route.id.toString()}
                                 onSelect={(currentValue: string) => {
+                                  console.log('[Route Selection] onSelect triggered with ID:', currentValue)
+                                  console.log('[Route Selection] Current value state:', value)
+                                  console.log('[Route Selection] Available routes:', routes.length, routes.map(r => ({ id: r.id, name: r.name })))
+                                  
                                   setValue(currentValue === value ? "" : currentValue)
                                   setOpen(false)
                                   if (currentValue !== value) {
-                                    const selectedRoute = routes.find(r => r.name === currentValue)
+                                    const selectedRoute = routes.find(r => r.id.toString() === currentValue)
+                                    console.log('[Route Selection] Found route:', selectedRoute)
                                     if (selectedRoute) {
+                                      console.log('[Route Selection] Setting selectedRouteId to:', selectedRoute.id.toString())
                                       setSelectedRouteId(selectedRoute.id.toString())
+                                      console.log('[Route Selection] Calling showRoute with id:', selectedRoute.id)
                                       showRoute(selectedRoute.id)
+                                    } else {
+                                      console.warn('[Route Selection] No route found for ID:', currentValue)
+                                      console.warn('[Route Selection] Available route IDs:', routes.map(r => r.id.toString()))
                                     }
                                   } else {
+                                    console.log('[Route Selection] Clearing route selection')
                                     setSelectedRouteId(null)
                                     setElevationData([])
                                     setTrackPoints([])
