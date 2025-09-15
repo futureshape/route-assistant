@@ -64,6 +64,7 @@ declare global {
 
 export default function App(){
   const mapRef = useRef<HTMLDivElement>(null)
+  const hoverMarkerRef = useRef<any>(null)
   const [map, setMap] = useState<any>(null)
   const [authenticated, setAuthenticated] = useState(false)
   const [routes, setRoutes] = useState<any[]>([])
@@ -76,6 +77,8 @@ export default function App(){
   const [results, setResults] = useState<any[]>([])
   const [elevationData, setElevationData] = useState<any[]>([])
   const [showElevation, setShowElevation] = useState(false)
+  const [trackPoints, setTrackPoints] = useState<any[]>([])
+  const [hoverMarker, setHoverMarker] = useState<any>(null)
 
   const mapsReady = useGoogleMapsReady()
 
@@ -170,14 +173,81 @@ export default function App(){
           index
         })) || []
         setElevationData(chartData)
+        
+        // Store track points for map hover functionality
+        // We need to get the full route data with track points
+        const fullRouteData = j.route?.track_points || []
+        setTrackPoints(fullRouteData)
+        
         console.log('Elevation data loaded:', chartData.length, 'points')
       } else {
         console.warn('Failed to fetch elevation data:', elevResponse.status)
         setElevationData([])
+        setTrackPoints([])
       }
     } catch (error) {
       console.error('Failed to fetch elevation data:', error)
       setElevationData([])
+      setTrackPoints([])
+    }
+  }
+
+  // Handle chart hover to show position on map
+  const handleChartMouseMove = (state: any) => {
+    if (!state || !state.activePayload || !state.activePayload[0] || !map || !trackPoints.length) {
+      // Hide marker if no valid hover state
+      if (hoverMarkerRef.current) {
+        hoverMarkerRef.current.setVisible(false)
+      }
+      return
+    }
+    
+    const activeData = state.activePayload[0].payload
+    const pointIndex = activeData.index
+    
+    if (pointIndex !== undefined && pointIndex < trackPoints.length) {
+      const trackPoint = trackPoints[pointIndex]
+      const lat = trackPoint.y // RWGPS uses y for latitude
+      const lng = trackPoint.x // RWGPS uses x for longitude
+      
+      if (lat !== undefined && lng !== undefined) {
+        const position = { lat: parseFloat(lat), lng: parseFloat(lng) }
+        
+        // Create marker if it doesn't exist, otherwise just move it
+        if (!hoverMarkerRef.current) {
+          const marker = new window.google.maps.Marker({
+            position: position,
+            map: map,
+            icon: {
+              path: window.google.maps.SymbolPath.CIRCLE,
+              scale: 6,
+              fillColor: '#ff4444',
+              fillOpacity: 0.8,
+              strokeColor: '#ffffff',
+              strokeWeight: 2
+            },
+            zIndex: 1000
+          })
+          
+          hoverMarkerRef.current = marker
+          setHoverMarker(marker)
+        } else {
+          // Just move the existing marker and make it visible
+          hoverMarkerRef.current.setPosition(position)
+          hoverMarkerRef.current.setVisible(true)
+        }
+      }
+    } else {
+      // Hide marker if point index is invalid
+      if (hoverMarkerRef.current) {
+        hoverMarkerRef.current.setVisible(false)
+      }
+    }
+  }
+
+  const handleChartMouseLeave = () => {
+    if (hoverMarkerRef.current) {
+      hoverMarkerRef.current.setVisible(false)
     }
   }
 
@@ -187,7 +257,13 @@ export default function App(){
       routePolyline.setMap(null)
       setRoutePolyline(null)
     }
+    if (hoverMarkerRef.current) {
+      hoverMarkerRef.current.setMap(null)
+      hoverMarkerRef.current = null
+      setHoverMarker(null)
+    }
     setElevationData([])
+    setTrackPoints([])
     setShowElevation(false)
   }
 
@@ -274,7 +350,13 @@ export default function App(){
                                   } else {
                                     setSelectedRouteId(null)
                                     setElevationData([])
+                                    setTrackPoints([])
                                     setShowElevation(false)
+                                    if (hoverMarkerRef.current) {
+                                      hoverMarkerRef.current.setMap(null)
+                                      hoverMarkerRef.current = null
+                                      setHoverMarker(null)
+                                    }
                                   }
                                 }}
                               >
@@ -382,7 +464,11 @@ export default function App(){
                     {elevationData.length > 0 ? (
                       <ChartContainer config={chartConfig} className="h-[200px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart data={elevationData}>
+                          <AreaChart 
+                            data={elevationData}
+                            onMouseMove={handleChartMouseMove}
+                            onMouseLeave={handleChartMouseLeave}
+                          >
                             <XAxis 
                               dataKey="distance" 
                               tickFormatter={(value) => `${Number(value).toFixed(0)}km`}
