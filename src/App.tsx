@@ -65,6 +65,16 @@ export default function App(){
 
   const mapsReady = useGoogleMapsReady()
 
+  // Helper: format distance (meters -> km) and elevation_gain (meters) from RWGPS route object
+  function formatRouteMetrics(route: any) {
+    if (!route || typeof route !== 'object') return { distanceText: null, elevationText: null }
+    const distMeters = route.distance
+    const elevMeters = route.elevation_gain
+    const distanceText = Number.isFinite(distMeters) ? `${(distMeters / 1000).toFixed(1)} km` : null
+    const elevationText = Number.isFinite(elevMeters) ? `${Math.round(elevMeters)} m` : null
+    return { distanceText, elevationText }
+  }
+
   const handleAuthChange = () => {
     // Re-fetch session and routes
     fetchAuthState()
@@ -201,7 +211,19 @@ export default function App(){
                                   }
                                 }}
                               >
-                                <span className="truncate">{route.name}</span>
+                                <div className="flex-1 min-w-0">
+                                  <div className="truncate font-medium">{route.name}</div>
+                                  {(() => {
+                                    const { distanceText, elevationText } = formatRouteMetrics(route)
+                                    if (!distanceText && !elevationText) return null
+                                    return (
+                                      <div className="text-xs text-muted-foreground">
+                                        {distanceText && <span className="mr-2">{distanceText}</span>}
+                                        {elevationText && <span>{elevationText}</span>}
+                                      </div>
+                                    )
+                                  })()}
+                                </div>
                                 <Check
                                   className={cn(
                                     "ml-auto h-4 w-4 flex-shrink-0",
