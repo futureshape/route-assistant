@@ -79,6 +79,7 @@ export default function App(){
   const [showElevation, setShowElevation] = useState(false)
   const [trackPoints, setTrackPoints] = useState<any[]>([])
   const [hoverMarker, setHoverMarker] = useState<any>(null)
+  const customOverlayRef = useRef<any>(null)
 
   const mapsReady = useGoogleMapsReady()
 
@@ -311,6 +312,141 @@ export default function App(){
     }
   }
 
+  // Handle marker click to show custom popup
+  const handleMarkerClick = (poi: any, marker: any) => {
+    // Remove existing overlay if any
+    if (customOverlayRef.current) {
+      customOverlayRef.current.setMap(null)
+      customOverlayRef.current = null
+    }
+
+    // Create custom overlay
+    const overlay = new window.google.maps.OverlayView()
+    
+    overlay.onAdd = function() {
+      const div = document.createElement('div')
+      div.style.position = 'absolute'
+      div.style.zIndex = '10000'
+      // Ensure the overlay itself captures pointer events
+      div.style.pointerEvents = 'auto'
+      // Prevent clicks inside the popup from propagating to the map
+      div.addEventListener('click', (e) => {
+        e.stopPropagation()
+      })
+      div.innerHTML = `
+        <div class="bg-popover border border-border rounded-lg p-4 shadow-lg max-w-xs" style="transform: translateX(-50%) translateY(-100%); margin-bottom: 8px;">
+          <div class="flex items-start gap-3">
+            <svg class="h-5 w-5 text-primary mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+            <div class="flex-1 min-w-0">
+              <h3 class="font-semibold text-popover-foreground text-sm mb-1 line-clamp-2">
+                ${poi.name || 'Unknown Place'}
+              </h3>
+              ${poi.googleMapsUri ? `
+                <a href="${poi.googleMapsUri}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors">
+                  <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                  </svg>
+                  Open in Google Maps
+                </a>
+              ` : ''}
+            </div>
+            <button class="text-muted-foreground hover:text-foreground transition-colors text-xs ml-2 close-popup">
+              ✕
+            </button>
+          </div>
+          <div class="absolute top-full left-1/2 transform -translate-x-1/2">
+            <div class="border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-border"></div>
+            <div class="border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-popover absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-px"></div>
+          </div>
+        </div>
+      `
+      
+      // Store reference to div for cleanup
+      this.div = div
+      
+      // Add click handler to close button
+      const closeBtn = div.querySelector('.close-popup')
+      if (closeBtn) {
+        const closeHandler = (e: Event) => {
+          console.debug('[Popup] Close button clicked')
+          e.preventDefault()
+          e.stopPropagation()
+          // Force immediate DOM removal so it disappears without requiring a redraw
+          if (this.div && this.div.parentNode) {
+            this.div.parentNode.removeChild(this.div)
+            this.div = null
+          }
+          // Also detach overlay from map to run cleanup
+          this.setMap(null)
+          customOverlayRef.current = null
+        }
+        closeBtn.addEventListener('click', closeHandler)
+        // Store handler reference for cleanup
+        this.closeHandler = closeHandler
+        this.closeBtn = closeBtn
+      }
+      
+      const panes = this.getPanes()
+      // Use floatPane to match InfoWindow behavior and avoid redraw issues
+      panes.floatPane.appendChild(div)
+
+      // Close the overlay on any map click outside the popup
+      this.mapClickListener = map.addListener('click', () => {
+        console.debug('[Popup] Map click close triggered')
+        // Remove DOM immediately then detach overlay
+        if (this.div && this.div.parentNode) {
+          this.div.parentNode.removeChild(this.div)
+          this.div = null
+        }
+        this.setMap(null)
+        customOverlayRef.current = null
+      })
+    }
+    
+    overlay.draw = function() {
+      const position = marker.getPosition()
+      const projection = this.getProjection()
+      const point = projection.fromLatLngToDivPixel(position)
+      
+      if (point && this.div) {
+        // Position the overlay at the top of the map pin (subtract 32px for pin height)
+        this.div.style.left = point.x + 'px'
+        this.div.style.top = (point.y - 32) + 'px'  // Offset by pin height to align with top
+      }
+    }
+    
+    overlay.onRemove = function() {
+      console.debug('[Popup] onRemove called')
+      // Clean up event listeners
+      if (this.closeBtn && this.closeHandler) {
+        this.closeBtn.removeEventListener('click', this.closeHandler)
+      }
+      // Remove map click listener
+      if (this.mapClickListener && this.mapClickListener.remove) {
+        this.mapClickListener.remove()
+      } else if (this.mapClickListener) {
+        window.google.maps.event.removeListener(this.mapClickListener)
+      }
+      
+      // Remove DOM element
+      if (this.div && this.div.parentNode) {
+        this.div.parentNode.removeChild(this.div)
+        this.div = null
+      }
+      
+      // Clear references
+      this.closeBtn = null
+      this.closeHandler = null
+      this.mapClickListener = null
+    }
+    
+    overlay.setMap(map)
+    customOverlayRef.current = overlay
+  }
+
   function clearMarkers(){
     // Clear ALL markers we've ever created
     allMarkersRef.current.forEach((m: any) => {
@@ -322,6 +458,12 @@ export default function App(){
     
     setMarkers([])
     setResults([])
+    
+    // Clear popup overlay
+    if (customOverlayRef.current) {
+      customOverlayRef.current.setMap(null)
+      customOverlayRef.current = null
+    }
     
     if (routePolyline) {
       routePolyline.setMap(null)
@@ -355,9 +497,24 @@ export default function App(){
     setResults(norm)
     // place markers
     const mks = norm.map((p: any)=>{
-      const mk = new window.google.maps.Marker({ position: { lat: p.lat, lng: p.lng }, map, title: p.name })
-      const iw = new window.google.maps.InfoWindow({ content: `<strong>${p.name||'Place'}</strong>${p.googleMapsUri?`<br/><a href=\"${p.googleMapsUri}\" target=\"_blank\">Open in Google Maps</a>`:''}` })
-      mk.addListener('click', ()=> iw.open({ map, anchor: mk }))
+      const mk = new window.google.maps.Marker({ 
+        position: { lat: p.lat, lng: p.lng }, 
+        map, 
+        title: p.name,
+        icon: {
+          url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="#3b82f6" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
+              <circle cx="12" cy="10" r="3"/>
+            </svg>
+          `),
+          scaledSize: new window.google.maps.Size(32, 32),
+          anchor: new window.google.maps.Point(16, 32)
+        }
+      })
+      
+      // Use our custom popup instead of InfoWindow
+      mk.addListener('click', () => handleMarkerClick(p, mk))
       
       // Track this marker in our comprehensive list
       allMarkersRef.current.push(mk)
