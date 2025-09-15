@@ -80,6 +80,13 @@ export default function App(){
   const [trackPoints, setTrackPoints] = useState<any[]>([])
   const [hoverMarker, setHoverMarker] = useState<any>(null)
   const customOverlayRef = useRef<any>(null)
+  const [markerStates, setMarkerStates] = useState<{[key: string]: 'suggested' | 'selected'}>({}) // Track marker states by POI name+coordinates
+  const markerStatesRef = useRef<{[key: string]: 'suggested' | 'selected'}>({}) // Ref to current marker states
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    markerStatesRef.current = markerStates
+  }, [markerStates])
 
   const mapsReady = useGoogleMapsReady()
 
@@ -113,6 +120,38 @@ export default function App(){
     const distanceText = Number.isFinite(distMeters) ? `${(distMeters / 1000).toFixed(1)} km` : null
     const elevationText = Number.isFinite(elevMeters) ? `${Math.round(elevMeters)} m` : null
     return { distanceText, elevationText }
+  }
+
+  // Helper: generate unique key for POI
+  function getMarkerKey(poi: any) {
+    return `${poi.name}_${poi.lat}_${poi.lng}`
+  }
+
+  // Helper: get marker icon based on state
+  function getMarkerIcon(state: 'suggested' | 'selected') {
+    if (state === 'selected') {
+      return {
+        url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="#22c55e" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
+            <path d="m9 12 2 2 4-4"/>
+          </svg>
+        `),
+        scaledSize: new window.google.maps.Size(32, 32),
+        anchor: new window.google.maps.Point(16, 32)
+      }
+    } else {
+      return {
+        url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="#3b82f6" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
+            <circle cx="12" cy="10" r="3"/>
+          </svg>
+        `),
+        scaledSize: new window.google.maps.Size(32, 32),
+        anchor: new window.google.maps.Point(16, 32)
+      }
+    }
   }
 
   const handleAuthChange = () => {
@@ -320,6 +359,10 @@ export default function App(){
       customOverlayRef.current = null
     }
 
+    const markerKey = getMarkerKey(poi)
+    const currentState = markerStates[markerKey] || 'suggested'
+    console.debug('[Popup] handleMarkerClick - markerKey:', markerKey, 'currentState:', currentState, 'markerStates:', markerStates)
+
     // Create custom overlay
     const overlay = new window.google.maps.OverlayView()
     
@@ -327,79 +370,136 @@ export default function App(){
       const div = document.createElement('div')
       div.style.position = 'absolute'
       div.style.zIndex = '10000'
-      // Ensure the overlay itself captures pointer events
       div.style.pointerEvents = 'auto'
-      // Prevent clicks inside the popup from propagating to the map
       div.addEventListener('click', (e) => {
         e.stopPropagation()
       })
-      div.innerHTML = `
-        <div class="bg-popover border border-border rounded-lg p-4 shadow-lg max-w-xs" style="transform: translateX(-50%) translateY(-100%); margin-bottom: 8px;">
-          <div class="flex items-start gap-3">
-            <svg class="h-5 w-5 text-primary mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
-            </svg>
-            <div class="flex-1 min-w-0">
-              <h3 class="font-semibold text-popover-foreground text-sm mb-1 line-clamp-2">
-                ${poi.name || 'Unknown Place'}
-              </h3>
-              ${poi.googleMapsUri ? `
-                <a href="${poi.googleMapsUri}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors">
-                  <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
-                  </svg>
-                  Open in Google Maps
-                </a>
-              ` : ''}
-            </div>
-            <button class="text-muted-foreground hover:text-foreground transition-colors text-xs ml-2 close-popup">
-              ✕
-            </button>
-          </div>
-          <div class="absolute top-full left-1/2 transform -translate-x-1/2">
-            <div class="border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-border"></div>
-            <div class="border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-popover absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-px"></div>
-          </div>
-        </div>
-      `
       
       // Store reference to div for cleanup
       this.div = div
       
-      // Add click handler to close button
-      const closeBtn = div.querySelector('.close-popup')
-      if (closeBtn) {
-        const closeHandler = (e: Event) => {
-          console.debug('[Popup] Close button clicked')
-          e.preventDefault()
-          e.stopPropagation()
-          // Immediately detach from map which will trigger onRemove and cleanup
-          this.setMap(null)
-          customOverlayRef.current = null
-        }
-        closeBtn.addEventListener('click', closeHandler)
-        // Store handler reference for cleanup
-        this.closeHandler = closeHandler
-        this.closeBtn = closeBtn
+      // Function to update popup content based on current state
+      const updatePopupContent = () => {
+        const currentState = markerStatesRef.current[markerKey] || 'suggested'
+        div.innerHTML = `
+          <div class="bg-popover border border-border rounded-lg p-4 shadow-lg max-w-xs" style="transform: translateX(-50%) translateY(-100%); margin-bottom: 8px;">
+            <div class="flex items-start gap-3">
+              <svg class="h-5 w-5 text-primary mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+              </svg>
+              <div class="flex-1 min-w-0">
+                <h3 class="font-semibold text-popover-foreground text-sm mb-1 line-clamp-2">
+                  ${poi.name || 'Unknown Place'}
+                </h3>
+                ${poi.googleMapsUri ? `
+                  <a href="${poi.googleMapsUri}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors mb-3">
+                    <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                    </svg>
+                    Open in Google Maps
+                  </a>
+                ` : '<div class="mb-3"></div>'}
+                <div class="flex gap-2">
+                  ${currentState === 'suggested' ? `
+                    <button class="keep-button inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
+                      <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                      </svg>
+                      Keep
+                    </button>
+                  ` : `
+                    <span class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-md bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 mr-2">
+                      <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                      </svg>
+                      Selected
+                    </span>
+                    <button class="remove-button inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-md bg-red-100 text-red-800 hover:bg-red-200 dark:bg-red-900 dark:text-red-200 dark:hover:bg-red-800 transition-colors">
+                      <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                      </svg>
+                      Remove
+                    </button>
+                  `}
+                </div>
+              </div>
+              <button class="text-muted-foreground hover:text-foreground transition-colors text-xs ml-2 close-popup">
+                ✕
+              </button>
+            </div>
+            <div class="absolute top-full left-1/2 transform -translate-x-1/2">
+              <div class="border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-border"></div>
+              <div class="border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-popover absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-px"></div>
+            </div>
+          </div>
+        `
+        
+        // Re-attach event listeners after updating content
+        attachEventListeners()
       }
       
+      // Function to attach event listeners
+      const attachEventListeners = () => {
+        // Close button
+        const closeBtn = div.querySelector('.close-popup')
+        if (closeBtn) {
+          closeBtn.addEventListener('click', (e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            this.setMap(null)
+            customOverlayRef.current = null
+          })
+        }
+        
+        // Keep button
+        const keepBtn = div.querySelector('.keep-button')
+        if (keepBtn) {
+          keepBtn.addEventListener('click', (e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            setMarkerStates(prev => ({
+              ...prev,
+              [markerKey]: 'selected'
+            }))
+            marker.setIcon(getMarkerIcon('selected'))
+            // Update content after state change
+            setTimeout(updatePopupContent, 10)
+          })
+        }
+        
+        // Remove button
+        const removeBtn = div.querySelector('.remove-button')
+        if (removeBtn) {
+          removeBtn.addEventListener('click', (e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            setMarkerStates(prev => ({
+              ...prev,
+              [markerKey]: 'suggested'
+            }))
+            marker.setIcon(getMarkerIcon('suggested'))
+            // Update content after state change
+            setTimeout(updatePopupContent, 10)
+          })
+        }
+      }
+      
+      // Initial content setup
+      updatePopupContent()
+      
       const panes = this.getPanes()
-      // Use floatPane to match InfoWindow behavior and avoid redraw issues
       panes.floatPane.appendChild(div)
 
-      // Close the overlay on any map click outside the popup
+      // Close on map click
       this.mapClickListener = map.addListener('click', () => {
-        console.debug('[Popup] Map click close triggered')
-        // Detach from map which will trigger onRemove and cleanup
         this.setMap(null)
         customOverlayRef.current = null
       })
 
-      // Close on Esc key press
+      // Close on Esc key
       this.keydownListener = (e: KeyboardEvent) => {
         if (e.key === 'Escape') {
-          console.debug('[Popup] Esc key close triggered')
           this.setMap(null)
           customOverlayRef.current = null
         }
@@ -413,39 +513,27 @@ export default function App(){
       const point = projection.fromLatLngToDivPixel(position)
       
       if (point && this.div) {
-        // Position the overlay at the top of the map pin (subtract 32px for pin height)
         this.div.style.left = point.x + 'px'
-        this.div.style.top = (point.y - 32) + 'px'  // Offset by pin height to align with top
+        this.div.style.top = (point.y - 32) + 'px'
       }
     }
     
     overlay.onRemove = function() {
-      console.debug('[Popup] onRemove called')
-      // Clean up event listeners
-      if (this.closeBtn && this.closeHandler) {
-        this.closeBtn.removeEventListener('click', this.closeHandler)
-      }
-      // Remove map click listener
       if (this.mapClickListener && this.mapClickListener.remove) {
         this.mapClickListener.remove()
       } else if (this.mapClickListener) {
         window.google.maps.event.removeListener(this.mapClickListener)
       }
       
-      // Remove keydown listener
       if (this.keydownListener) {
         document.removeEventListener('keydown', this.keydownListener)
       }
       
-      // Remove DOM element
       if (this.div && this.div.parentNode) {
         this.div.parentNode.removeChild(this.div)
         this.div = null
       }
       
-      // Clear references
-      this.closeBtn = null
-      this.closeHandler = null
       this.mapClickListener = null
       this.keydownListener = null
     }
@@ -465,6 +553,7 @@ export default function App(){
     
     setMarkers([])
     setResults([])
+    setMarkerStates({}) // Reset marker states
     
     // Clear popup overlay
     if (customOverlayRef.current) {
@@ -493,20 +582,14 @@ export default function App(){
     setResults(norm)
     // place markers
     const mks = norm.map((p: any)=>{
+      const markerKey = getMarkerKey(p)
+      const markerState = markerStates[markerKey] || 'suggested'
+      
       const mk = new window.google.maps.Marker({ 
         position: { lat: p.lat, lng: p.lng }, 
         map, 
         title: p.name,
-        icon: {
-          url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="#3b82f6" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
-              <circle cx="12" cy="10" r="3"/>
-            </svg>
-          `),
-          scaledSize: new window.google.maps.Size(32, 32),
-          anchor: new window.google.maps.Point(16, 32)
-        }
+        icon: getMarkerIcon(markerState)
       })
       
       // Use our custom popup instead of InfoWindow
@@ -651,6 +734,17 @@ export default function App(){
       <SidebarInset>
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger />
+          {(() => {
+            const selectedCount = Object.values(markerStates).filter(state => state === 'selected').length
+            return selectedCount > 0 ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <svg className="h-4 w-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"/>
+                </svg>
+                <span>{selectedCount} marker{selectedCount !== 1 ? 's' : ''} selected</span>
+              </div>
+            ) : null
+          })()}
           {selectedRouteId && elevationData.length > 0 && (
             <Button
               variant="outline"
