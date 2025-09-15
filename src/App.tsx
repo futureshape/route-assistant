@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Check, ChevronsUpDown, Mountain, ChevronUp, ChevronDown } from 'lucide-react'
+import { APIProvider, Map, Marker, InfoWindow, useMap } from '@vis.gl/react-google-maps'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -41,54 +42,35 @@ import {
 import { Area, AreaChart, XAxis, YAxis, ResponsiveContainer } from 'recharts'
 import { AuthHeader } from '@/components/AuthHeader'
 
-// Google Maps hook
-function useGoogleMapsReady() {
-  const [ready, setReady] = useState(!!window.google)
-  useEffect(() => {
-    if (window.google) { setReady(true); return }
-    const handler = () => setReady(true)
-    window.addEventListener('google-maps-callback', handler)
-    return () => window.removeEventListener('google-maps-callback', handler)
-  }, [])
-  return ready
-}
-
 // Extend window interface for TypeScript
 declare global {
   interface Window {
-    google: any;
     lastFetchedEncodedPolyline: string;
   }
 }
 
 export default function App(){
-  const mapRef = useRef<HTMLDivElement>(null)
-  const hoverMarkerRef = useRef<any>(null)
-  const allMarkersRef = useRef<any[]>([])
-  const [map, setMap] = useState<any>(null)
   const [authenticated, setAuthenticated] = useState(false)
   const [routes, setRoutes] = useState<any[]>([])
   const [open, setOpen] = useState(false)
   const [value, setValue] = useState("")
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null)
-  const [routePolyline, setRoutePolyline] = useState<any>(null)
+
   const [markers, setMarkers] = useState<any[]>([])
   const [query, setQuery] = useState('')
-  const [results, setResults] = useState<any[]>([])
   const [elevationData, setElevationData] = useState<any[]>([])
   const [showElevation, setShowElevation] = useState(false)
-  const [trackPoints, setTrackPoints] = useState<any[]>([])
-  const [hoverMarker, setHoverMarker] = useState<any>(null)
-  const customOverlayRef = useRef<any>(null)
   const [markerStates, setMarkerStates] = useState<{[key: string]: 'suggested' | 'selected'}>({}) // Track marker states by POI name+coordinates
   const markerStatesRef = useRef<{[key: string]: 'suggested' | 'selected'}>({}) // Ref to current marker states
+  const [selectedMarker, setSelectedMarker] = useState<any>(null) // For InfoWindow
+  const [mapCenter, setMapCenter] = useState({lat: 39.5, lng: -98.35})
+  const [mapZoom, setMapZoom] = useState(4)
+  const [routePath, setRoutePath] = useState<any[]>([])
 
   // Keep ref in sync with state
   useEffect(() => {
     markerStatesRef.current = markerStates
   }, [markerStates])
-
-  const mapsReady = useGoogleMapsReady()
 
   // Chart configuration for elevation profile
   const chartConfig = {
@@ -154,6 +136,50 @@ export default function App(){
     }
   }
 
+  // Helper: update marker state
+  function updateMarkerState(markerKey: string, newState: 'suggested' | 'selected') {
+    setMarkerStates(prev => ({
+      ...prev,
+      [markerKey]: newState
+    }))
+  }
+
+  // Updated marker click handler for React approach
+  const handleMarkerClick = (poi: any) => {
+    setSelectedMarker(poi)
+  }
+
+  // Custom Polyline component using useMap hook
+  const RoutePolyline = ({ path }: { path: any[] }) => {
+    const map = useMap()
+    
+    useEffect(() => {
+      if (!map || !path || path.length === 0) return
+      
+      const polyline = new window.google.maps.Polyline({
+        path: path,
+        strokeColor: '#007bff',
+        strokeWeight: 4,
+        strokeOpacity: 0.8
+      })
+      
+      polyline.setMap(map)
+      
+      // Fit bounds to the polyline with proper padding
+      if (path.length > 0) {
+        const bounds = new window.google.maps.LatLngBounds()
+        path.forEach(coord => bounds.extend(coord))
+        map.fitBounds(bounds, 50) // 50px padding on all sides
+      }
+      
+      return () => {
+        polyline.setMap(null)
+      }
+    }, [map, path])
+    
+    return null
+  }
+
   const handleAuthChange = () => {
     // Re-fetch session and routes
     fetchAuthState()
@@ -192,16 +218,8 @@ export default function App(){
     fetchAuthState()
   }, [])
 
-  useEffect(()=>{
-    if (!mapsReady || !mapRef.current || map) return
-    const m = new window.google.maps.Map(mapRef.current, { center:{lat:39.5,lng:-98.35}, zoom:4 })
-    setMap(m)
-  },[mapsReady, mapRef, map])
-
   async function showRoute(id: any){
     console.log('[showRoute] Starting with id:', id, 'type:', typeof id)
-    console.log('[showRoute] Map available:', !!map)
-    console.log('[showRoute] Google Maps ready:', !!window.google)
     
     clearMarkers()
     
@@ -231,23 +249,35 @@ export default function App(){
     
     window.lastFetchedEncodedPolyline = enc
     console.log('[showRoute] Decoding polyline...')
-    const path = window.google.maps.geometry.encoding.decodePath(enc)
-    console.log('[showRoute] Decoded path points:', path.length)
     
-    if (routePolyline){ 
-      console.log('[showRoute] Removing existing polyline')
-      routePolyline.setMap(null) 
+    // Decode polyline using Google Maps geometry library
+    if (window.google && window.google.maps && window.google.maps.geometry) {
+      const path = window.google.maps.geometry.encoding.decodePath(enc)
+      console.log('[showRoute] Decoded path points:', path.length)
+      
+      // Convert to React-friendly format
+      const routeCoordinates = path.map((point: any) => ({
+        lat: point.lat(),
+        lng: point.lng()
+      }))
+      
+      setRoutePath(routeCoordinates)
+      
+      // Fit map bounds to route
+      if (routeCoordinates.length > 0) {
+        const bounds = new window.google.maps.LatLngBounds()
+        routeCoordinates.forEach(coord => bounds.extend(coord))
+        
+        // Set center from bounds
+        const center = bounds.getCenter()
+        setMapCenter({ lat: center.lat(), lng: center.lng() })
+        
+        // Use Google Maps' built-in zoom calculation with some padding
+        // We'll let the map component handle the zoom automatically via bounds
+        // For now, set a reasonable default zoom that will be overridden
+        // setMapZoom(10)
+      }
     }
-    
-    console.log('[showRoute] Creating new polyline')
-    const pl = new window.google.maps.Polyline({ path, strokeColor:'#007bff', strokeWeight:4 })
-    pl.setMap(map)
-    setRoutePolyline(pl)
-    
-    console.log('[showRoute] Fitting map bounds to route')
-    const bounds = new window.google.maps.LatLngBounds(); 
-    path.forEach((p: any)=>bounds.extend(p)); 
-    if(map) map.fitBounds(bounds)
     
     // Fetch elevation data
     try {
@@ -269,303 +299,44 @@ export default function App(){
         
         setElevationData(chartData)
         
-        // Store track points for map hover functionality
-        // We need to get the full route data with track points
-        const fullRouteData = j.route?.track_points || []
-        setTrackPoints(fullRouteData)
-        
         console.log('[showRoute] Elevation data loaded:', chartData.length, 'points')
-        console.log('[showRoute] Track points loaded:', fullRouteData.length, 'points')
       } else {
         console.warn('[showRoute] Failed to fetch elevation data:', elevResponse.status)
         const elevErrorText = await elevResponse.text()
         console.warn('[showRoute] Elevation error response:', elevErrorText)
         setElevationData([])
-        setTrackPoints([])
       }
     } catch (error) {
       console.error('[showRoute] Failed to fetch elevation data:', error)
       setElevationData([])
-      setTrackPoints([])
     }
     
     console.log('[showRoute] Completed successfully')
   }
 
-  // Handle chart hover to show position on map
-  const handleChartMouseMove = (state: any) => {
-    if (!state || !state.activePayload || !state.activePayload[0] || !map || !trackPoints.length) {
-      // Hide marker if no valid hover state
-      if (hoverMarkerRef.current) {
-        hoverMarkerRef.current.setVisible(false)
-      }
-      return
-    }
-    
-    const activeData = state.activePayload[0].payload
-    const pointIndex = activeData.index
-    
-    if (pointIndex !== undefined && pointIndex < trackPoints.length) {
-      const trackPoint = trackPoints[pointIndex]
-      const lat = trackPoint.y // RWGPS uses y for latitude
-      const lng = trackPoint.x // RWGPS uses x for longitude
-      
-      if (lat !== undefined && lng !== undefined) {
-        const position = { lat: parseFloat(lat), lng: parseFloat(lng) }
-        
-        // Create marker if it doesn't exist, otherwise just move it
-        if (!hoverMarkerRef.current) {
-          const marker = new window.google.maps.Marker({
-            position: position,
-            map: map,
-            icon: {
-              path: window.google.maps.SymbolPath.CIRCLE,
-              scale: 6,
-              fillColor: '#ff4444',
-              fillOpacity: 0.8,
-              strokeColor: '#ffffff',
-              strokeWeight: 2
-            },
-            zIndex: 1000
-          })
-          
-          hoverMarkerRef.current = marker
-          setHoverMarker(marker)
-        } else {
-          // Just move the existing marker and make it visible
-          hoverMarkerRef.current.setPosition(position)
-          hoverMarkerRef.current.setVisible(true)
-        }
-      }
-    } else {
-      // Hide marker if point index is invalid
-      if (hoverMarkerRef.current) {
-        hoverMarkerRef.current.setVisible(false)
-      }
-    }
+    // Handle chart hover to show position on map
+  const handleChartMouseMove = (_state: any) => {
+    // TODO: Implement chart hover functionality with React Google Maps
+    // For now, this is disabled during the migration
   }
 
   const handleChartMouseLeave = () => {
-    if (hoverMarkerRef.current) {
-      hoverMarkerRef.current.setVisible(false)
-    }
-  }
-
-  // Handle marker click to show custom popup
-  const handleMarkerClick = (poi: any, marker: any) => {
-    // Remove existing overlay if any
-    if (customOverlayRef.current) {
-      customOverlayRef.current.setMap(null)
-      customOverlayRef.current = null
-    }
-
-    const markerKey = getMarkerKey(poi)
-    const currentState = markerStates[markerKey] || 'suggested'
-    console.debug('[Popup] handleMarkerClick - markerKey:', markerKey, 'currentState:', currentState, 'markerStates:', markerStates)
-
-    // Create custom overlay
-    const overlay = new window.google.maps.OverlayView()
-    
-    overlay.onAdd = function() {
-      const div = document.createElement('div')
-      div.style.position = 'absolute'
-      div.style.zIndex = '10000'
-      div.style.pointerEvents = 'auto'
-      div.addEventListener('click', (e) => {
-        e.stopPropagation()
-      })
-      
-      // Store reference to div for cleanup
-      this.div = div
-      
-      // Function to update popup content based on current state
-      const updatePopupContent = () => {
-        const currentState = markerStatesRef.current[markerKey] || 'suggested'
-        div.innerHTML = `
-          <div class="bg-popover border border-border rounded-lg p-4 shadow-lg max-w-xs" style="transform: translateX(-50%) translateY(-100%); margin-bottom: 8px;">
-            <div class="flex items-start gap-3">
-              <svg class="h-5 w-5 text-primary mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
-              </svg>
-              <div class="flex-1 min-w-0">
-                <h3 class="font-semibold text-popover-foreground text-sm mb-1 line-clamp-2">
-                  ${poi.name || 'Unknown Place'}
-                </h3>
-                ${poi.googleMapsUri ? `
-                  <a href="${poi.googleMapsUri}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors mb-3">
-                    <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
-                    </svg>
-                    Open in Google Maps
-                  </a>
-                ` : '<div class="mb-3"></div>'}
-                <div class="flex gap-2">
-                  ${currentState === 'suggested' ? `
-                    <button class="keep-button inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
-                      <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                      </svg>
-                      Keep
-                    </button>
-                  ` : `
-                    <span class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-md bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 mr-2">
-                      <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                      </svg>
-                      Selected
-                    </span>
-                    <button class="remove-button inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-md bg-red-100 text-red-800 hover:bg-red-200 dark:bg-red-900 dark:text-red-200 dark:hover:bg-red-800 transition-colors">
-                      <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                      </svg>
-                      Remove
-                    </button>
-                  `}
-                </div>
-              </div>
-              <button class="text-muted-foreground hover:text-foreground transition-colors text-xs ml-2 close-popup">
-                ✕
-              </button>
-            </div>
-            <div class="absolute top-full left-1/2 transform -translate-x-1/2">
-              <div class="border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-border"></div>
-              <div class="border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-popover absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-px"></div>
-            </div>
-          </div>
-        `
-        
-        // Re-attach event listeners after updating content
-        attachEventListeners()
-      }
-      
-      // Function to attach event listeners
-      const attachEventListeners = () => {
-        // Close button
-        const closeBtn = div.querySelector('.close-popup')
-        if (closeBtn) {
-          closeBtn.addEventListener('click', (e) => {
-            e.preventDefault()
-            e.stopPropagation()
-            this.setMap(null)
-            customOverlayRef.current = null
-          })
-        }
-        
-        // Keep button
-        const keepBtn = div.querySelector('.keep-button')
-        if (keepBtn) {
-          keepBtn.addEventListener('click', (e) => {
-            e.preventDefault()
-            e.stopPropagation()
-            setMarkerStates(prev => ({
-              ...prev,
-              [markerKey]: 'selected'
-            }))
-            marker.setIcon(getMarkerIcon('selected'))
-            // Update content after state change
-            setTimeout(updatePopupContent, 10)
-          })
-        }
-        
-        // Remove button
-        const removeBtn = div.querySelector('.remove-button')
-        if (removeBtn) {
-          removeBtn.addEventListener('click', (e) => {
-            e.preventDefault()
-            e.stopPropagation()
-            setMarkerStates(prev => ({
-              ...prev,
-              [markerKey]: 'suggested'
-            }))
-            marker.setIcon(getMarkerIcon('suggested'))
-            // Update content after state change
-            setTimeout(updatePopupContent, 10)
-          })
-        }
-      }
-      
-      // Initial content setup
-      updatePopupContent()
-      
-      const panes = this.getPanes()
-      panes.floatPane.appendChild(div)
-
-      // Close on map click
-      this.mapClickListener = map.addListener('click', () => {
-        this.setMap(null)
-        customOverlayRef.current = null
-      })
-
-      // Close on Esc key
-      this.keydownListener = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') {
-          this.setMap(null)
-          customOverlayRef.current = null
-        }
-      }
-      document.addEventListener('keydown', this.keydownListener)
-    }
-    
-    overlay.draw = function() {
-      const position = marker.getPosition()
-      const projection = this.getProjection()
-      const point = projection.fromLatLngToDivPixel(position)
-      
-      if (point && this.div) {
-        this.div.style.left = point.x + 'px'
-        this.div.style.top = (point.y - 32) + 'px'
-      }
-    }
-    
-    overlay.onRemove = function() {
-      if (this.mapClickListener && this.mapClickListener.remove) {
-        this.mapClickListener.remove()
-      } else if (this.mapClickListener) {
-        window.google.maps.event.removeListener(this.mapClickListener)
-      }
-      
-      if (this.keydownListener) {
-        document.removeEventListener('keydown', this.keydownListener)
-      }
-      
-      if (this.div && this.div.parentNode) {
-        this.div.parentNode.removeChild(this.div)
-        this.div = null
-      }
-      
-      this.mapClickListener = null
-      this.keydownListener = null
-    }
-    
-    overlay.setMap(map)
-    customOverlayRef.current = overlay
+    // TODO: Implement chart hover functionality with React Google Maps
+    // For now, this is disabled during the migration
   }
 
   function clearMarkers(){
-    // Clear POI markers we've created via search
-    allMarkersRef.current.forEach((m: any) => {
-      if (m && m.setMap) {
-        m.setMap(null)
-      }
-    })
-    allMarkersRef.current = []
-    
+    // Clear all POI markers
     setMarkers([])
-    setResults([])
     setMarkerStates({}) // Reset marker states
+    setSelectedMarker(null)
     
-    // Clear popup overlay
-    if (customOverlayRef.current) {
-      customOverlayRef.current.setMap(null)
-      customOverlayRef.current = null
-    }
-    // Intentionally do not clear the route polyline or elevation state here.
+    // Intentionally do not clear the route path or elevation state here.
     // The route should remain visible until a different route is selected.
   }
 
   async function searchPOIs(){
-    if (!routePolyline){ alert('Please show a route first'); return }
+    if (!routePath || routePath.length === 0){ alert('Please show a route first'); return }
     const q = query.trim(); if (!q){ alert('Enter a search term'); return }
     const encoded = window.lastFetchedEncodedPolyline || null
     const payload = { textQuery: q, encodedPolyline: encoded }
@@ -579,34 +350,9 @@ export default function App(){
       const lng = loc.longitude ?? loc.lng ?? loc.latLng?.longitude
       return { name: p.displayName?.text || p.name || '', googleMapsUri: p.googleMapsUri, lat: parseFloat(lat), lng: parseFloat(lng) }
     }).filter((p: any)=> Number.isFinite(p.lat) && Number.isFinite(p.lng))
-    setResults(norm)
-    // place markers
-    const mks = norm.map((p: any)=>{
-      const markerKey = getMarkerKey(p)
-      const markerState = markerStates[markerKey] || 'suggested'
-      
-      const mk = new window.google.maps.Marker({ 
-        position: { lat: p.lat, lng: p.lng }, 
-        map, 
-        title: p.name,
-        icon: getMarkerIcon(markerState)
-      })
-      
-      // Use our custom popup instead of InfoWindow
-      mk.addListener('click', () => handleMarkerClick(p, mk))
-      
-      // Track this marker in our comprehensive list
-      allMarkersRef.current.push(mk)
-      
-      return mk
-    })
-    setMarkers(mks)
-    if (mks.length && map){ 
-      const b = new window.google.maps.LatLngBounds(); 
-      mks.forEach((m: any)=>b.extend(m.getPosition())); 
-      if (routePolyline){ routePolyline.getPath().forEach((p: any)=>b.extend(p)) } 
-      map.fitBounds(b) 
-    }
+    
+    // Set markers in React state (they'll be rendered by Map component)
+    setMarkers(norm)
   }
 
   return (
@@ -671,13 +417,7 @@ export default function App(){
                                     console.log('[Route Selection] Clearing route selection')
                                     setSelectedRouteId(null)
                                     setElevationData([])
-                                    setTrackPoints([])
                                     setShowElevation(false)
-                                    if (hoverMarkerRef.current) {
-                                      hoverMarkerRef.current.setMap(null)
-                                      hoverMarkerRef.current = null
-                                      setHoverMarker(null)
-                                    }
                                   }
                                 }}
                               >
@@ -759,7 +499,82 @@ export default function App(){
         </header>
         <div className="flex flex-col flex-1">
           <div className="flex-1 relative">
-            <div id="map" ref={mapRef} className="absolute inset-0" />
+            <APIProvider apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''} libraries={['geometry']}>
+              <Map
+                center={mapCenter}
+                zoom={mapZoom}
+                mapTypeId="roadmap"
+                style={{ width: '100%', height: '100%' }}
+                onCameraChanged={(event) => {
+                  setMapCenter(event.detail.center)
+                  setMapZoom(event.detail.zoom)
+                }}
+              >
+                {/* Route Polyline */}
+                {routePath.length > 0 && <RoutePolyline path={routePath} />}
+                
+                {/* POI Markers */}
+                {markers.map((poi) => {
+                  const markerKey = getMarkerKey(poi)
+                  const markerState = markerStates[markerKey] || 'suggested'
+                  
+                  return (
+                    <Marker
+                      key={markerKey}
+                      position={{ lat: poi.lat, lng: poi.lng }}
+                      title={poi.name}
+                      icon={getMarkerIcon(markerState)}
+                      onClick={() => handleMarkerClick(poi)}
+                    />
+                  )
+                })}
+                
+                {/* Info Window for selected marker */}
+                {selectedMarker && (
+                  <InfoWindow
+                    position={{ lat: selectedMarker.lat, lng: selectedMarker.lng }}
+                    onCloseClick={() => setSelectedMarker(null)}
+                  >
+                    <div className="p-2 max-w-xs">
+                      <h3 className="font-bold text-sm mb-2">{selectedMarker.name}</h3>
+                      <div className="space-y-2">
+                        {selectedMarker.googleMapsUri && (
+                          <a 
+                            href={selectedMarker.googleMapsUri} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:underline text-xs block"
+                          >
+                            View on Google Maps
+                          </a>
+                        )}
+                        <div>
+                          {(() => {
+                            const markerKey = getMarkerKey(selectedMarker)
+                            const state = markerStates[markerKey] || 'suggested'
+                            return state === 'suggested' ? (
+                              <button
+                                onClick={() => updateMarkerState(markerKey, 'selected')}
+                                className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs font-medium"
+                              >
+                                Keep
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => updateMarkerState(markerKey, 'suggested')}
+                                className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-xs font-medium"
+                              >
+                                Remove
+                              </button>
+                            )
+                          })()}
+                        </div>
+                      </div>
+                    </div>
+                  </InfoWindow>
+                )}
+              </Map>
+            </APIProvider>
           </div>
           
           {selectedRouteId && elevationData.length > 0 && (
