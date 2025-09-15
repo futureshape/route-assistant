@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, ChevronsUpDown } from 'lucide-react'
+import { Check, ChevronsUpDown, Mountain, ChevronUp, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -28,6 +28,18 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from '@/components/ui/sidebar'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  ChartConfig,
+  ChartContainer,
+  ChartTooltip,
+} from '@/components/ui/chart'
+import { Area, AreaChart, XAxis, YAxis, ResponsiveContainer } from 'recharts'
 import { AuthHeader } from '@/components/AuthHeader'
 
 // Google Maps hook
@@ -62,8 +74,32 @@ export default function App(){
   const [markers, setMarkers] = useState<any[]>([])
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<any[]>([])
+  const [elevationData, setElevationData] = useState<any[]>([])
+  const [showElevation, setShowElevation] = useState(false)
 
   const mapsReady = useGoogleMapsReady()
+
+  // Chart configuration for elevation profile
+  const chartConfig = {
+    elevation: {
+      label: "Elevation",
+      color: "hsl(var(--chart-1))",
+    },
+  } satisfies ChartConfig
+
+  // Custom tooltip for elevation chart
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload
+      return (
+        <div className="bg-popover border border-border rounded-lg p-3 shadow-lg">
+          <p className="font-medium text-sm text-popover-foreground">{`Distance: ${Number(label).toFixed(1)} km`}</p>
+          <p className="text-sm text-muted-foreground">{`Elevation: ${Math.round(data.elevation)} m`}</p>
+        </div>
+      )
+    }
+    return null
+  }
 
   // Helper: format distance (meters -> km) and elevation_gain (meters) from RWGPS route object
   function formatRouteMetrics(route: any) {
@@ -120,10 +156,39 @@ export default function App(){
     pl.setMap(map)
     setRoutePolyline(pl)
     const bounds = new window.google.maps.LatLngBounds(); path.forEach((p: any)=>bounds.extend(p)); if(map) map.fitBounds(bounds)
+    
+    // Fetch elevation data
+    try {
+      const elevResponse = await fetch(`/api/route/${id}/elevation`)
+      if (elevResponse.ok) {
+        const elevData = await elevResponse.json()
+        // Transform elevation data for chart
+        const chartData = elevData.elevationData?.map((point: any, index: number) => ({
+          distance: Number((point.distance / 1000).toFixed(2)), // Convert to km with 2 decimal places
+          elevation: Number(point.elevation.toFixed(1)), // Round elevation to 1 decimal
+          distanceM: point.distance, // Keep original distance in meters for tooltip
+          index
+        })) || []
+        setElevationData(chartData)
+        console.log('Elevation data loaded:', chartData.length, 'points')
+      } else {
+        console.warn('Failed to fetch elevation data:', elevResponse.status)
+        setElevationData([])
+      }
+    } catch (error) {
+      console.error('Failed to fetch elevation data:', error)
+      setElevationData([])
+    }
   }
 
   function clearMarkers(){
     markers.forEach((m: any)=>m.setMap(null)); setMarkers([])
+    if (routePolyline) {
+      routePolyline.setMap(null)
+      setRoutePolyline(null)
+    }
+    setElevationData([])
+    setShowElevation(false)
   }
 
   async function searchPOIs(){
@@ -208,6 +273,8 @@ export default function App(){
                                     }
                                   } else {
                                     setSelectedRouteId(null)
+                                    setElevationData([])
+                                    setShowElevation(false)
                                   }
                                 }}
                               >
@@ -276,9 +343,82 @@ export default function App(){
       <SidebarInset>
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger />
+          {selectedRouteId && elevationData.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowElevation(!showElevation)}
+              className="ml-auto"
+            >
+              <Mountain className="h-4 w-4 mr-2" />
+              {showElevation ? 'Hide' : 'Show'} Elevation
+            </Button>
+          )}
         </header>
-        <div className="flex-1 relative">
-          <div id="map" ref={mapRef} className="absolute inset-0" />
+        <div className="flex flex-col flex-1">
+          <div className="flex-1 relative">
+            <div id="map" ref={mapRef} className="absolute inset-0" />
+          </div>
+          
+          {selectedRouteId && elevationData.length > 0 && (
+            <Collapsible open={showElevation} onOpenChange={setShowElevation}>
+              <CollapsibleContent className="border-t">
+                <Card className="rounded-none border-0">
+                  <CardHeader className="pb-4">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-base">Elevation Profile</CardTitle>
+                      <CollapsibleTrigger asChild>
+                        <Button variant="ghost" size="sm">
+                          {showElevation ? (
+                            <ChevronDown className="h-4 w-4" />
+                          ) : (
+                            <ChevronUp className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </CollapsibleTrigger>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    {elevationData.length > 0 ? (
+                      <ChartContainer config={chartConfig} className="h-[200px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={elevationData}>
+                            <XAxis 
+                              dataKey="distance" 
+                              tickFormatter={(value) => `${Number(value).toFixed(0)}km`}
+                              axisLine={false}
+                              tickLine={false}
+                              className="text-xs"
+                            />
+                            <YAxis 
+                              tickFormatter={(value) => `${Math.round(value)}m`}
+                              axisLine={false}
+                              tickLine={false}
+                              className="text-xs"
+                            />
+                            <ChartTooltip content={<CustomTooltip />} />
+                            <Area
+                              type="monotone"
+                              dataKey="elevation"
+                              stroke="hsl(var(--chart-1))"
+                              fill="hsl(var(--chart-1))"
+                              fillOpacity={0.6}
+                              strokeWidth={2}
+                              isAnimationActive={false}
+                            />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </ChartContainer>
+                    ) : (
+                      <div className="h-[200px] flex items-center justify-center text-muted-foreground">
+                        No elevation data available for this route
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </CollapsibleContent>
+            </Collapsible>
+          )}
         </div>
       </SidebarInset>
     </SidebarProvider>

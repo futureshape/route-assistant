@@ -190,6 +190,34 @@ app.get('/api/route/:id', async (req, res) => {
   }
 });
 
+// Get route track points with elevation data
+app.get('/api/route/:id/elevation', async (req, res) => {
+  if (!req.session.rwgps || !req.session.rwgps.access_token) return res.status(401).send({ error: 'Not authenticated' });
+  try {
+    const id = req.params.id;
+    const r = await axios.get(`https://ridewithgps.com/api/v1/routes/${id}.json`, {
+      headers: { Authorization: `Bearer ${req.session.rwgps.access_token}`, Accept: 'application/json' }
+    });
+    const data = r.data;
+    
+    if (!data || !data.route || !Array.isArray(data.route.track_points)) {
+      return res.json({ elevationData: [] });
+    }
+    
+    // Extract elevation data from track points
+    const elevationData = data.route.track_points.map((point, index) => ({
+      distance: point.d || 0, // Distance in meters
+      elevation: point.e || 0, // Elevation in meters
+      index
+    })).filter(point => point.distance !== undefined && point.elevation !== undefined);
+    
+    res.json({ elevationData });
+  } catch (err) {
+    logAxiosError('Failed to fetch route elevation', err);
+    res.status(500).send({ error: 'Failed to fetch route elevation' });
+  }
+});
+
 // Expose session info for debugging
 app.get('/api/session', (req, res) => {
   res.json({ authenticated: !!(req.session.rwgps && req.session.rwgps.access_token) });
