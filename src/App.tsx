@@ -16,7 +16,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Sidebar,
   SidebarContent,
@@ -65,6 +64,7 @@ declare global {
 export default function App(){
   const mapRef = useRef<HTMLDivElement>(null)
   const hoverMarkerRef = useRef<any>(null)
+  const allMarkersRef = useRef<any[]>([])
   const [map, setMap] = useState<any>(null)
   const [authenticated, setAuthenticated] = useState(false)
   const [routes, setRoutes] = useState<any[]>([])
@@ -252,7 +252,17 @@ export default function App(){
   }
 
   function clearMarkers(){
-    markers.forEach((m: any)=>m.setMap(null)); setMarkers([])
+    // Clear ALL markers we've ever created
+    allMarkersRef.current.forEach((m: any) => {
+      if (m && m.setMap) {
+        m.setMap(null)
+      }
+    })
+    allMarkersRef.current = []
+    
+    setMarkers([])
+    setResults([])
+    
     if (routePolyline) {
       routePolyline.setMap(null)
       setRoutePolyline(null)
@@ -288,6 +298,10 @@ export default function App(){
       const mk = new window.google.maps.Marker({ position: { lat: p.lat, lng: p.lng }, map, title: p.name })
       const iw = new window.google.maps.InfoWindow({ content: `<strong>${p.name||'Place'}</strong>${p.googleMapsUri?`<br/><a href=\"${p.googleMapsUri}\" target=\"_blank\">Open in Google Maps</a>`:''}` })
       mk.addListener('click', ()=> iw.open({ map, anchor: mk }))
+      
+      // Track this marker in our comprehensive list
+      allMarkersRef.current.push(mk)
+      
       return mk
     })
     setMarkers(mks)
@@ -404,19 +418,6 @@ export default function App(){
                   <Button onClick={searchPOIs} size="sm">Search POIs</Button>
                   <Button onClick={clearMarkers} variant="outline" size="sm">Clear</Button>
                 </div>
-                <ScrollArea className="h-32">
-                  <div className="space-y-1">
-                    {results.map((r: any, i: number) => (
-                      <div key={i} className="text-sm p-1">
-                        {r.name} {r.googleMapsUri && (
-                          <a className="text-blue-600 hover:underline ml-1" href={r.googleMapsUri} target="_blank" rel="noreferrer">
-                            map
-                          </a>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
               </div>
             </SidebarGroupContent>
           </SidebarGroup>
