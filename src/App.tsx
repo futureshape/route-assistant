@@ -69,7 +69,6 @@ export default function App(){
   const [googleMapsApiKey, setGoogleMapsApiKey] = useState<string>('')
   const mapInstanceRef = useRef<any>(null)
   const [chartHoverPosition, setChartHoverPosition] = useState<{lat: number, lng: number} | null>(null)
-  const [routeWithDistance, setRouteWithDistance] = useState<{lat: number, lng: number, distance: number}[]>([]) // Route points with cumulative distance
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -255,6 +254,22 @@ export default function App(){
     const j = await r.json()
     console.log('[showRoute] Route data received:', j)
     
+    // Process elevation data from the unified response
+    if (j.elevationData && j.elevationData.length > 0) {
+      console.log('[showRoute] Processing elevation data with coordinates')
+      const chartData = j.elevationData.map((point: any, index: number) => ({
+        distance: Number((point.distance / 1000).toFixed(2)), // Convert to km
+        elevation: Number(point.elevation.toFixed(1)), // Round elevation
+        lat: point.lat, // Direct coordinate from backend
+        lng: point.lng, // Direct coordinate from backend
+        index
+      }))
+      setElevationData(chartData)
+      console.log('[showRoute] Elevation data loaded:', chartData.length, 'points')
+    } else {
+      setElevationData([])
+    }
+    
     const enc = j.route && j.route.encoded_polyline
     console.log('[showRoute] Encoded polyline:', enc ? `${enc.slice(0, 50)}...` : 'MISSING')
     
@@ -272,33 +287,13 @@ export default function App(){
       const path = window.google.maps.geometry.encoding.decodePath(enc)
       console.log('[showRoute] Decoded path points:', path.length)
       
-      // Convert to React-friendly format and calculate distances
+      // Convert to React-friendly format
       const routeCoordinates = path.map((point: any) => ({
         lat: point.lat(),
         lng: point.lng()
       }))
       
-      // Calculate cumulative distances for chart synchronization
-      const routeWithDistances: {lat: number, lng: number, distance: number}[] = []
-      let cumulativeDistance = 0
-      
-      for (let i = 0; i < routeCoordinates.length; i++) {
-        const coord = routeCoordinates[i]
-        
-        if (i > 0) {
-          const prev = routeCoordinates[i - 1]
-          const distance = window.google.maps.geometry.spherical.computeDistanceBetween(
-            new window.google.maps.LatLng(prev.lat, prev.lng),
-            new window.google.maps.LatLng(coord.lat, coord.lng)
-          )
-          cumulativeDistance += distance
-        }
-        
-        routeWithDistances.push({ ...coord, distance: cumulativeDistance })
-      }
-      
       setRoutePath(routeCoordinates)
-      setRouteWithDistance(routeWithDistances)
       
       // Update the selected route ID after successfully loading the route
       setSelectedRouteId(id.toString())
@@ -314,60 +309,18 @@ export default function App(){
       }, 100)
     }
     
-    // Fetch elevation data
-    try {
-      console.log('[showRoute] Fetching elevation data from /api/route/' + id + '/elevation')
-      const elevResponse = await fetch(`/api/route/${id}/elevation`)
-      console.log('[showRoute] Elevation fetch response status:', elevResponse.status, elevResponse.ok)
-      
-      if (elevResponse.ok) {
-        const elevData = await elevResponse.json()
-        console.log('[showRoute] Elevation data received:', elevData)
-        
-        // Transform elevation data for chart
-        const chartData = elevData.elevationData?.map((point: any, index: number) => ({
-          distance: Number((point.distance / 1000).toFixed(2)), // Convert to km with 2 decimal places
-          elevation: Number(point.elevation.toFixed(1)), // Round elevation to 1 decimal
-          distanceM: point.distance, // Keep original distance in meters for tooltip
-          index
-        })) || []
-        
-        setElevationData(chartData)
-        
-        console.log('[showRoute] Elevation data loaded:', chartData.length, 'points')
-      } else {
-        console.warn('[showRoute] Failed to fetch elevation data:', elevResponse.status)
-        const elevErrorText = await elevResponse.text()
-        console.warn('[showRoute] Elevation error response:', elevErrorText)
-        setElevationData([])
-      }
-    } catch (error) {
-      console.error('[showRoute] Failed to fetch elevation data:', error)
-      setElevationData([])
-    }
-    
     console.log('[showRoute] Completed successfully')
   }
 
   // Handle chart hover to show position on map
   const handleChartMouseMove = (state: any) => {
-    if (state && state.activePayload && state.activePayload[0] && routeWithDistance.length > 0) {
+    if (state && state.activePayload && state.activePayload[0]) {
       const dataPoint = state.activePayload[0].payload
-      const distanceM = dataPoint.distanceM // Distance in meters from elevation data
       
-      // Find the closest route point by distance
-      let closestPoint = routeWithDistance[0]
-      let minDiff = Math.abs(closestPoint.distance - distanceM)
-      
-      for (const point of routeWithDistance) {
-        const diff = Math.abs(point.distance - distanceM)
-        if (diff < minDiff) {
-          minDiff = diff
-          closestPoint = point
-        }
+      // The elevation data now includes lat/lng coordinates directly
+      if (dataPoint.lat && dataPoint.lng) {
+        setChartHoverPosition({ lat: dataPoint.lat, lng: dataPoint.lng })
       }
-      
-      setChartHoverPosition({ lat: closestPoint.lat, lng: closestPoint.lng })
     }
   }
 

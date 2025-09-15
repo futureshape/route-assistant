@@ -183,38 +183,33 @@ app.get('/api/route/:id', async (req, res) => {
       console.warn('Failed to build polyline from route.track_points', e && e.message);
     }
 
-    return res.json(data);
+    // Add enhanced elevation data with coordinates for chart-map synchronization
+    let elevationData = [];
+    if (data && data.route && Array.isArray(data.route.track_points)) {
+      elevationData = data.route.track_points.map((point, index) => ({
+        distance: point.d || 0, // Distance in meters
+        elevation: point.e || 0, // Elevation in meters
+        lat: point.y || 0, // Latitude (RWGPS uses y for latitude)
+        lng: point.x || 0, // Longitude (RWGPS uses x for longitude)
+        index
+      })).filter(point => 
+        point.distance !== undefined && 
+        point.elevation !== undefined &&
+        point.lat !== 0 &&
+        point.lng !== 0
+      );
+    }
+
+    // Add elevation data to the response
+    const response = {
+      ...data,
+      elevationData
+    };
+
+    return res.json(response);
   } catch (err) {
   logAxiosError('Failed to fetch route', err);
   return res.status(500).send({ error: 'Failed to fetch route' });
-  }
-});
-
-// Get route track points with elevation data
-app.get('/api/route/:id/elevation', async (req, res) => {
-  if (!req.session.rwgps || !req.session.rwgps.access_token) return res.status(401).send({ error: 'Not authenticated' });
-  try {
-    const id = req.params.id;
-    const r = await axios.get(`https://ridewithgps.com/api/v1/routes/${id}.json`, {
-      headers: { Authorization: `Bearer ${req.session.rwgps.access_token}`, Accept: 'application/json' }
-    });
-    const data = r.data;
-    
-    if (!data || !data.route || !Array.isArray(data.route.track_points)) {
-      return res.json({ elevationData: [] });
-    }
-    
-    // Extract elevation data from track points
-    const elevationData = data.route.track_points.map((point, index) => ({
-      distance: point.d || 0, // Distance in meters
-      elevation: point.e || 0, // Elevation in meters
-      index
-    })).filter(point => point.distance !== undefined && point.elevation !== undefined);
-    
-    res.json({ elevationData });
-  } catch (err) {
-    logAxiosError('Failed to fetch route elevation', err);
-    res.status(500).send({ error: 'Failed to fetch route elevation' });
   }
 });
 
