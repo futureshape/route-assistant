@@ -68,6 +68,8 @@ export default function App(){
   const [routePath, setRoutePath] = useState<any[]>([])
   const [googleMapsApiKey, setGoogleMapsApiKey] = useState<string>('')
   const mapInstanceRef = useRef<any>(null)
+  const [chartHoverPosition, setChartHoverPosition] = useState<{lat: number, lng: number} | null>(null)
+  const [routeWithDistance, setRouteWithDistance] = useState<{lat: number, lng: number, distance: number}[]>([]) // Route points with cumulative distance
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -270,13 +272,33 @@ export default function App(){
       const path = window.google.maps.geometry.encoding.decodePath(enc)
       console.log('[showRoute] Decoded path points:', path.length)
       
-      // Convert to React-friendly format
+      // Convert to React-friendly format and calculate distances
       const routeCoordinates = path.map((point: any) => ({
         lat: point.lat(),
         lng: point.lng()
       }))
       
+      // Calculate cumulative distances for chart synchronization
+      const routeWithDistances: {lat: number, lng: number, distance: number}[] = []
+      let cumulativeDistance = 0
+      
+      for (let i = 0; i < routeCoordinates.length; i++) {
+        const coord = routeCoordinates[i]
+        
+        if (i > 0) {
+          const prev = routeCoordinates[i - 1]
+          const distance = window.google.maps.geometry.spherical.computeDistanceBetween(
+            new window.google.maps.LatLng(prev.lat, prev.lng),
+            new window.google.maps.LatLng(coord.lat, coord.lng)
+          )
+          cumulativeDistance += distance
+        }
+        
+        routeWithDistances.push({ ...coord, distance: cumulativeDistance })
+      }
+      
       setRoutePath(routeCoordinates)
+      setRouteWithDistance(routeWithDistances)
       
       // Update the selected route ID after successfully loading the route
       setSelectedRouteId(id.toString())
@@ -327,15 +349,30 @@ export default function App(){
     console.log('[showRoute] Completed successfully')
   }
 
-    // Handle chart hover to show position on map
-  const handleChartMouseMove = (_state: any) => {
-    // TODO: Implement chart hover functionality with React Google Maps
-    // For now, this is disabled during the migration
+  // Handle chart hover to show position on map
+  const handleChartMouseMove = (state: any) => {
+    if (state && state.activePayload && state.activePayload[0] && routeWithDistance.length > 0) {
+      const dataPoint = state.activePayload[0].payload
+      const distanceM = dataPoint.distanceM // Distance in meters from elevation data
+      
+      // Find the closest route point by distance
+      let closestPoint = routeWithDistance[0]
+      let minDiff = Math.abs(closestPoint.distance - distanceM)
+      
+      for (const point of routeWithDistance) {
+        const diff = Math.abs(point.distance - distanceM)
+        if (diff < minDiff) {
+          minDiff = diff
+          closestPoint = point
+        }
+      }
+      
+      setChartHoverPosition({ lat: closestPoint.lat, lng: closestPoint.lng })
+    }
   }
 
   const handleChartMouseLeave = () => {
-    // TODO: Implement chart hover functionality with React Google Maps
-    // For now, this is disabled during the migration
+    setChartHoverPosition(null)
   }
 
   function clearMarkers(){
@@ -524,6 +561,23 @@ export default function App(){
                 >
                 {/* Route Polyline */}
                 {routePath.length > 0 && <RoutePolyline path={routePath} />}
+                
+                {/* Chart hover position marker */}
+                {chartHoverPosition && (
+                  <Marker
+                    position={chartHoverPosition}
+                    icon={{
+                      url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#ff6b6b" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <circle cx="12" cy="12" r="10"/>
+                          <circle cx="12" cy="12" r="3"/>
+                        </svg>
+                      `),
+                      scaledSize: new window.google.maps.Size(16, 16),
+                      anchor: new window.google.maps.Point(8, 8)
+                    }}
+                  />
+                )}
                 
                 {/* POI Markers */}
                 {markers.map((poi) => {
