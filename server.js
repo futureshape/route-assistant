@@ -59,7 +59,7 @@ if (!process.env.RWGPS_CLIENT_ID || !process.env.RWGPS_CLIENT_SECRET || !process
 
 // In production serve built client; in dev Vite middleware will be attached later
 app.use(express.static(clientDist, { index: false }));
-app.use(express.static(path.join(__dirname, 'public'), { index: false }));
+// Note: public static files will be served after Vite middleware in dev mode
 app.use(express.json());
 app.use(session({
   secret: process.env.SESSION_SECRET || 'dev-secret',
@@ -195,6 +195,31 @@ app.get('/api/session', (req, res) => {
   res.json({ authenticated: !!(req.session.rwgps && req.session.rwgps.access_token) });
 });
 
+// Get current user details
+app.get('/api/user', async (req, res) => {
+  if (!req.session.rwgps || !req.session.rwgps.access_token) return res.status(401).send({ error: 'Not authenticated' });
+  try {
+    const r = await axios.get('https://ridewithgps.com/api/v1/users/current.json', {
+      headers: { Authorization: `Bearer ${req.session.rwgps.access_token}`, Accept: 'application/json' }
+    });
+    res.json(r.data);
+  } catch (err) {
+    logAxiosError('Failed to fetch user details', err);
+    res.status(500).send({ error: 'Failed to fetch user details' });
+  }
+});
+
+// Logout endpoint
+app.post('/api/logout', (req, res) => {
+  req.session.destroy((err) => {
+    if (err) {
+      console.error('Session destruction error:', err);
+      return res.status(500).send({ error: 'Logout failed' });
+    }
+    res.json({ success: true });
+  });
+});
+
 // Search Along Route proxy using Places Web Service (Text Search New)
 // Expects JSON: { textQuery: string, encodedPolyline: string, routingOrigin?: { latitude, longitude } }
 app.post('/api/search-along-route', async (req, res) => {
@@ -286,6 +311,10 @@ async function start(){
       console.warn('Vite not available; falling back to static serving. To enable unified dev server, install vite in client and run with NODE_ENV!=production. Error:', err && err.message);
     }
   }
+  
+  // Serve public static files AFTER Vite middleware to ensure they take precedence
+  app.use(express.static(path.join(__dirname, 'public'), { index: false }));
+  
   app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT} (${isProd ? 'prod' : 'dev'})`));
 }
 
