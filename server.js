@@ -223,6 +223,11 @@ app.get('/api/session', (req, res) => {
   res.json({ authenticated: !!(req.session.rwgps && req.session.rwgps.access_token) });
 });
 
+// Provide Google Maps API key to client
+app.get('/api/google-maps-key', (req, res) => {
+  res.json({ apiKey: process.env.GOOGLE_API_KEY || '' });
+});
+
 // Get current user details
 app.get('/api/user', async (req, res) => {
   if (!req.session.rwgps || !req.session.rwgps.access_token) return res.status(401).send({ error: 'Not authenticated' });

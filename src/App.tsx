@@ -66,11 +66,27 @@ export default function App(){
   const [mapCenter, setMapCenter] = useState({lat: 39.5, lng: -98.35})
   const [mapZoom, setMapZoom] = useState(4)
   const [routePath, setRoutePath] = useState<any[]>([])
+  const [googleMapsApiKey, setGoogleMapsApiKey] = useState<string>('')
+  const mapInstanceRef = useRef<any>(null)
 
   // Keep ref in sync with state
   useEffect(() => {
     markerStatesRef.current = markerStates
   }, [markerStates])
+
+  // Fetch Google Maps API key on mount
+  useEffect(() => {
+    const fetchApiKey = async () => {
+      try {
+        const response = await fetch('/api/google-maps-key')
+        const data = await response.json()
+        setGoogleMapsApiKey(data.apiKey || '')
+      } catch (error) {
+        console.error('Failed to fetch Google Maps API key:', error)
+      }
+    }
+    fetchApiKey()
+  }, [])
 
   // Chart configuration for elevation profile
   const chartConfig = {
@@ -154,23 +170,22 @@ export default function App(){
     const map = useMap()
     
     useEffect(() => {
+      // Store map reference for use in showRoute
+      mapInstanceRef.current = map
+    }, [map])
+    
+    useEffect(() => {
       if (!map || !path || path.length === 0) return
       
       const polyline = new window.google.maps.Polyline({
         path: path,
-        strokeColor: '#007bff',
+        geodesic: true,
+        strokeColor: '#2563eb',
         strokeWeight: 4,
         strokeOpacity: 0.8
       })
       
       polyline.setMap(map)
-      
-      // Fit bounds to the polyline with proper padding
-      if (path.length > 0) {
-        const bounds = new window.google.maps.LatLngBounds()
-        path.forEach(coord => bounds.extend(coord))
-        map.fitBounds(bounds, 50) // 50px padding on all sides
-      }
       
       return () => {
         polyline.setMap(null)
@@ -263,20 +278,18 @@ export default function App(){
       
       setRoutePath(routeCoordinates)
       
-      // Fit map bounds to route
-      if (routeCoordinates.length > 0) {
-        const bounds = new window.google.maps.LatLngBounds()
-        routeCoordinates.forEach(coord => bounds.extend(coord))
-        
-        // Set center from bounds
-        const center = bounds.getCenter()
-        setMapCenter({ lat: center.lat(), lng: center.lng() })
-        
-        // Use Google Maps' built-in zoom calculation with some padding
-        // We'll let the map component handle the zoom automatically via bounds
-        // For now, set a reasonable default zoom that will be overridden
-        // setMapZoom(10)
-      }
+      // Update the selected route ID after successfully loading the route
+      setSelectedRouteId(id.toString())
+      
+      // Fit map bounds to the route after a short delay to ensure map is ready
+      setTimeout(() => {
+        if (mapInstanceRef.current && routeCoordinates.length > 0) {
+          console.log('[showRoute] Fitting bounds for route with', routeCoordinates.length, 'points')
+          const bounds = new window.google.maps.LatLngBounds()
+          routeCoordinates.forEach(coord => bounds.extend(coord))
+          mapInstanceRef.current.fitBounds(bounds, 50)
+        }
+      }, 100)
     }
     
     // Fetch elevation data
@@ -405,8 +418,6 @@ export default function App(){
                                     const selectedRoute = routes.find(r => r.id.toString() === currentValue)
                                     console.log('[Route Selection] Found route:', selectedRoute)
                                     if (selectedRoute) {
-                                      console.log('[Route Selection] Setting selectedRouteId to:', selectedRoute.id.toString())
-                                      setSelectedRouteId(selectedRoute.id.toString())
                                       console.log('[Route Selection] Calling showRoute with id:', selectedRoute.id)
                                       showRoute(selectedRoute.id)
                                     } else {
@@ -499,17 +510,18 @@ export default function App(){
         </header>
         <div className="flex flex-col flex-1">
           <div className="flex-1 relative">
-            <APIProvider apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''} libraries={['geometry']}>
-              <Map
-                center={mapCenter}
-                zoom={mapZoom}
-                mapTypeId="roadmap"
-                style={{ width: '100%', height: '100%' }}
-                onCameraChanged={(event) => {
-                  setMapCenter(event.detail.center)
-                  setMapZoom(event.detail.zoom)
-                }}
-              >
+            {googleMapsApiKey ? (
+              <APIProvider apiKey={googleMapsApiKey} libraries={['geometry', 'places']}>
+                <Map
+                  defaultCenter={mapCenter}
+                  defaultZoom={mapZoom}
+                  mapTypeId="roadmap"
+                  style={{ width: '100%', height: '100%' }}
+                  onCameraChanged={(event) => {
+                    setMapCenter(event.detail.center)
+                    setMapZoom(event.detail.zoom)
+                  }}
+                >
                 {/* Route Polyline */}
                 {routePath.length > 0 && <RoutePolyline path={routePath} />}
                 
@@ -575,6 +587,14 @@ export default function App(){
                 )}
               </Map>
             </APIProvider>
+            ) : (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center space-y-4">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                  <p className="text-gray-600">Loading Google Maps...</p>
+                </div>
+              </div>
+            )}
           </div>
           
           {selectedRouteId && elevationData.length > 0 && (
