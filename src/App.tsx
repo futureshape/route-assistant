@@ -374,12 +374,7 @@ export default function App(){
           console.debug('[Popup] Close button clicked')
           e.preventDefault()
           e.stopPropagation()
-          // Force immediate DOM removal so it disappears without requiring a redraw
-          if (this.div && this.div.parentNode) {
-            this.div.parentNode.removeChild(this.div)
-            this.div = null
-          }
-          // Also detach overlay from map to run cleanup
+          // Immediately detach from map which will trigger onRemove and cleanup
           this.setMap(null)
           customOverlayRef.current = null
         }
@@ -396,14 +391,20 @@ export default function App(){
       // Close the overlay on any map click outside the popup
       this.mapClickListener = map.addListener('click', () => {
         console.debug('[Popup] Map click close triggered')
-        // Remove DOM immediately then detach overlay
-        if (this.div && this.div.parentNode) {
-          this.div.parentNode.removeChild(this.div)
-          this.div = null
-        }
+        // Detach from map which will trigger onRemove and cleanup
         this.setMap(null)
         customOverlayRef.current = null
       })
+
+      // Close on Esc key press
+      this.keydownListener = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          console.debug('[Popup] Esc key close triggered')
+          this.setMap(null)
+          customOverlayRef.current = null
+        }
+      }
+      document.addEventListener('keydown', this.keydownListener)
     }
     
     overlay.draw = function() {
@@ -431,6 +432,11 @@ export default function App(){
         window.google.maps.event.removeListener(this.mapClickListener)
       }
       
+      // Remove keydown listener
+      if (this.keydownListener) {
+        document.removeEventListener('keydown', this.keydownListener)
+      }
+      
       // Remove DOM element
       if (this.div && this.div.parentNode) {
         this.div.parentNode.removeChild(this.div)
@@ -441,6 +447,7 @@ export default function App(){
       this.closeBtn = null
       this.closeHandler = null
       this.mapClickListener = null
+      this.keydownListener = null
     }
     
     overlay.setMap(map)
