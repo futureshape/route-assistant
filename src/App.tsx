@@ -448,7 +448,7 @@ export default function App(){
   }
 
   function clearMarkers(){
-    // Clear ALL markers we've ever created
+    // Clear POI markers we've created via search
     allMarkersRef.current.forEach((m: any) => {
       if (m && m.setMap) {
         m.setMap(null)
@@ -464,19 +464,8 @@ export default function App(){
       customOverlayRef.current.setMap(null)
       customOverlayRef.current = null
     }
-    
-    if (routePolyline) {
-      routePolyline.setMap(null)
-      setRoutePolyline(null)
-    }
-    if (hoverMarkerRef.current) {
-      hoverMarkerRef.current.setMap(null)
-      hoverMarkerRef.current = null
-      setHoverMarker(null)
-    }
-    setElevationData([])
-    setTrackPoints([])
-    setShowElevation(false)
+    // Intentionally do not clear the route polyline or elevation state here.
+    // The route should remain visible until a different route is selected.
   }
 
   async function searchPOIs(){
