@@ -51,6 +51,18 @@ declare global {
 
 export default function App(){
   const [authenticated, setAuthenticated] = useState(false)
+  // Read route color from CSS variable so it can be themed via CSS
+  const [routeColor, setRouteColor] = useState<string>('#fa6400')
+
+  useEffect(() => {
+    try {
+      const cs = getComputedStyle(document.documentElement)
+      const v = cs.getPropertyValue('--route-color')?.trim()
+      if (v) setRouteColor(v)
+    } catch (e) {
+      // ignore in non-browser environments
+    }
+  }, [])
   const [routes, setRoutes] = useState<any[]>([])
   const [open, setOpen] = useState(false)
   const [value, setValue] = useState("")
@@ -93,7 +105,7 @@ export default function App(){
   const chartConfig = {
     elevation: {
       label: "Elevation",
-      color: "hsl(var(--chart-1))",
+  color: "var(--route-color)",
     },
   } satisfies ChartConfig
 
@@ -140,9 +152,9 @@ export default function App(){
         anchor: new window.google.maps.Point(16, 32)
       }
     } else {
-      return {
+        return {
         url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="#3b82f6" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="${routeColor}" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
             <circle cx="12" cy="10" r="3"/>
           </svg>
@@ -178,10 +190,10 @@ export default function App(){
     useEffect(() => {
       if (!map || !path || path.length === 0) return
       
-      const polyline = new window.google.maps.Polyline({
+  const polyline = new window.google.maps.Polyline({
         path: path,
         geodesic: true,
-        strokeColor: '#2563eb',
+  strokeColor: routeColor,
         strokeWeight: 4,
         strokeOpacity: 0.8
       })
@@ -522,7 +534,7 @@ export default function App(){
                     position={chartHoverPosition}
                     icon={{
                       url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#ff6b6b" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="${routeColor}" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                           <circle cx="12" cy="12" r="10"/>
                           <circle cx="12" cy="12" r="3"/>
                         </svg>
@@ -649,8 +661,8 @@ export default function App(){
                             <Area
                               type="monotone"
                               dataKey="elevation"
-                              stroke="hsl(var(--chart-1))"
-                              fill="hsl(var(--chart-1))"
+                              stroke={routeColor}
+                              fill={routeColor}
                               fillOpacity={0.6}
                               strokeWidth={2}
                               isAnimationActive={false}
