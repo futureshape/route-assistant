@@ -462,6 +462,7 @@ export default function App(){
                   onChange={(e)=>setQuery(e.target.value)} 
                   onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); searchPOIs() } }}
                   placeholder="e.g., coffee, restroom, bike shop"
+                  name="poisearch"
                 />
                 <div className="flex gap-2">
                   <Button onClick={searchPOIs} size="sm">Search POIs</Button>
