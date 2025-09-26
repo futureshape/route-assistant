@@ -5,6 +5,7 @@ const axios = require('axios');
 const polyline = require('@mapbox/polyline');
 const qs = require('qs');
 const path = require('path');
+const { mapGoogleTypeToRideWithGPS, getRideWithGPSTypeId } = require('./poi-type-mapping');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -17,7 +18,7 @@ let viteServer = null; // in dev, populated with Vite middleware
 // Places API FieldMask to request specific fields (do not use env var per user request)
 // API reference: https://developers.google.com/maps/documentation/places/web-service/nearby-search
 // Include coordinates so the frontend can render markers
-const GOOGLE_PLACES_FIELDMASK = 'places.displayName,places.googleMapsUri,places.location';
+const GOOGLE_PLACES_FIELDMASK = 'places.displayName,places.googleMapsUri,places.location,places.primaryType';
 
 // Strict helper: convert route.track_points -> [[lat,lng],...]
 // Per user instruction, do NOT use heuristics. Only consider `route.track_points` if present.
@@ -276,14 +277,23 @@ app.patch('/api/route/:id/pois', async (req, res) => {
     console.log(`[PATCH POIs] Existing POIs JSON:`, JSON.stringify(existingPOIs, null, 2));
     
     // Prepare new POIs for RideWithGPS format
-    const formattedNewPOIs = pois.map(poi => ({
-      lat: poi.lat,
-      lng: poi.lng,
-      name: poi.name,
-      description: '',
-      poi_type_name: 'generic',
-      user_id: currentUserId
-    }));
+    const formattedNewPOIs = pois.map(poi => {
+      // Map Google Places primaryType to RideWithGPS POI type
+      const poiTypeName = mapGoogleTypeToRideWithGPS(poi.primaryType);
+      const poiTypeId = getRideWithGPSTypeId(poiTypeName);
+      
+      console.log(`[PATCH POIs] Mapping POI "${poi.name}": Google type "${poi.primaryType}" -> RideWithGPS "${poiTypeName}" (ID: ${poiTypeId})`);
+      
+      return {
+        lat: poi.lat,
+        lng: poi.lng,
+        name: poi.name,
+        description: '',
+        poi_type: poiTypeId,
+        poi_type_name: poiTypeName,
+        user_id: currentUserId
+      };
+    });
     
     console.log(`[PATCH POIs] Formatted new POIs:`, JSON.stringify(formattedNewPOIs, null, 2));
     

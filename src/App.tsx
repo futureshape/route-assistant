@@ -363,7 +363,13 @@ export default function App(){
       const loc = p.location || p.geoCode?.location || p.geometry?.location || p.center || {}
       const lat = loc.latitude ?? loc.lat ?? loc.latLng?.latitude
       const lng = loc.longitude ?? loc.lng ?? loc.latLng?.longitude
-      return { name: p.displayName?.text || p.name || '', googleMapsUri: p.googleMapsUri, lat: parseFloat(lat), lng: parseFloat(lng) }
+      return { 
+        name: p.displayName?.text || p.name || '', 
+        googleMapsUri: p.googleMapsUri, 
+        lat: parseFloat(lat), 
+        lng: parseFloat(lng),
+        primaryType: p.primaryType || 'establishment' // Include primaryType for backend POI type mapping
+      }
     }).filter((p: any)=> Number.isFinite(p.lat) && Number.isFinite(p.lng))
     
     // Set markers in React state (they'll be rendered by Map component)
