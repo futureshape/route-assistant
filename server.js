@@ -7,7 +7,7 @@ const qs = require('qs');
 const path = require('path');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 const isProd = process.env.NODE_ENV === 'production';
 const fs = require('fs');
 const clientRoot = __dirname;
@@ -121,6 +121,14 @@ app.get('/auth/ridewithgps/callback', async (req, res) => {
       return res.status(500).send('OAuth token exchange failed: missing access token');
     }
 
+    // Log successful token exchange (with FULL token for debugging)
+    const token = tokenRes.data.access_token;
+    console.log(`[OAuth] Token exchange successful. FULL Access token: ${token}`);
+    console.log(`[OAuth] Token data keys:`, Object.keys(tokenRes.data));
+    if (tokenRes.data.expires_in) {
+      console.log(`[OAuth] Token expires in: ${tokenRes.data.expires_in} seconds`);
+    }
+
     // store tokens in session (do not log token values)
     req.session.rwgps = tokenRes.data;
     res.redirect('/');
@@ -210,6 +218,112 @@ app.get('/api/route/:id', async (req, res) => {
   } catch (err) {
   logAxiosError('Failed to fetch route', err);
   return res.status(500).send({ error: 'Failed to fetch route' });
+  }
+});
+
+// PATCH route with POIs to RideWithGPS
+app.patch('/api/route/:id/pois', async (req, res) => {
+  if (!req.session.rwgps || !req.session.rwgps.access_token) return res.status(401).send({ error: 'Not authenticated' });
+  
+  const routeId = req.params.id;
+  const { pois } = req.body;
+  
+  console.log(`[PATCH POIs] Starting PATCH for route ${routeId} with ${pois?.length || 0} POIs`);
+  
+  if (!pois || !Array.isArray(pois)) {
+    console.log('[PATCH POIs] Error: Invalid POIs data');
+    return res.status(400).send({ error: 'POIs must be an array' });
+  }
+  
+  try {
+    // First, get the current route data to fetch existing POIs
+    // need 'x-rwgps-api-version': '3' so that we get POIs in the same format that we send them back
+    console.log(`[PATCH POIs] Fetching current route data for route ${routeId}`);
+    const routeResponse = await axios.get(`https://ridewithgps.com/routes/${routeId}.json`, {
+      headers: { Authorization: `Bearer ${req.session.rwgps.access_token}`, Accept: 'application/json', 'x-rwgps-api-version': '3' }
+    });
+    
+    const routeData = routeResponse.data;
+    console.log(`[PATCH POIs] Retrieved route data: ${routeData.route?.name || 'unnamed'}`);
+    // console.log(`[PATCH POIs] Retrieved route data: ${JSON.stringify(routeData, null, 2)}`);
+    
+    // Get current user ID (we only need this for the POI format)
+    console.log('[PATCH POIs] Fetching current user data');
+    const userResponse = await axios.get('https://ridewithgps.com/api/v1/users/current.json', {
+      headers: { Authorization: `Bearer ${req.session.rwgps.access_token}`, Accept: 'application/json' }
+    });
+    
+    const currentUserId = userResponse.data.user?.id;
+    console.log(`[PATCH POIs] Current user ID: ${currentUserId}`);
+    
+    if (!currentUserId) {
+      console.log('[PATCH POIs] Error: Could not get current user ID');
+      return res.status(500).send({ error: 'Could not get current user ID' });
+    }
+    
+    // Extract existing POIs from the "extras" array format (top level, not under route)
+    const existingPOIs = [];
+    if (routeData.extras && Array.isArray(routeData.extras)) {
+      for (const extra of routeData.extras) {
+        if (extra.type === 'point_of_interest' && extra.point_of_interest) {
+          // Keep the POI object as-is, don't change any keys
+          existingPOIs.push(extra.point_of_interest);
+        }
+      }
+    }
+    
+    console.log(`[PATCH POIs] Existing POIs count: ${existingPOIs.length}`);
+    console.log(`[PATCH POIs] Existing POIs JSON:`, JSON.stringify(existingPOIs, null, 2));
+    
+    // Prepare new POIs for RideWithGPS format
+    const formattedNewPOIs = pois.map(poi => ({
+      lat: poi.lat,
+      lng: poi.lng,
+      name: poi.name,
+      description: '',
+      poi_type_name: 'generic',
+      user_id: currentUserId
+    }));
+    
+    console.log(`[PATCH POIs] Formatted new POIs:`, JSON.stringify(formattedNewPOIs, null, 2));
+    
+    // Merge existing POIs with new ones
+    const allPOIs = [...existingPOIs, ...formattedNewPOIs];
+    
+    // Create PATCH payload with complete POI array
+    const patchPayload = {
+      route: {
+        points_of_interest: allPOIs
+      }
+    };
+    
+    console.log(`[PATCH POIs] Sending PATCH request to RideWithGPS for route ${routeId}`);
+    console.log(`[PATCH POIs] Total POIs: ${allPOIs.length} (${existingPOIs.length} existing + ${formattedNewPOIs.length} new)`);
+    
+    // Log the complete PATCH payload for debugging
+    console.log(`[PATCH POIs] PATCH PAYLOAD:`, JSON.stringify(patchPayload, null, 2));
+    
+    // Send PATCH request to RideWithGPS - use the web URL format, not API URL
+    const patchUrl = `https://ridewithgps.com/routes/${routeId}.json`;
+    console.log(`[PATCH POIs] PATCH URL: ${patchUrl}`);
+    
+    const patchResponse = await axios.patch(patchUrl, patchPayload, {
+      headers: { 
+        Authorization: `Bearer ${req.session.rwgps.access_token}`, 
+        Accept: 'application/json',
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    console.log(`[PATCH POIs] PATCH request successful: status ${patchResponse.status}`);
+    console.log(`[PATCH POIs] Response data:`, JSON.stringify(patchResponse.data).slice(0, 200) + '...');
+    
+    res.json({ success: true, addedPOIs: formattedNewPOIs.length, totalPOIs: allPOIs.length });
+    
+  } catch (err) {
+    console.error('[PATCH POIs] Error occurred:', err.message);
+    logAxiosError('Failed to patch route with POIs', err);
+    res.status(500).send({ error: 'Failed to update route with POIs' });
   }
 });
 

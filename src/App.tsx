@@ -370,6 +370,43 @@ export default function App(){
     setMarkers(norm)
   }
 
+  async function sendPOIsToRideWithGPS(){
+    if (!selectedRouteId) {
+      alert('Please select a route first')
+      return
+    }
+    
+    // Get selected POIs
+    const selectedPOIs = markers.filter(poi => {
+      const markerKey = getMarkerKey(poi)
+      return markerStates[markerKey] === 'selected'
+    })
+    
+    if (selectedPOIs.length === 0) {
+      alert('No POIs selected')
+      return
+    }
+    
+    try {
+      const response = await fetch(`/api/route/${selectedRouteId}/pois`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pois: selectedPOIs })
+      })
+      
+      if (!response.ok) {
+        const errorText = await response.text()
+        alert(`Failed to send POIs to RideWithGPS: ${errorText}`)
+        return
+      }
+      
+      alert(`Successfully sent ${selectedPOIs.length} POI(s) to RideWithGPS!`)
+    } catch (error) {
+      console.error('Error sending POIs:', error)
+      alert('An error occurred while sending POIs to RideWithGPS')
+    }
+  }
+
   return (
     <SidebarProvider>
       <Sidebar>
@@ -496,6 +533,14 @@ export default function App(){
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"/>
                 </svg>
                 <span>{selectedCount} marker{selectedCount !== 1 ? 's' : ''} selected</span>
+                <Button 
+                  onClick={sendPOIsToRideWithGPS} 
+                  size="sm" 
+                  className="ml-2"
+                  disabled={!selectedRouteId}
+                >
+                  Send to RideWithGPS
+                </Button>
               </div>
             ) : null
           })()}
