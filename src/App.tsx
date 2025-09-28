@@ -381,9 +381,26 @@ export default function App(){
   }
 
   function clearMarkers(){
-    // Clear all POI markers
-    setMarkers([])
-    setMarkerStates({}) // Reset marker states
+    // Only clear suggested POI markers - keep existing and selected ones
+    setMarkers(prev => prev.filter(poi => {
+      const markerKey = getMarkerKey(poi)
+      const state = markerStates[markerKey]
+      // Keep existing POIs and selected POIs, only remove suggested ones
+      return state === 'existing' || state === 'selected'
+    }))
+    
+    // Remove marker states for suggested POIs only
+    setMarkerStates(prev => {
+      const newStates: {[key: string]: 'suggested' | 'selected' | 'existing'} = {}
+      Object.entries(prev).forEach(([key, state]) => {
+        if (state === 'existing' || state === 'selected') {
+          newStates[key] = state
+        }
+        // Don't include 'suggested' states - effectively removes them
+      })
+      return newStates
+    })
+    
     setSelectedMarker(null)
     
     // Intentionally do not clear the route path or elevation state here.
@@ -412,8 +429,27 @@ export default function App(){
       }
     }).filter((p: any)=> Number.isFinite(p.lat) && Number.isFinite(p.lng))
     
-    // Set markers in React state (they'll be rendered by Map component)
-    setMarkers(norm)
+    // First remove any existing suggested POIs from previous searches
+    setMarkers(prev => prev.filter(poi => {
+      const markerKey = getMarkerKey(poi)
+      const state = markerStates[markerKey]
+      // Keep existing POIs and selected POIs, remove old suggested ones
+      return state === 'existing' || state === 'selected'
+    }))
+    
+    // Remove marker states for old suggested POIs
+    setMarkerStates(prev => {
+      const newStates: {[key: string]: 'suggested' | 'selected' | 'existing'} = {}
+      Object.entries(prev).forEach(([key, state]) => {
+        if (state === 'existing' || state === 'selected') {
+          newStates[key] = state
+        }
+      })
+      return newStates
+    })
+    
+    // Add new search results to markers (keeping existing and selected POIs)
+    setMarkers(prev => [...prev, ...norm])
   }
 
   async function sendPOIsToRideWithGPS(){
@@ -584,7 +620,7 @@ export default function App(){
                 <svg className="h-4 w-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"/>
                 </svg>
-                <span>{selectedCount} marker{selectedCount !== 1 ? 's' : ''} selected</span>
+                <span>{selectedCount} new point{selectedCount !== 1 ? 's' : ''}</span>
                 <Button 
                   onClick={sendPOIsToRideWithGPS} 
                   size="sm" 
