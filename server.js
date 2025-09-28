@@ -175,10 +175,31 @@ app.get('/api/route/:id', async (req, res) => {
   if (!req.session.rwgps || !req.session.rwgps.access_token) return res.status(401).send({ error: 'Not authenticated' });
   try {
     const id = req.params.id;
-    const r = await axios.get(`https://ridewithgps.com/api/v1/routes/${id}.json`, {
-      headers: { Authorization: `Bearer ${req.session.rwgps.access_token}`, Accept: 'application/json' }
+    
+    // Fetch route with API version 3 to get POIs in extras format
+    const r = await axios.get(`https://ridewithgps.com/routes/${id}.json`, {
+      headers: { 
+        Authorization: `Bearer ${req.session.rwgps.access_token}`, 
+        Accept: 'application/json',
+        'x-rwgps-api-version': '3'
+      }
     });
     const data = r.data;
+
+    // Extract existing POIs from the "extras" array format
+    const existingPOIs = [];
+    if (data.extras && Array.isArray(data.extras)) {
+      for (const extra of data.extras) {
+        if (extra.type === 'point_of_interest' && extra.point_of_interest) {
+          // Add POI with "existing" type for frontend display
+          const poi = {
+            ...extra.point_of_interest,
+            poiSource: 'existing' // Mark as existing POI
+          };
+          existingPOIs.push(poi);
+        }
+      }
+    }
 
     // If the route lacks an encoded polyline, build one strictly from route.track_points
     try {
@@ -209,10 +230,11 @@ app.get('/api/route/:id', async (req, res) => {
       );
     }
 
-    // Add elevation data to the response
+    // Add elevation data and existing POIs to the response
     const response = {
       ...data,
-      elevationData
+      elevationData,
+      existingPOIs // Include existing POIs for frontend display
     };
 
     return res.json(response);
