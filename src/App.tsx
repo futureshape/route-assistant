@@ -75,6 +75,7 @@ export default function App(){
   const [markerStates, setMarkerStates] = useState<{[key: string]: 'suggested' | 'selected' | 'existing'}>({}) // Track marker states by POI name+coordinates
   const markerStatesRef = useRef<{[key: string]: 'suggested' | 'selected' | 'existing'}>({}) // Ref to current marker states
   const [selectedMarker, setSelectedMarker] = useState<any>(null) // For InfoWindow
+  const [routeSwitchDialog, setRouteSwitchDialog] = useState<{show: boolean, newRoute: any, currentRouteName: string, selectedCount: number}>({show: false, newRoute: null, currentRouteName: '', selectedCount: 0})
   const [mapCenter, setMapCenter] = useState({lat: 39.5, lng: -98.35})
   const [mapZoom, setMapZoom] = useState(4)
   const [routePath, setRoutePath] = useState<any[]>([])
@@ -176,7 +177,56 @@ export default function App(){
     }
   }
 
-  // Helper: update marker state
+  // Helper: get current route name
+  function getCurrentRouteName() {
+    if (!selectedRouteId) return ''
+    const currentRoute = routes.find(r => r.id.toString() === selectedRouteId)
+    return currentRoute?.name || 'Unknown Route'
+  }
+
+  // Helper: handle route switching with confirmation if needed
+  async function handleRouteSwitch(newRoute: any) {
+    const selectedCount = Object.values(markerStates).filter(state => state === 'selected').length
+    
+    if (selectedCount > 0 && selectedRouteId) {
+      // Show confirmation dialog
+      setRouteSwitchDialog({
+        show: true,
+        newRoute,
+        currentRouteName: getCurrentRouteName(),
+        selectedCount
+      })
+    } else {
+      // No uncommitted POIs, switch directly
+      await showRoute(newRoute.id)
+    }
+  }
+
+  // Handle route switch dialog actions
+  const handleRouteSwitchAction = async (action: 'keep-editing' | 'keep-points' | 'clear-points') => {
+    const dialog = routeSwitchDialog
+    setRouteSwitchDialog({show: false, newRoute: null, currentRouteName: '', selectedCount: 0})
+    
+    switch (action) {
+      case 'keep-editing':
+        // Reset dropdown to current route and stay on current route
+        setValue(selectedRouteId || '')
+        break
+        
+      case 'keep-points':
+        // Switch route but keep the selected POIs (they'll become orphaned but still selected)
+        await showRoute(dialog.newRoute.id)
+        break
+        
+      case 'clear-points':
+        // Clear all markers and switch to new route
+        setMarkers([])
+        setMarkerStates({})
+        setSelectedMarker(null)
+        await showRoute(dialog.newRoute.id)
+        break
+    }
+  }
   function updateMarkerState(markerKey: string, newState: 'suggested' | 'selected' | 'existing') {
     // Don't allow changing state of existing POIs
     if (markerStates[markerKey] === 'existing') {
@@ -545,8 +595,8 @@ export default function App(){
                                     const selectedRoute = routes.find(r => r.id.toString() === currentValue)
                                     console.log('[Route Selection] Found route:', selectedRoute)
                                     if (selectedRoute) {
-                                      console.log('[Route Selection] Calling showRoute with id:', selectedRoute.id)
-                                      showRoute(selectedRoute.id)
+                                      console.log('[Route Selection] Calling handleRouteSwitch with route:', selectedRoute.name)
+                                      handleRouteSwitch(selectedRoute)
                                     } else {
                                       console.warn('[Route Selection] No route found for ID:', currentValue)
                                       console.warn('[Route Selection] Available route IDs:', routes.map(r => r.id.toString()))
@@ -826,6 +876,38 @@ export default function App(){
           )}
         </div>
       </SidebarInset>
+      
+      {/* Route Switch Confirmation Dialog */}
+      {routeSwitchDialog.show && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md mx-4 shadow-xl">
+            <h3 className="text-lg font-semibold mb-4">Unsaved Points</h3>
+            <p className="text-sm text-gray-600 mb-6">
+              You have {routeSwitchDialog.selectedCount} point{routeSwitchDialog.selectedCount !== 1 ? 's' : ''} selected for the route "{routeSwitchDialog.currentRouteName}" that you haven't sent to RideWithGPS. What do you want to do?
+            </p>
+            <div className="space-y-3">
+              <button
+                onClick={() => handleRouteSwitchAction('keep-editing')}
+                className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+              >
+                Keep editing "{routeSwitchDialog.currentRouteName}"
+              </button>
+              <button
+                onClick={() => handleRouteSwitchAction('keep-points')}
+                className="w-full px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 transition-colors"
+              >
+                Keep points and switch to "{routeSwitchDialog.newRoute?.name}"
+              </button>
+              <button
+                onClick={() => handleRouteSwitchAction('clear-points')}
+                className="w-full px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+              >
+                Clear points and switch to "{routeSwitchDialog.newRoute?.name}"
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </SidebarProvider>
   )
 }
