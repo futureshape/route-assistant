@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { setCookie } from '@/lib/utils'
+import { setCookie, getCookie } from '@/lib/utils'
 
 interface IntroScreenProps {
   open: boolean
@@ -19,9 +19,20 @@ interface IntroScreenProps {
 export function IntroScreen({ open, onOpenChange }: IntroScreenProps) {
   const [dontShowAgain, setDontShowAgain] = useState(false)
 
+  // Sync checkbox state with cookie when dialog opens
+  useEffect(() => {
+    if (open) {
+      const dismissed = getCookie('intro-screen-dismissed')
+      setDontShowAgain(dismissed === 'true')
+    }
+  }, [open])
+
   const handleClose = () => {
     if (dontShowAgain) {
       setCookie('intro-screen-dismissed', 'true', 365)
+    } else {
+      // If checkbox is unchecked, clear the cookie by setting it to expire in the past
+      setCookie('intro-screen-dismissed', '', -1)
     }
     onOpenChange(false)
   }
