@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, ChevronsUpDown, Mountain, ChevronUp, ChevronDown, HelpCircle } from 'lucide-react'
+import { Check, ChevronsUpDown, Mountain, ChevronUp, ChevronDown, HelpCircle, ListTodo } from 'lucide-react'
 import { APIProvider, Map, Marker, InfoWindow, useMap } from '@vis.gl/react-google-maps'
 import { cn, getCookie } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -81,6 +81,7 @@ export default function App(){
   const [mapZoom, setMapZoom] = useState(4)
   const [routePath, setRoutePath] = useState<any[]>([])
   const [googleMapsApiKey, setGoogleMapsApiKey] = useState<string>('')
+  const [googleMapsApiKeyLoaded, setGoogleMapsApiKeyLoaded] = useState<boolean>(false)
   const mapInstanceRef = useRef<any>(null)
   const [chartHoverPosition, setChartHoverPosition] = useState<{lat: number, lng: number} | null>(null)
   const [showIntroScreen, setShowIntroScreen] = useState(false)
@@ -97,8 +98,10 @@ export default function App(){
         const response = await fetch('/api/google-maps-key')
         const data = await response.json()
         setGoogleMapsApiKey(data.apiKey || '')
+        setGoogleMapsApiKeyLoaded(true)
       } catch (error) {
         console.error('Failed to fetch Google Maps API key:', error)
+        setGoogleMapsApiKeyLoaded(true)
       }
     }
     fetchApiKey()
@@ -715,111 +718,120 @@ export default function App(){
         </header>
         <div className="flex flex-col flex-1">
           <div className="flex-1 relative">
-            {googleMapsApiKey ? (
-              <APIProvider apiKey={googleMapsApiKey} libraries={['geometry', 'places']}>
-                <Map
-                  defaultCenter={mapCenter}
-                  defaultZoom={mapZoom}
-                  mapTypeId="roadmap"
-                  style={{ width: '100%', height: '100%' }}
-                  onCameraChanged={(event) => {
-                    setMapCenter(event.detail.center)
-                    setMapZoom(event.detail.zoom)
-                  }}
-                >
-                {/* Route Polyline */}
-                {routePath.length > 0 && <RoutePolyline path={routePath} />}
-                
-                {/* Chart hover position marker */}
-                {chartHoverPosition && (
-                  <Marker
-                    position={chartHoverPosition}
-                    icon={{
-                      url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="${routeColor}" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <circle cx="12" cy="12" r="10"/>
-                          <circle cx="12" cy="12" r="3"/>
-                        </svg>
-                      `),
-                      scaledSize: new window.google.maps.Size(16, 16),
-                      anchor: new window.google.maps.Point(8, 8)
+            {googleMapsApiKeyLoaded ? (
+              googleMapsApiKey && selectedRouteId ? (
+                <APIProvider apiKey={googleMapsApiKey} libraries={['geometry', 'places']}>
+                  <Map
+                    defaultCenter={mapCenter}
+                    defaultZoom={mapZoom}
+                    mapTypeId="roadmap"
+                    style={{ width: '100%', height: '100%' }}
+                    onCameraChanged={(event) => {
+                      setMapCenter(event.detail.center)
+                      setMapZoom(event.detail.zoom)
                     }}
-                  />
-                )}
-                
-                {/* POI Markers */}
-                {markers.map((poi) => {
-                  const markerKey = getMarkerKey(poi)
-                  const markerState = markerStates[markerKey] || 'suggested'
-                  
-                  return (
-                    <Marker
-                      key={markerKey}
-                      position={{ lat: poi.lat, lng: poi.lng }}
-                      title={poi.name}
-                      icon={getMarkerIcon(markerState)}
-                      onClick={() => handleMarkerClick(poi)}
-                    />
-                  )
-                })}
-                
-                {/* Info Window for selected marker */}
-                {selectedMarker && (
-                  <InfoWindow
-                    position={{ lat: selectedMarker.lat, lng: selectedMarker.lng }}
-                    onCloseClick={() => setSelectedMarker(null)}
                   >
-                    <div className="p-2 max-w-xs">
-                      <h3 className="font-bold text-sm mb-2">{selectedMarker.name}</h3>
-                      <div className="space-y-2">
-                        {selectedMarker.googleMapsUri && (
-                          <a 
-                            href={selectedMarker.googleMapsUri} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="text-blue-600 hover:underline text-xs block"
-                          >
-                            View on Google Maps
-                          </a>
-                        )}
-                        <div>
-                          {(() => {
-                            const markerKey = getMarkerKey(selectedMarker)
-                            const state = markerStates[markerKey] || 'suggested'
-                            
-                            if (state === 'existing') {
-                              return (
-                                <div className="text-xs text-gray-500 italic">
-                                  Existing POI • {selectedMarker.poi_type_name || 'generic'}
-                                </div>
-                              )
-                            } else if (state === 'suggested') {
-                              return (
-                                <button
-                                  onClick={() => updateMarkerState(markerKey, 'selected')}
-                                  className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs font-medium"
-                                >
-                                  Keep
-                                </button>
-                              )
-                            } else {
-                              return (
-                                <button
-                                  onClick={() => updateMarkerState(markerKey, 'suggested')}
-                                  className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-xs font-medium"
-                                >
-                                  Remove
-                                </button>
-                              )
-                            }
-                          })()}
+                  {/* Route Polyline */}
+                  {routePath.length > 0 && <RoutePolyline path={routePath} />}
+                  
+                  {/* Chart hover position marker */}
+                  {chartHoverPosition && (
+                    <Marker
+                      position={chartHoverPosition}
+                      icon={{
+                        url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="${routeColor}" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"/>
+                            <circle cx="12" cy="12" r="3"/>
+                          </svg>
+                        `),
+                        scaledSize: new window.google.maps.Size(16, 16),
+                        anchor: new window.google.maps.Point(8, 8)
+                      }}
+                    />
+                  )}
+                  
+                  {/* POI Markers */}
+                  {markers.map((poi) => {
+                    const markerKey = getMarkerKey(poi)
+                    const markerState = markerStates[markerKey] || 'suggested'
+                    
+                    return (
+                      <Marker
+                        key={markerKey}
+                        position={{ lat: poi.lat, lng: poi.lng }}
+                        title={poi.name}
+                        icon={getMarkerIcon(markerState)}
+                        onClick={() => handleMarkerClick(poi)}
+                      />
+                    )
+                  })}
+                  
+                  {/* Info Window for selected marker */}
+                  {selectedMarker && (
+                    <InfoWindow
+                      position={{ lat: selectedMarker.lat, lng: selectedMarker.lng }}
+                      onCloseClick={() => setSelectedMarker(null)}
+                    >
+                      <div className="p-2 max-w-xs">
+                        <h3 className="font-bold text-sm mb-2">{selectedMarker.name}</h3>
+                        <div className="space-y-2">
+                          {selectedMarker.googleMapsUri && (
+                            <a 
+                              href={selectedMarker.googleMapsUri} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:underline text-xs block"
+                            >
+                              View on Google Maps
+                            </a>
+                          )}
+                          <div>
+                            {(() => {
+                              const markerKey = getMarkerKey(selectedMarker)
+                              const state = markerStates[markerKey] || 'suggested'
+                              
+                              if (state === 'existing') {
+                                return (
+                                  <div className="text-xs text-gray-500 italic">
+                                    Existing POI • {selectedMarker.poi_type_name || 'generic'}
+                                  </div>
+                                )
+                              } else if (state === 'suggested') {
+                                return (
+                                  <button
+                                    onClick={() => updateMarkerState(markerKey, 'selected')}
+                                    className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs font-medium"
+                                  >
+                                    Keep
+                                  </button>
+                                )
+                              } else {
+                                return (
+                                  <button
+                                    onClick={() => updateMarkerState(markerKey, 'suggested')}
+                                    className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-xs font-medium"
+                                  >
+                                    Remove
+                                  </button>
+                                )
+                              }
+                            })()}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </InfoWindow>
-                )}
-              </Map>
-            </APIProvider>
+                    </InfoWindow>
+                  )}
+                </Map>
+              </APIProvider>
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center space-y-4">
+                    <ListTodo className="h-12 w-12 mx-auto text-muted-foreground" />
+                    <p className="text-muted-foreground">To get started, log in to RideWithGPS and select a route</p>
+                  </div>
+                </div>
+              )
             ) : (
               <div className="flex items-center justify-center h-full">
                 <div className="text-center space-y-4">
