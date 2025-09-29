@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, ChevronsUpDown, Mountain, ChevronUp, ChevronDown } from 'lucide-react'
+import { Check, ChevronsUpDown, Mountain, ChevronUp, ChevronDown, HelpCircle } from 'lucide-react'
 import { APIProvider, Map, Marker, InfoWindow, useMap } from '@vis.gl/react-google-maps'
-import { cn } from '@/lib/utils'
+import { cn, getCookie } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -41,6 +41,7 @@ import {
 } from '@/components/ui/chart'
 import { Area, AreaChart, XAxis, YAxis, ResponsiveContainer } from 'recharts'
 import { AuthHeader } from '@/components/AuthHeader'
+import { IntroScreen } from '@/components/IntroScreen'
 
 // Extend window interface for TypeScript
 declare global {
@@ -82,6 +83,7 @@ export default function App(){
   const [googleMapsApiKey, setGoogleMapsApiKey] = useState<string>('')
   const mapInstanceRef = useRef<any>(null)
   const [chartHoverPosition, setChartHoverPosition] = useState<{lat: number, lng: number} | null>(null)
+  const [showIntroScreen, setShowIntroScreen] = useState(false)
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -100,6 +102,14 @@ export default function App(){
       }
     }
     fetchApiKey()
+  }, [])
+
+  // Check if intro screen should be shown on mount
+  useEffect(() => {
+    const dismissed = getCookie('intro-screen-dismissed')
+    if (!dismissed) {
+      setShowIntroScreen(true)
+    }
   }, [])
 
   // Chart configuration for elevation profile
@@ -693,6 +703,15 @@ export default function App(){
               {showElevation ? 'Hide' : 'Show'} Elevation
             </Button>
           )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowIntroScreen(true)}
+            className={selectedRouteId && elevationData.length > 0 ? "ml-2" : "ml-auto"}
+            title="Help"
+          >
+            <HelpCircle className="h-4 w-4" />
+          </Button>
         </header>
         <div className="flex flex-col flex-1">
           <div className="flex-1 relative">
@@ -876,6 +895,10 @@ export default function App(){
           )}
         </div>
       </SidebarInset>
+      <IntroScreen 
+        open={showIntroScreen} 
+        onOpenChange={setShowIntroScreen} 
+      />
       
       {/* Route Switch Confirmation Dialog */}
       {routeSwitchDialog.show && (
