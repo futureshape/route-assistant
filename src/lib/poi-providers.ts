@@ -20,7 +20,7 @@ export interface POIResult {
   lat: number;
   lng: number;
   primaryType: string;
-  googleMapsUri?: string;
+  uri?: string;
   provider: string;
 }
 
@@ -30,6 +30,7 @@ export interface POIProvider {
   description: string;
   searchPOIs(params: POISearchParams): Promise<POIResult[]>;
   getSearchFormComponent(): React.ComponentType<POISearchFormProps>;
+  isEnabled(context?: any): boolean;
 }
 
 export interface POISearchFormProps {

@@ -39,6 +39,11 @@ export class GoogleMapsProvider implements POIProvider {
   name = 'Google Maps';
   description = 'Search for Points of Interest using Google Places API';
 
+  isEnabled(context?: any): boolean {
+    // Google Maps provider requires a route to be loaded
+    return !!(context?.routePath && context.routePath.length > 0);
+  }
+
   async searchPOIs(params: POISearchParams): Promise<POIResult[]> {
     const { textQuery, encodedPolyline, routingOrigin } = params;
     
@@ -47,7 +52,7 @@ export class GoogleMapsProvider implements POIProvider {
     }
 
     const payload = { textQuery, encodedPolyline, routingOrigin };
-    const response = await fetch('/api/search-along-route', { 
+    const response = await fetch('/api/poi-search/google-maps', { 
       method: 'POST', 
       headers: { 'Content-Type': 'application/json' }, 
       body: JSON.stringify(payload) 
@@ -67,7 +72,7 @@ export class GoogleMapsProvider implements POIProvider {
       const lng = loc.longitude ?? loc.lng ?? loc.latLng?.longitude;
       return { 
         name: p.displayName?.text || p.name || '', 
-        googleMapsUri: p.googleMapsUri, 
+        uri: p.googleMapsUri, 
         lat: parseFloat(lat), 
         lng: parseFloat(lng),
         primaryType: p.primaryType || 'establishment',

@@ -403,14 +403,13 @@ app.post('/api/logout', (req, res) => {
   });
 });
 
-// Search Along Route proxy using Places Web Service (Text Search New)
-// Expects JSON: { textQuery: string, encodedPolyline: string, routingOrigin?: { latitude, longitude } }
-app.post('/api/search-along-route', async (req, res) => {
+// Google Maps POI Search endpoint (moved to subpath)
+app.post('/api/poi-search/google-maps', async (req, res) => {
   const { textQuery, encodedPolyline, routingOrigin } = req.body || {};
   if (!textQuery || !encodedPolyline) return res.status(400).send({ error: 'textQuery and encodedPolyline required' });
   try {
     // Debug: log incoming request payload
-    console.info('[Places] Incoming search request:', { textQuery, encodedPolylineSnippet: (encodedPolyline || '').slice(0,50) + '...', routingOrigin });
+    console.info('[Google Maps POI] Incoming search request:', { textQuery, encodedPolylineSnippet: (encodedPolyline || '').slice(0,50) + '...', routingOrigin });
     const url = 'https://places.googleapis.com/v1/places:searchText';
     const body = {
       textQuery,
@@ -426,16 +425,16 @@ app.post('/api/search-along-route', async (req, res) => {
       'X-Goog-FieldMask': GOOGLE_PLACES_FIELDMASK
     };
     const maskedHeaders = { ...headers, 'X-Goog-Api-Key': headers['X-Goog-Api-Key'] ? '***REDACTED***' : '' };
-    console.debug('[Places] Sending request to Google:', { url, headers: maskedHeaders, body: { ...body, searchAlongRouteParameters: { polyline: { encodedPolyline: (encodedPolyline||'').slice(0,50) + '...' } } } });
+    console.debug('[Google Maps POI] Sending request to Google:', { url, headers: maskedHeaders, body: { ...body, searchAlongRouteParameters: { polyline: { encodedPolyline: (encodedPolyline||'').slice(0,50) + '...' } } } });
 
     const r = await axios.post(url, body, { headers });
 
     // Log response status and small snippet for debugging
     const respSnippet = r && r.data ? JSON.stringify(r.data).slice(0,2000) : `(no body)`;
-    console.info('[Places] Google response status=', r.status, 'snippet=', respSnippet.substring(0,1000));
+    console.info('[Google Maps POI] Google response status=', r.status, 'snippet=', respSnippet.substring(0,1000));
     res.json(r.data);
   } catch (err) {
-  logAxiosError('Search along route error', err);
+  logAxiosError('Google Maps POI search error', err);
   // Return error details to client for debugging (sanitized)
   const resp = err?.response;
   if (resp) {
@@ -449,8 +448,8 @@ app.post('/api/search-along-route', async (req, res) => {
   }
 });
 
-// Mock POI Provider - returns a sample POI at the center of the viewport
-app.post('/api/mock-poi-search', async (req, res) => {
+// Mock POI Provider endpoint (moved to subpath)
+app.post('/api/poi-search/mock', async (req, res) => {
   const { textQuery, mapBounds } = req.body || {};
   if (!textQuery) return res.status(400).send({ error: 'textQuery required' });
   
@@ -474,7 +473,7 @@ app.post('/api/mock-poi-search', async (req, res) => {
         longitude: centerLng
       },
       primaryType: 'establishment',
-      googleMapsUri: null // Mock provider doesn't have Google Maps URI
+      uri: null // Mock provider doesn't have URIs
     };
     
     // Return in the same format as Google Places API

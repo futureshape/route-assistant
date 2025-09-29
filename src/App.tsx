@@ -504,55 +504,70 @@ export default function App(){
   // Handle POI search using provider system
   async function handlePOISearch(provider: POIProvider, params: POISearchParams) {
     try {
-      // Add route data for providers that need it
-      const searchParams = { ...params };
+      // Prepare enhanced search parameters based on provider needs
+      const enhancedParams = await prepareSearchParams(provider, params);
       
-      if (provider.id === 'google' && routePath.length > 0) {
-        searchParams.encodedPolyline = window.lastFetchedEncodedPolyline || null;
-      }
+      console.log(`[POI Search] Using provider: ${provider.name}`, enhancedParams);
+      const results = await provider.searchPOIs(enhancedParams);
       
-      if (provider.id === 'mock' && mapInstanceRef.current) {
-        // Get current map bounds for mock provider
-        const bounds = mapInstanceRef.current.getBounds();
-        if (bounds) {
-          searchParams.mapBounds = {
-            north: bounds.getNorthEast().lat(),
-            south: bounds.getSouthWest().lat(),
-            east: bounds.getNorthEast().lng(),
-            west: bounds.getSouthWest().lng()
-          };
-        }
-      }
-
-      console.log(`[POI Search] Using provider: ${provider.name}`, searchParams);
-      const results = await provider.searchPOIs(searchParams);
+      // Generic result handling - display POIs on map
+      displayPOIResults(results);
       
-      // First remove any existing suggested POIs from previous searches
-      setMarkers(prev => prev.filter(poi => {
-        const markerKey = getMarkerKey(poi)
-        const state = markerStates[markerKey]
-        // Keep existing POIs and selected POIs, remove old suggested ones
-        return state === 'existing' || state === 'selected'
-      }))
-      
-      // Remove marker states for old suggested POIs
-      setMarkerStates(prev => {
-        const newStates: {[key: string]: 'suggested' | 'selected' | 'existing'} = {}
-        Object.entries(prev).forEach(([key, state]) => {
-          if (state === 'existing' || state === 'selected') {
-            newStates[key] = state
-          }
-        })
-        return newStates
-      })
-      
-      // Add new search results to markers
-      setMarkers(prev => [...prev, ...results])
-      console.log(`[POI Search] Found ${results.length} POIs from ${provider.name}`)
+      console.log(`[POI Search] Found ${results.length} POIs from ${provider.name}`);
     } catch (error) {
-      console.error('POI search failed:', error)
-      alert(`POI search failed: ${error}`)
+      console.error('POI search failed:', error);
+      alert(`POI search failed: ${error}`);
     }
+  }
+
+  // Prepare search parameters with context data each provider might need
+  async function prepareSearchParams(provider: POIProvider, params: POISearchParams): Promise<POISearchParams> {
+    const enhancedParams = { ...params };
+    
+    // Add route data if available (for Google Maps provider)
+    if (routePath.length > 0) {
+      enhancedParams.encodedPolyline = window.lastFetchedEncodedPolyline || null;
+    }
+    
+    // Add map bounds if map is available (for Mock provider)
+    if (mapInstanceRef.current) {
+      const bounds = mapInstanceRef.current.getBounds();
+      if (bounds) {
+        enhancedParams.mapBounds = {
+          north: bounds.getNorthEast().lat(),
+          south: bounds.getSouthWest().lat(),
+          east: bounds.getNorthEast().lng(),
+          west: bounds.getSouthWest().lng()
+        };
+      }
+    }
+    
+    return enhancedParams;
+  }
+
+  // Generic function to display POI results on the map
+  function displayPOIResults(results: any[]) {
+    // First remove any existing suggested POIs from previous searches
+    setMarkers(prev => prev.filter(poi => {
+      const markerKey = getMarkerKey(poi)
+      const state = markerStates[markerKey]
+      // Keep existing POIs and selected POIs, remove old suggested ones
+      return state === 'existing' || state === 'selected'
+    }))
+    
+    // Remove marker states for old suggested POIs
+    setMarkerStates(prev => {
+      const newStates: {[key: string]: 'suggested' | 'selected' | 'existing'} = {}
+      Object.entries(prev).forEach(([key, state]) => {
+        if (state === 'existing' || state === 'selected') {
+          newStates[key] = state
+        }
+      })
+      return newStates
+    })
+    
+    // Add new search results to markers
+    setMarkers(prev => [...prev, ...results])
   }
 
   async function sendPOIsToRideWithGPS(){
@@ -707,6 +722,9 @@ export default function App(){
                     >
                       {poiProviders.map((provider) => {
                         const SearchForm = provider.getSearchFormComponent();
+                        const providerContext = { routePath, mapBounds: mapInstanceRef.current?.getBounds() };
+                        const isEnabled = provider.isEnabled(providerContext);
+                        
                         return (
                           <AccordionItem key={provider.id} value={provider.id}>
                             <AccordionTrigger className="text-sm">
@@ -719,7 +737,7 @@ export default function App(){
                                 </p>
                                 <SearchForm 
                                   onSearch={(params) => handlePOISearch(provider, params)}
-                                  disabled={provider.id === 'google' && (!routePath || routePath.length === 0)}
+                                  disabled={!isEnabled}
                                 />
                               </div>
                             </AccordionContent>

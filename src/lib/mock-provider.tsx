@@ -42,11 +42,16 @@ export class MockProvider implements POIProvider {
   name = 'Mock Provider';
   description = 'Demo provider that returns a pin at the center of the viewport';
 
+  isEnabled(context?: any): boolean {
+    // Mock provider is always enabled
+    return true;
+  }
+
   async searchPOIs(params: POISearchParams): Promise<POIResult[]> {
     const { textQuery, mapBounds } = params;
     
     const payload = { textQuery, mapBounds };
-    const response = await fetch('/api/mock-poi-search', { 
+    const response = await fetch('/api/poi-search/mock', { 
       method: 'POST', 
       headers: { 'Content-Type': 'application/json' }, 
       body: JSON.stringify(payload) 
@@ -66,7 +71,7 @@ export class MockProvider implements POIProvider {
       const lng = loc.longitude ?? loc.lng;
       return { 
         name: p.displayName?.text || p.name || '', 
-        googleMapsUri: p.googleMapsUri || null, 
+        uri: p.uri || null, 
         lat: parseFloat(lat), 
         lng: parseFloat(lng),
         primaryType: p.primaryType || 'establishment',
