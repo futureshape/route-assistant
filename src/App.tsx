@@ -85,6 +85,7 @@ export default function App(){
   const mapInstanceRef = useRef<any>(null)
   const [chartHoverPosition, setChartHoverPosition] = useState<{lat: number, lng: number} | null>(null)
   const [showIntroScreen, setShowIntroScreen] = useState(false)
+  const [routeFullyLoaded, setRouteFullyLoaded] = useState(false)
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -327,6 +328,10 @@ export default function App(){
   async function showRoute(id: any){
     console.log('[showRoute] Starting with id:', id, 'type:', typeof id)
     
+    // Set the selected route ID immediately and reset loaded state
+    setSelectedRouteId(id.toString())
+    setRouteFullyLoaded(false)
+    
     clearMarkers()
     
     console.log('[showRoute] Fetching route data from /api/route/' + id)
@@ -410,9 +415,6 @@ export default function App(){
       
       setRoutePath(routeCoordinates)
       
-      // Update the selected route ID after successfully loading the route
-      setSelectedRouteId(id.toString())
-      
       // Fit map bounds to the route after a short delay to ensure map is ready
       setTimeout(() => {
         if (mapInstanceRef.current && routeCoordinates.length > 0) {
@@ -420,6 +422,12 @@ export default function App(){
           const bounds = new window.google.maps.LatLngBounds()
           routeCoordinates.forEach(coord => bounds.extend(coord))
           mapInstanceRef.current.fitBounds(bounds, 50)
+          
+          // Mark route as fully loaded after bounds are set
+          setTimeout(() => {
+            setRouteFullyLoaded(true)
+            console.log('[showRoute] Route fully loaded and displayed')
+          }, 100)
         }
       }, 100)
     }
@@ -719,20 +727,21 @@ export default function App(){
         <div className="flex flex-col flex-1">
           <div className="flex-1 relative">
             {googleMapsApiKeyLoaded ? (
-              googleMapsApiKey && selectedRouteId ? (
-                <APIProvider apiKey={googleMapsApiKey} libraries={['geometry', 'places']}>
-                  <Map
-                    defaultCenter={mapCenter}
-                    defaultZoom={mapZoom}
-                    mapTypeId="roadmap"
-                    style={{ width: '100%', height: '100%' }}
-                    onCameraChanged={(event) => {
-                      setMapCenter(event.detail.center)
-                      setMapZoom(event.detail.zoom)
-                    }}
-                  >
-                  {/* Route Polyline */}
-                  {routePath.length > 0 && <RoutePolyline path={routePath} />}
+              <div className="relative w-full h-full">
+                {googleMapsApiKey && (
+                  <APIProvider apiKey={googleMapsApiKey} libraries={['geometry', 'places']}>
+                    <Map
+                      defaultCenter={mapCenter}
+                      defaultZoom={mapZoom}
+                      mapTypeId="roadmap"
+                      style={{ width: '100%', height: '100%' }}
+                      onCameraChanged={(event) => {
+                        setMapCenter(event.detail.center)
+                        setMapZoom(event.detail.zoom)
+                      }}
+                    >
+                    {/* Route Polyline */}
+                    {routePath.length > 0 && <RoutePolyline path={routePath} />}
                   
                   {/* Chart hover position marker */}
                   {chartHoverPosition && (
@@ -822,16 +831,25 @@ export default function App(){
                       </div>
                     </InfoWindow>
                   )}
-                </Map>
-              </APIProvider>
-              ) : (
-                <div className="flex items-center justify-center h-full">
-                  <div className="text-center space-y-4">
-                    <ListTodo className="h-12 w-12 mx-auto text-muted-foreground" />
-                    <p className="text-muted-foreground">To get started, log in to RideWithGPS and select a route</p>
+                    </Map>
+                  </APIProvider>
+                )}
+                
+                {/* Overlay when no route is selected or route is not fully loaded */}
+                {(!selectedRouteId || !routeFullyLoaded) && (
+                  <div className="absolute inset-0 bg-background flex items-center justify-center z-10">
+                    <div className="text-center space-y-4">
+                      <ListTodo className="h-12 w-12 mx-auto text-muted-foreground" />
+                      <p className="text-muted-foreground">
+                        {!selectedRouteId 
+                          ? "To get started, log in to RideWithGPS and select a route"
+                          : "Loading route..."
+                        }
+                      </p>
+                    </div>
                   </div>
-                </div>
-              )
+                )}
+              </div>
             ) : (
               <div className="flex items-center justify-center h-full">
                 <div className="text-center space-y-4">
