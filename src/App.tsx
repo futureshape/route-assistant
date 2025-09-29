@@ -33,6 +33,14 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
+import { POIProvider, POISearchParams } from '@/lib/poi-providers'
+import { getEnabledProviders } from '@/lib/provider-registry'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   ChartConfig,
@@ -70,7 +78,6 @@ export default function App(){
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null)
 
   const [markers, setMarkers] = useState<any[]>([])
-  const [query, setQuery] = useState('')
   const [elevationData, setElevationData] = useState<any[]>([])
   const [showElevation, setShowElevation] = useState(false)
   const [markerStates, setMarkerStates] = useState<{[key: string]: 'suggested' | 'selected' | 'existing'}>({}) // Track marker states by POI name+coordinates
@@ -86,6 +93,8 @@ export default function App(){
   const [chartHoverPosition, setChartHoverPosition] = useState<{lat: number, lng: number} | null>(null)
   const [showIntroScreen, setShowIntroScreen] = useState(false)
   const [routeFullyLoaded, setRouteFullyLoaded] = useState(false)
+  const [poiProviders, setPOIProviders] = useState<POIProvider[]>([])
+  const [activeAccordionItem, setActiveAccordionItem] = useState<string>('')
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -106,6 +115,20 @@ export default function App(){
       }
     }
     fetchApiKey()
+  }, [])
+
+  // Load enabled POI providers
+  useEffect(() => {
+    const loadProviders = async () => {
+      try {
+        const providers = await getEnabledProviders()
+        setPOIProviders(providers)
+        console.log('Loaded POI providers:', providers.map(p => p.id))
+      } catch (error) {
+        console.error('Failed to load POI providers:', error)
+      }
+    }
+    loadProviders()
   }, [])
 
   // Check if intro screen should be shown on mount
@@ -478,28 +501,52 @@ export default function App(){
     // The route should remain visible until a different route is selected.
   }
 
-  async function searchPOIs(){
-    if (!routePath || routePath.length === 0){ alert('Please show a route first'); return }
-    const q = query.trim(); if (!q){ alert('Enter a search term'); return }
-    const encoded = window.lastFetchedEncodedPolyline || null
-    const payload = { textQuery: q, encodedPolyline: encoded }
-    const r = await fetch('/api/search-along-route', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(payload) })
-    if (!r.ok){ const t = await r.text(); alert('Search failed: ' + t); return }
-    const j = await r.json()
-    const places = j.places || []
-    const norm = places.map((p: any)=>{
-      const loc = p.location || p.geoCode?.location || p.geometry?.location || p.center || {}
-      const lat = loc.latitude ?? loc.lat ?? loc.latLng?.latitude
-      const lng = loc.longitude ?? loc.lng ?? loc.latLng?.longitude
-      return { 
-        name: p.displayName?.text || p.name || '', 
-        googleMapsUri: p.googleMapsUri, 
-        lat: parseFloat(lat), 
-        lng: parseFloat(lng),
-        primaryType: p.primaryType || 'establishment' // Include primaryType for backend POI type mapping
-      }
-    }).filter((p: any)=> Number.isFinite(p.lat) && Number.isFinite(p.lng))
+  // Handle POI search using provider system
+  async function handlePOISearch(provider: POIProvider, params: POISearchParams) {
+    try {
+      // Prepare enhanced search parameters based on provider needs
+      const enhancedParams = await prepareSearchParams(provider, params);
+      
+      console.log(`[POI Search] Using provider: ${provider.name}`, enhancedParams);
+      const results = await provider.searchPOIs(enhancedParams);
+      
+      // Generic result handling - display POIs on map
+      displayPOIResults(results);
+      
+      console.log(`[POI Search] Found ${results.length} POIs from ${provider.name}`);
+    } catch (error) {
+      console.error('POI search failed:', error);
+      alert(`POI search failed: ${error}`);
+    }
+  }
+
+  // Prepare search parameters with context data each provider might need
+  async function prepareSearchParams(provider: POIProvider, params: POISearchParams): Promise<POISearchParams> {
+    const enhancedParams = { ...params };
     
+    // Add route data if available (for Google Maps provider)
+    if (routePath.length > 0) {
+      enhancedParams.encodedPolyline = window.lastFetchedEncodedPolyline || null;
+    }
+    
+    // Add map bounds if map is available (for Mock provider)
+    if (mapInstanceRef.current) {
+      const bounds = mapInstanceRef.current.getBounds();
+      if (bounds) {
+        enhancedParams.mapBounds = {
+          north: bounds.getNorthEast().lat(),
+          south: bounds.getSouthWest().lat(),
+          east: bounds.getNorthEast().lng(),
+          west: bounds.getSouthWest().lng()
+        };
+      }
+    }
+    
+    return enhancedParams;
+  }
+
+  // Generic function to display POI results on the map
+  function displayPOIResults(results: any[]) {
     // First remove any existing suggested POIs from previous searches
     setMarkers(prev => prev.filter(poi => {
       const markerKey = getMarkerKey(poi)
@@ -519,8 +566,8 @@ export default function App(){
       return newStates
     })
     
-    // Add new search results to markers (keeping existing and selected POIs)
-    setMarkers(prev => [...prev, ...norm])
+    // Add new search results to markers
+    setMarkers(prev => [...prev, ...results])
   }
 
   async function sendPOIsToRideWithGPS(){
@@ -664,18 +711,49 @@ export default function App(){
           <SidebarGroup>
             <SidebarGroupLabel>Search POIs along route</SidebarGroupLabel>
             <SidebarGroupContent>
-              <div className="space-y-2 p-2">
-                <Input 
-                  value={query} 
-                  onChange={(e)=>setQuery(e.target.value)} 
-                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); searchPOIs() } }}
-                  placeholder="e.g., coffee, restroom, bike shop"
-                  name="poisearch"
-                />
-                <div className="flex gap-2">
-                  <Button onClick={searchPOIs} size="sm">Search POIs</Button>
-                  <Button onClick={clearMarkers} variant="outline" size="sm">Clear</Button>
-                </div>
+              <div className="p-2 space-y-2">
+                {poiProviders.length > 0 ? (
+                  <>
+                    <Accordion 
+                      type="single" 
+                      collapsible 
+                      value={activeAccordionItem}
+                      onValueChange={setActiveAccordionItem}
+                    >
+                      {poiProviders.map((provider) => {
+                        const SearchForm = provider.getSearchFormComponent();
+                        const providerContext = { routePath, mapBounds: mapInstanceRef.current?.getBounds() };
+                        const isEnabled = provider.isEnabled(providerContext);
+                        
+                        return (
+                          <AccordionItem key={provider.id} value={provider.id}>
+                            <AccordionTrigger className="text-sm">
+                              {provider.name}
+                            </AccordionTrigger>
+                            <AccordionContent>
+                              <div className="space-y-2">
+                                <p className="text-xs text-muted-foreground">
+                                  {provider.description}
+                                </p>
+                                <SearchForm 
+                                  onSearch={(params) => handlePOISearch(provider, params)}
+                                  disabled={!isEnabled}
+                                />
+                              </div>
+                            </AccordionContent>
+                          </AccordionItem>
+                        );
+                      })}
+                    </Accordion>
+                    <div className="pt-2">
+                      <Button onClick={clearMarkers} variant="outline" size="sm" className="w-full">
+                        Clear All POIs
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-sm text-muted-foreground">Loading POI providers...</div>
+                )}
               </div>
             </SidebarGroupContent>
           </SidebarGroup>
