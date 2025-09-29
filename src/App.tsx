@@ -73,9 +73,10 @@ export default function App(){
   const [query, setQuery] = useState('')
   const [elevationData, setElevationData] = useState<any[]>([])
   const [showElevation, setShowElevation] = useState(false)
-  const [markerStates, setMarkerStates] = useState<{[key: string]: 'suggested' | 'selected'}>({}) // Track marker states by POI name+coordinates
-  const markerStatesRef = useRef<{[key: string]: 'suggested' | 'selected'}>({}) // Ref to current marker states
+  const [markerStates, setMarkerStates] = useState<{[key: string]: 'suggested' | 'selected' | 'existing'}>({}) // Track marker states by POI name+coordinates
+  const markerStatesRef = useRef<{[key: string]: 'suggested' | 'selected' | 'existing'}>({}) // Ref to current marker states
   const [selectedMarker, setSelectedMarker] = useState<any>(null) // For InfoWindow
+  const [routeSwitchDialog, setRouteSwitchDialog] = useState<{show: boolean, newRoute: any, currentRouteName: string, selectedCount: number}>({show: false, newRoute: null, currentRouteName: '', selectedCount: 0})
   const [mapCenter, setMapCenter] = useState({lat: 39.5, lng: -98.35})
   const [mapZoom, setMapZoom] = useState(4)
   const [routePath, setRoutePath] = useState<any[]>([])
@@ -149,8 +150,19 @@ export default function App(){
   }
 
   // Helper: get marker icon based on state
-  function getMarkerIcon(state: 'suggested' | 'selected') {
-    if (state === 'selected') {
+  function getMarkerIcon(state: 'suggested' | 'selected' | 'existing') {
+    if (state === 'existing') {
+      return {
+        url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="#6b7280" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
+            <circle cx="12" cy="10" r="3"/>
+          </svg>
+        `),
+        scaledSize: new window.google.maps.Size(28, 28),
+        anchor: new window.google.maps.Point(14, 28)
+      }
+    } else if (state === 'selected') {
       return {
         url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="#22c55e" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -175,8 +187,61 @@ export default function App(){
     }
   }
 
-  // Helper: update marker state
-  function updateMarkerState(markerKey: string, newState: 'suggested' | 'selected') {
+  // Helper: get current route name
+  function getCurrentRouteName() {
+    if (!selectedRouteId) return ''
+    const currentRoute = routes.find(r => r.id.toString() === selectedRouteId)
+    return currentRoute?.name || 'Unknown Route'
+  }
+
+  // Helper: handle route switching with confirmation if needed
+  async function handleRouteSwitch(newRoute: any) {
+    const selectedCount = Object.values(markerStates).filter(state => state === 'selected').length
+    
+    if (selectedCount > 0 && selectedRouteId) {
+      // Show confirmation dialog
+      setRouteSwitchDialog({
+        show: true,
+        newRoute,
+        currentRouteName: getCurrentRouteName(),
+        selectedCount
+      })
+    } else {
+      // No uncommitted POIs, switch directly
+      await showRoute(newRoute.id)
+    }
+  }
+
+  // Handle route switch dialog actions
+  const handleRouteSwitchAction = async (action: 'keep-editing' | 'keep-points' | 'clear-points') => {
+    const dialog = routeSwitchDialog
+    setRouteSwitchDialog({show: false, newRoute: null, currentRouteName: '', selectedCount: 0})
+    
+    switch (action) {
+      case 'keep-editing':
+        // Reset dropdown to current route and stay on current route
+        setValue(selectedRouteId || '')
+        break
+        
+      case 'keep-points':
+        // Switch route but keep the selected POIs (they'll become orphaned but still selected)
+        await showRoute(dialog.newRoute.id)
+        break
+        
+      case 'clear-points':
+        // Clear all markers and switch to new route
+        setMarkers([])
+        setMarkerStates({})
+        setSelectedMarker(null)
+        await showRoute(dialog.newRoute.id)
+        break
+    }
+  }
+  function updateMarkerState(markerKey: string, newState: 'suggested' | 'selected' | 'existing') {
+    // Don't allow changing state of existing POIs
+    if (markerStates[markerKey] === 'existing') {
+      return
+    }
     setMarkerStates(prev => ({
       ...prev,
       [markerKey]: newState
@@ -292,6 +357,31 @@ export default function App(){
       setElevationData([])
     }
     
+    // Process existing POIs from the route
+    if (j.existingPOIs && j.existingPOIs.length > 0) {
+      console.log('[showRoute] Processing existing POIs:', j.existingPOIs.length)
+      const existingPOIsForMap = j.existingPOIs.map((poi: any) => ({
+        name: poi.name || 'Unnamed POI',
+        lat: poi.lat,
+        lng: poi.lng,
+        poiSource: 'existing',
+        poi_type_name: poi.poi_type_name || 'generic'
+      }))
+      
+      // Add existing POIs to markers and set their state to 'existing'
+      setMarkers(prev => [...prev, ...existingPOIsForMap])
+      
+      // Set marker states for existing POIs
+      const existingMarkerStates: {[key: string]: 'existing'} = {}
+      existingPOIsForMap.forEach((poi: any) => {
+        const markerKey = getMarkerKey(poi)
+        existingMarkerStates[markerKey] = 'existing'
+      })
+      
+      setMarkerStates(prev => ({ ...prev, ...existingMarkerStates }))
+      console.log('[showRoute] Existing POIs loaded:', existingPOIsForMap.length)
+    }
+    
     const enc = j.route && j.route.encoded_polyline
     console.log('[showRoute] Encoded polyline:', enc ? `${enc.slice(0, 50)}...` : 'MISSING')
     
@@ -351,9 +441,26 @@ export default function App(){
   }
 
   function clearMarkers(){
-    // Clear all POI markers
-    setMarkers([])
-    setMarkerStates({}) // Reset marker states
+    // Only clear suggested POI markers - keep existing and selected ones
+    setMarkers(prev => prev.filter(poi => {
+      const markerKey = getMarkerKey(poi)
+      const state = markerStates[markerKey]
+      // Keep existing POIs and selected POIs, only remove suggested ones
+      return state === 'existing' || state === 'selected'
+    }))
+    
+    // Remove marker states for suggested POIs only
+    setMarkerStates(prev => {
+      const newStates: {[key: string]: 'suggested' | 'selected' | 'existing'} = {}
+      Object.entries(prev).forEach(([key, state]) => {
+        if (state === 'existing' || state === 'selected') {
+          newStates[key] = state
+        }
+        // Don't include 'suggested' states - effectively removes them
+      })
+      return newStates
+    })
+    
     setSelectedMarker(null)
     
     // Intentionally do not clear the route path or elevation state here.
@@ -382,8 +489,27 @@ export default function App(){
       }
     }).filter((p: any)=> Number.isFinite(p.lat) && Number.isFinite(p.lng))
     
-    // Set markers in React state (they'll be rendered by Map component)
-    setMarkers(norm)
+    // First remove any existing suggested POIs from previous searches
+    setMarkers(prev => prev.filter(poi => {
+      const markerKey = getMarkerKey(poi)
+      const state = markerStates[markerKey]
+      // Keep existing POIs and selected POIs, remove old suggested ones
+      return state === 'existing' || state === 'selected'
+    }))
+    
+    // Remove marker states for old suggested POIs
+    setMarkerStates(prev => {
+      const newStates: {[key: string]: 'suggested' | 'selected' | 'existing'} = {}
+      Object.entries(prev).forEach(([key, state]) => {
+        if (state === 'existing' || state === 'selected') {
+          newStates[key] = state
+        }
+      })
+      return newStates
+    })
+    
+    // Add new search results to markers (keeping existing and selected POIs)
+    setMarkers(prev => [...prev, ...norm])
   }
 
   async function sendPOIsToRideWithGPS(){
@@ -392,14 +518,15 @@ export default function App(){
       return
     }
     
-    // Get selected POIs
+    // Get selected POIs (exclude existing POIs)
     const selectedPOIs = markers.filter(poi => {
       const markerKey = getMarkerKey(poi)
-      return markerStates[markerKey] === 'selected'
+      const state = markerStates[markerKey]
+      return state === 'selected' && poi.poiSource !== 'existing'
     })
     
     if (selectedPOIs.length === 0) {
-      alert('No POIs selected')
+      alert('No new POIs selected')
       return
     }
     
@@ -416,7 +543,12 @@ export default function App(){
         return
       }
       
-      alert(`Successfully sent ${selectedPOIs.length} POI(s) to RideWithGPS!`)
+      alert(`Successfully sent ${selectedPOIs.length} new POI(s) to RideWithGPS!`)
+      
+      // Reload the route to show updated POIs as "existing"
+      console.log('[sendPOIsToRideWithGPS] Reloading route to show updated POIs')
+      await showRoute(selectedRouteId)
+      
     } catch (error) {
       console.error('Error sending POIs:', error)
       alert('An error occurred while sending POIs to RideWithGPS')
@@ -473,8 +605,8 @@ export default function App(){
                                     const selectedRoute = routes.find(r => r.id.toString() === currentValue)
                                     console.log('[Route Selection] Found route:', selectedRoute)
                                     if (selectedRoute) {
-                                      console.log('[Route Selection] Calling showRoute with id:', selectedRoute.id)
-                                      showRoute(selectedRoute.id)
+                                      console.log('[Route Selection] Calling handleRouteSwitch with route:', selectedRoute.name)
+                                      handleRouteSwitch(selectedRoute)
                                     } else {
                                       console.warn('[Route Selection] No route found for ID:', currentValue)
                                       console.warn('[Route Selection] Available route IDs:', routes.map(r => r.id.toString()))
@@ -548,7 +680,7 @@ export default function App(){
                 <svg className="h-4 w-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"/>
                 </svg>
-                <span>{selectedCount} marker{selectedCount !== 1 ? 's' : ''} selected</span>
+                <span>{selectedCount} new point{selectedCount !== 1 ? 's' : ''}</span>
                 <Button 
                   onClick={sendPOIsToRideWithGPS} 
                   size="sm" 
@@ -654,21 +786,32 @@ export default function App(){
                           {(() => {
                             const markerKey = getMarkerKey(selectedMarker)
                             const state = markerStates[markerKey] || 'suggested'
-                            return state === 'suggested' ? (
-                              <button
-                                onClick={() => updateMarkerState(markerKey, 'selected')}
-                                className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs font-medium"
-                              >
-                                Keep
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => updateMarkerState(markerKey, 'suggested')}
-                                className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-xs font-medium"
-                              >
-                                Remove
-                              </button>
-                            )
+                            
+                            if (state === 'existing') {
+                              return (
+                                <div className="text-xs text-gray-500 italic">
+                                  Existing POI • {selectedMarker.poi_type_name || 'generic'}
+                                </div>
+                              )
+                            } else if (state === 'suggested') {
+                              return (
+                                <button
+                                  onClick={() => updateMarkerState(markerKey, 'selected')}
+                                  className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs font-medium"
+                                >
+                                  Keep
+                                </button>
+                              )
+                            } else {
+                              return (
+                                <button
+                                  onClick={() => updateMarkerState(markerKey, 'suggested')}
+                                  className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-xs font-medium"
+                                >
+                                  Remove
+                                </button>
+                              )
+                            }
                           })()}
                         </div>
                       </div>
@@ -756,6 +899,38 @@ export default function App(){
         open={showIntroScreen} 
         onOpenChange={setShowIntroScreen} 
       />
+      
+      {/* Route Switch Confirmation Dialog */}
+      {routeSwitchDialog.show && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md mx-4 shadow-xl">
+            <h3 className="text-lg font-semibold mb-4">Unsaved Points</h3>
+            <p className="text-sm text-gray-600 mb-6">
+              You have {routeSwitchDialog.selectedCount} point{routeSwitchDialog.selectedCount !== 1 ? 's' : ''} selected for the route "{routeSwitchDialog.currentRouteName}" that you haven't sent to RideWithGPS. What do you want to do?
+            </p>
+            <div className="space-y-3">
+              <button
+                onClick={() => handleRouteSwitchAction('keep-editing')}
+                className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+              >
+                Keep editing "{routeSwitchDialog.currentRouteName}"
+              </button>
+              <button
+                onClick={() => handleRouteSwitchAction('keep-points')}
+                className="w-full px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 transition-colors"
+              >
+                Keep points and switch to "{routeSwitchDialog.newRoute?.name}"
+              </button>
+              <button
+                onClick={() => handleRouteSwitchAction('clear-points')}
+                className="w-full px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+              >
+                Clear points and switch to "{routeSwitchDialog.newRoute?.name}"
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </SidebarProvider>
   )
 }
