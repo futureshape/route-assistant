@@ -48,3 +48,6 @@ Thumbs.db
 
 # Packages
 *.tgz
+
+# Test files I use to reserarch the API
+research/
