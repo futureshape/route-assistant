@@ -7,11 +7,18 @@ import {
 } from "@/components/ui/accordion"
 import { POIProvider, POISearchParams } from '@/lib/poi-providers'
 
+interface MapBounds {
+  north: number
+  south: number
+  east: number
+  west: number
+}
+
 interface POISearchProps {
   poiProviders: POIProvider[]
   activeAccordionItem: string
   routePath: Array<{ lat: number; lng: number }>
-  mapBounds: any
+  mapBounds: MapBounds | null
   onAccordionChange: (value: string) => void
   onPOISearch: (provider: POIProvider, params: POISearchParams) => void
   onClearMarkers: () => void

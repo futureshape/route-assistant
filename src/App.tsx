@@ -22,6 +22,14 @@ import { MapContainer } from '@/features/map'
 import { ElevationChart } from '@/features/elevation'
 import { POISearch, POISummary } from '@/features/poi'
 import { useAuth, useRoutes, usePOI, useMap, useElevation, useUI } from '@/store/selectors'
+import type { Route, POI, RouteCoordinate } from '@/store/types'
+import type { 
+  SessionResponse, 
+  RoutesResponse, 
+  RouteDetailsResponse, 
+  GoogleMapsKeyResponse,
+  ElevationPoint
+} from '@/types/api'
 
 // Extend window interface for TypeScript
 declare global {
@@ -152,14 +160,14 @@ export default function App(){
     }
   }, [setRouteColor])
 
-  const mapInstanceRef = useRef<any>(null)
+  const mapInstanceRef = useRef<google.maps.Map | null>(null)
 
   // Fetch Google Maps API key on mount
   useEffect(() => {
     const fetchApiKey = async () => {
       try {
         const response = await fetch('/api/google-maps-key')
-        const data = await response.json()
+        const data: GoogleMapsKeyResponse = await response.json()
         setGoogleMapsApiKey(data.apiKey || '')
         setGoogleMapsApiKeyLoaded(true)
       } catch (error) {
@@ -193,7 +201,7 @@ export default function App(){
   }, [setShowIntroScreen])
 
   // Helper: generate unique key for POI
-  function getMarkerKey(poi: any) {
+  function getMarkerKey(poi: POI): string {
     return `${poi.name}_${poi.lat}_${poi.lng}`
   }
 
@@ -205,7 +213,7 @@ export default function App(){
   }
 
   // Helper: handle route switching with confirmation if needed
-  async function handleRouteSwitch(newRoute: any) {
+  async function handleRouteSwitch(newRoute: Route) {
     const selectedCount = Object.values(markerStates).filter(state => state === 'selected').length
     
     if (selectedCount > 0 && selectedRouteId) {
@@ -251,7 +259,7 @@ export default function App(){
   }
 
   // Updated marker click handler for React approach
-  const handleMarkerClick = (poi: any) => {
+  const handleMarkerClick = (poi: POI) => {
     setSelectedMarker(poi)
   }
 
@@ -264,7 +272,7 @@ export default function App(){
     console.log('[fetchAuthState] Starting authentication check')
     const r = await fetch('/api/session')
     console.log('[fetchAuthState] Session response status:', r.status, r.ok)
-    const j = await r.json()
+    const j: SessionResponse = await r.json()
     console.log('[fetchAuthState] Session data:', j)
     setAuthenticated(j.authenticated)
     
@@ -274,7 +282,7 @@ export default function App(){
       const rr = await fetch('/api/routes')
       console.log('[fetchAuthState] Routes response status:', rr.status, rr.ok)
       if (rr.ok) {
-        const jj = await rr.json()
+        const jj: RoutesResponse = await rr.json()
         console.log('[fetchAuthState] Routes data received:', jj)
         const routesArray = jj.routes || []
         console.log('[fetchAuthState] Setting routes array:', routesArray.length, 'routes')
@@ -296,7 +304,7 @@ export default function App(){
     fetchAuthState()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function showRoute(id: any){
+  async function showRoute(id: number) {
     console.log('[showRoute] Starting with id:', id, 'type:', typeof id)
     
     // Set the selected route ID immediately and reset loaded state
@@ -316,13 +324,13 @@ export default function App(){
       return 
     }
     
-    const j = await r.json()
+    const j: RouteDetailsResponse = await r.json()
     console.log('[showRoute] Route data received:', j)
     
     // Process elevation data from the unified response
     if (j.elevationData && j.elevationData.length > 0) {
       console.log('[showRoute] Processing elevation data with coordinates')
-      const chartData = j.elevationData.map((point: any, index: number) => ({
+      const chartData = j.elevationData.map((point: ElevationPoint, index: number) => ({
         distance: Number((point.distance / 1000).toFixed(2)), // Convert to km
         elevation: Number(point.elevation.toFixed(1)), // Round elevation
         lat: point.lat, // Direct coordinate from backend
@@ -338,7 +346,7 @@ export default function App(){
     // Process existing POIs from the route
     if (j.existingPOIs && j.existingPOIs.length > 0) {
       console.log('[showRoute] Processing existing POIs:', j.existingPOIs.length)
-      const existingPOIsForMap = j.existingPOIs.map((poi: any) => ({
+      const existingPOIsForMap: POI[] = j.existingPOIs.map((poi) => ({
         name: poi.name || 'Unnamed POI',
         lat: poi.lat,
         lng: poi.lng,
@@ -371,7 +379,7 @@ export default function App(){
       console.log('[showRoute] Decoded path points:', path.length)
       
       // Convert to React-friendly format
-      const routeCoordinates = path.map((point: any) => ({
+      const routeCoordinates: RouteCoordinate[] = path.map((point: google.maps.LatLng) => ({
         lat: point.lat(),
         lng: point.lng()
       }))
@@ -399,7 +407,16 @@ export default function App(){
   }
 
   // Handle chart hover to show position on map
-  const handleChartMouseMove = (state: any) => {
+  interface ChartMouseState {
+    activePayload?: Array<{
+      payload: {
+        lat?: number
+        lng?: number
+      }
+    }>
+  }
+
+  const handleChartMouseMove = (state: ChartMouseState | null) => {
     if (state && state.activePayload && state.activePayload[0]) {
       const dataPoint = state.activePayload[0].payload
       
@@ -467,7 +484,7 @@ export default function App(){
   }
 
   // Generic function to display POI results on the map
-  function displayPOIResults(results: any[]) {
+  function displayPOIResults(results: POI[]) {
     // First remove any existing suggested POIs from previous searches
     setMarkers(prev => prev.filter(poi => {
       const markerKey = getMarkerKey(poi)
@@ -577,7 +594,12 @@ export default function App(){
                 poiProviders={poiProviders}
                 activeAccordionItem={activeAccordionItem}
                 routePath={routePath}
-                mapBounds={mapInstanceRef.current?.getBounds()}
+                mapBounds={mapInstanceRef.current?.getBounds() ? {
+                  north: mapInstanceRef.current.getBounds()!.getNorthEast().lat(),
+                  south: mapInstanceRef.current.getBounds()!.getSouthWest().lat(),
+                  east: mapInstanceRef.current.getBounds()!.getNorthEast().lng(),
+                  west: mapInstanceRef.current.getBounds()!.getSouthWest().lng()
+                } : null}
                 onAccordionChange={setActiveAccordionItem}
                 onPOISearch={handlePOISearch}
                 onClearMarkers={clearMarkers}

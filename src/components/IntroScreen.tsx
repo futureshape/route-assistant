@@ -76,7 +76,7 @@ export function IntroScreen({ open, onOpenChange }: IntroScreenProps) {
             <Checkbox 
               id="dont-show-again"
               checked={dontShowAgain}
-              onCheckedChange={setDontShowAgain}
+              onCheckedChange={(checked) => setDontShowAgain(checked === true)}
             />
             <label 
               htmlFor="dont-show-again" 

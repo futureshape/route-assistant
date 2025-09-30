@@ -1,25 +1,16 @@
 import { Marker } from '@vis.gl/react-google-maps'
-
-interface POI {
-  name: string
-  lat: number
-  lng: number
-  poi_type_name?: string
-  description?: string
-  url?: string
-  poiSource?: string
-}
+import type { POI, MarkerState, MarkerStates } from '@/types/poi'
 
 interface POIMarkersProps {
   markers: POI[]
-  markerStates: { [key: string]: 'suggested' | 'selected' | 'existing' }
+  markerStates: MarkerStates
   routeColor: string
   onMarkerClick: (poi: POI) => void
   getMarkerKey: (poi: POI) => string
 }
 
 // Helper: get marker icon based on state
-function getMarkerIcon(state: 'suggested' | 'selected' | 'existing', routeColor: string) {
+function getMarkerIcon(state: MarkerState, routeColor: string) {
   if (state === 'existing') {
     return {
       url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`

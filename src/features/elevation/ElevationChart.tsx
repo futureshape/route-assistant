@@ -21,12 +21,23 @@ interface ElevationData {
   index: number
 }
 
+interface ChartMouseState {
+  activePayload?: Array<{
+    payload: {
+      lat?: number
+      lng?: number
+      elevation?: number
+      distance?: number
+    }
+  }>
+}
+
 interface ElevationChartProps {
   elevationData: ElevationData[]
   showElevation: boolean
   routeColor: string
   onShowElevationChange: (show: boolean) => void
-  onChartMouseMove: (state: any) => void
+  onChartMouseMove: (state: ChartMouseState | null) => void
   onChartMouseLeave: () => void
 }
 
@@ -39,7 +50,15 @@ const chartConfig = {
 } satisfies ChartConfig
 
 // Custom tooltip for elevation chart
-const CustomTooltip = ({ active, payload, label }: any) => {
+interface TooltipProps {
+  active?: boolean
+  payload?: Array<{
+    payload: ElevationData
+  }>
+  label?: string | number
+}
+
+const CustomTooltip = ({ active, payload, label }: TooltipProps) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload
     return (

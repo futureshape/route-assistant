@@ -131,7 +131,7 @@ export class GoogleMapsProvider implements POIProvider {
   name = 'Google Maps';
   description = 'Search for Points of Interest using Google Places API';
 
-  isEnabled(context?: any): boolean {
+  isEnabled(context?: { routePath?: unknown[] }): boolean {
     // Google Maps provider requires a route to be loaded
     return !!(context?.routePath && context.routePath.length > 0);
   }
@@ -155,19 +155,34 @@ export class GoogleMapsProvider implements POIProvider {
       throw new Error(`Search failed: ${text}`);
     }
 
+    interface GooglePlace {
+      displayName?: { text?: string }
+      name?: string
+      location?: { latitude?: number; longitude?: number }
+      geoCode?: { location?: { latitude?: number; longitude?: number } }
+      geometry?: { location?: { lat?: number; lng?: number } }
+      center?: { latitude?: number; longitude?: number; lat?: number; lng?: number; latLng?: { latitude?: number; longitude?: number } }
+      primaryType?: string
+      description?: string
+      websiteUri?: string
+      editorialSummary?: { text?: string }
+      googleMapsUri?: string
+    }
+
     const data = await response.json();
-    const places = data.places || [];
+    const places: GooglePlace[] = data.places || [];
     
-    return places.map((p: any) => {
-      const loc = p.location || p.geoCode?.location || p.geometry?.location || p.center || {};
-      const lat = loc.latitude ?? loc.lat ?? loc.latLng?.latitude;
-      const lng = loc.longitude ?? loc.lng ?? loc.latLng?.longitude;
+    return places.map((p) => {
+      const loc = p.location || {};
+      const lat = loc.latitude;
+      const lng = loc.longitude;
+      
       const primaryType = p.primaryType || 'establishment';
       
       return { 
         name: p.displayName?.text || p.name || '', 
-        lat: parseFloat(lat), 
-        lng: parseFloat(lng),
+        lat: parseFloat(String(lat)), 
+        lng: parseFloat(String(lng)),
         poi_type_name: mapGoogleTypeToRideWithGPS(primaryType),
         description: p.editorialSummary?.text || '',
         url: p.googleMapsUri || '',
