@@ -164,11 +164,36 @@ app.get('/api/routes', async (req, res) => {
   console.log('Session rwgps present=', !!req.session.rwgps, 'has_access_token=', !!(req.session.rwgps && req.session.rwgps.access_token));
   if (!req.session.rwgps || !req.session.rwgps.access_token) return res.status(401).send({ error: 'Not authenticated' });
   try {
-    const r = await axios.get('https://ridewithgps.com/api/v1/routes.json', {
-      headers: { Authorization: `Bearer ${req.session.rwgps.access_token}`, Accept: 'application/json' },
-      params: { per_page: 50 }
-    });
-    res.json(r.data);
+    // Fetch all pages of routes using pagination
+    let allRoutes = [];
+    let page = 1;
+    let hasMorePages = true;
+    const perPage = 50;
+    const maxPages = 100; // Safety limit to prevent infinite loops
+    
+    while (hasMorePages && page <= maxPages) {
+      const r = await axios.get('https://ridewithgps.com/api/v1/routes.json', {
+        headers: { Authorization: `Bearer ${req.session.rwgps.access_token}`, Accept: 'application/json' },
+        params: { per_page: perPage, page: page }
+      });
+      
+      const routes = r.data.routes || [];
+      allRoutes = allRoutes.concat(routes);
+      
+      // Check if there are more pages
+      // RideWithGPS API returns results_count and we can determine if there are more pages
+      // by checking if we got a full page of results
+      if (routes.length < perPage) {
+        hasMorePages = false;
+      } else {
+        page++;
+      }
+      
+      console.log(`Fetched page ${page - 1}, got ${routes.length} routes, total so far: ${allRoutes.length}`);
+    }
+    
+    console.log(`Finished fetching all routes, total: ${allRoutes.length}`);
+    res.json({ routes: allRoutes });
   } catch (err) {
   logAxiosError('Failed to fetch routes', err);
   res.status(500).send({ error: 'Failed to fetch routes' });
