@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { InfoWindow } from '@vis.gl/react-google-maps'
 import { Link } from 'lucide-react'
 import { Input } from '@/components/ui/input'
@@ -87,6 +87,17 @@ export function POIInfoWindow({
   const [editedDescription, setEditedDescription] = useState(poi?.description || '')
   const [editedUrl, setEditedUrl] = useState(poi?.url || '')
   const [urlError, setUrlError] = useState(false)
+
+  // Reset state when POI changes
+  useEffect(() => {
+    if (poi) {
+      setEditedName(poi.name || '')
+      setEditedType(poi.poi_type_name || 'generic')
+      setEditedDescription(poi.description || '')
+      setEditedUrl(poi.url || '')
+      setUrlError(false)
+    }
+  }, [poi])
 
   if (!poi) return null
 
