@@ -222,7 +222,9 @@ export default function App(){
         
       case 'keep-points':
         // Switch route but keep the selected POIs (they'll become orphaned but still selected)
-        await showRoute(dialog.newRoute.id)
+        if (dialog.newRoute) {
+          await showRoute(dialog.newRoute.id)
+        }
         break
         
       case 'clear-points':
@@ -230,7 +232,9 @@ export default function App(){
         setMarkers([])
         setMarkerStates({})
         setSelectedMarker(null)
-        await showRoute(dialog.newRoute.id)
+        if (dialog.newRoute) {
+          await showRoute(dialog.newRoute.id)
+        }
         break
     }
   }

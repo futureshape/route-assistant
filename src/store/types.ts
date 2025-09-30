@@ -1,4 +1,5 @@
 // Type definitions for the application store
+import type { POIProvider as LibPOIProvider } from '@/lib/poi-providers'
 
 export interface Route {
   id: string | number
@@ -44,9 +45,6 @@ export interface RouteSwitchDialogState {
   selectedCount: number
 }
 
-export interface POIProvider {
-  id: string
-  name: string
-  searchPOIs: (params: any) => Promise<any[]>
-  [key: string]: any
-}
+// Re-export POIProvider from lib
+export type POIProvider = LibPOIProvider
+
