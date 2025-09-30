@@ -115,6 +115,7 @@ export default function App(){
     }
   }, [])
   const [routes, setRoutes] = useState<any[]>([])
+  const [routesLoading, setRoutesLoading] = useState(false)
   const [open, setOpen] = useState(false)
   const [value, setValue] = useState("")
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null)
@@ -399,6 +400,7 @@ export default function App(){
     
     if (j.authenticated) {
       console.log('[fetchAuthState] User is authenticated, fetching routes')
+      setRoutesLoading(true)
       const rr = await fetch('/api/routes')
       console.log('[fetchAuthState] Routes response status:', rr.status, rr.ok)
       if (rr.ok) {
@@ -412,9 +414,11 @@ export default function App(){
         const routesErrorText = await rr.text()
         console.error('[fetchAuthState] Routes error response:', routesErrorText)
       }
+      setRoutesLoading(false)
     } else {
       console.log('[fetchAuthState] User not authenticated, clearing routes')
       setRoutes([])
+      setRoutesLoading(false)
     }
   }
 
@@ -711,45 +715,56 @@ export default function App(){
                         role="combobox"
                         aria-expanded={open}
                         className="w-full justify-between"
+                        disabled={routesLoading}
                       >
                         <span className="truncate">
-                          {value ? routes.find(r => r.id.toString() === value)?.name || "Route not found" : "Select route..."}
+                          {routesLoading
+                            ? "Loading routes..."
+                            : value ? routes.find(r => r.id.toString() === value)?.name || "Route not found" : "Select route..."
+                          }
                         </span>
-                        <ChevronsUpDown className="opacity-50 flex-shrink-0" />
+                        {routesLoading ? (
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-300 flex-shrink-0" />
+                        ) : (
+                          <ChevronsUpDown className="opacity-50 flex-shrink-0" />
+                        )}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
                       <Command>
                         <CommandInput placeholder="Search route..." className="h-9" />
                         <CommandList>
-                          <CommandEmpty>No route found.</CommandEmpty>
+                          <CommandEmpty>
+                            {routesLoading ? "Loading routes..." : "No route found."}
+                          </CommandEmpty>
                           <CommandGroup>
                             {routes.map((route) => (
                               <CommandItem
                                 key={route.id}
                                 value={route.id.toString()}
+                                keywords={[route.name]}
                                 onSelect={(currentValue: string) => {
                                   console.log('[Route Selection] onSelect triggered with ID:', currentValue)
                                   console.log('[Route Selection] Current value state:', value)
                                   console.log('[Route Selection] Available routes:', routes.length, routes.map(r => ({ id: r.id, name: r.name })))
                                   
-                                  setValue(currentValue === value ? "" : currentValue)
-                                  setOpen(false)
-                                  if (currentValue !== value) {
-                                    const selectedRoute = routes.find(r => r.id.toString() === currentValue)
-                                    console.log('[Route Selection] Found route:', selectedRoute)
-                                    if (selectedRoute) {
+                                  // Use the route ID directly
+                                  const selectedRoute = routes.find(r => r.id.toString() === currentValue)
+                                  if (selectedRoute) {
+                                    setValue(currentValue === value ? "" : currentValue)
+                                    setOpen(false)
+                                    if (currentValue !== value) {
+                                      console.log('[Route Selection] Found route:', selectedRoute)
                                       console.log('[Route Selection] Calling handleRouteSwitch with route:', selectedRoute.name)
                                       handleRouteSwitch(selectedRoute)
                                     } else {
-                                      console.warn('[Route Selection] No route found for ID:', currentValue)
-                                      console.warn('[Route Selection] Available route IDs:', routes.map(r => r.id.toString()))
+                                      console.log('[Route Selection] Clearing route selection')
+                                      setSelectedRouteId(null)
+                                      setElevationData([])
+                                      setShowElevation(false)
                                     }
                                   } else {
-                                    console.log('[Route Selection] Clearing route selection')
-                                    setSelectedRouteId(null)
-                                    setElevationData([])
-                                    setShowElevation(false)
+                                    console.warn('[Route Selection] No route found for ID:', currentValue)
                                   }
                                 }}
                               >
