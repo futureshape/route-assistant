@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, ChevronsUpDown, Mountain, ChevronUp, ChevronDown, HelpCircle, ListTodo } from 'lucide-react'
+import { Check, ChevronsUpDown, Mountain, ChevronUp, ChevronDown, HelpCircle, ListTodo, Link } from 'lucide-react'
 import { APIProvider, Map, Marker, InfoWindow, useMap } from '@vis.gl/react-google-maps'
 import { cn, getCookie } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -280,6 +280,33 @@ export default function App(){
     setSelectedMarker(poi)
   }
 
+  // Helper function to format URL for display
+  const formatURLForDisplay = (url: string): string => {
+    if (!url) return '';
+    try {
+      const urlObj = new URL(url);
+      const domain = urlObj.hostname.replace('www.', '');
+      const maxLength = 40;
+      
+      if (url.length <= maxLength) {
+        return url;
+      }
+      
+      // Show domain and crop the rest
+      const pathAndQuery = urlObj.pathname + urlObj.search;
+      const remaining = maxLength - domain.length - 3; // 3 for "..."
+      
+      if (pathAndQuery.length > remaining) {
+        return domain + pathAndQuery.slice(0, remaining) + '...';
+      }
+      
+      return domain + pathAndQuery;
+    } catch (e) {
+      // If URL parsing fails, just truncate
+      return url.length > 40 ? url.slice(0, 37) + '...' : url;
+    }
+  }
+
   // Custom Polyline component using useMap hook
   const RoutePolyline = ({ path }: { path: any[] }) => {
     const map = useMap()
@@ -395,8 +422,10 @@ export default function App(){
         name: poi.name || 'Unnamed POI',
         lat: poi.lat,
         lng: poi.lng,
-        poiSource: 'existing',
-        poi_type_name: poi.poi_type_name || 'generic'
+        poi_type_name: poi.poi_type_name || 'generic',
+        description: poi.description || '',
+        url: poi.url || '',
+        poiSource: 'existing'
       }))
       
       // Add existing POIs to markers and set their state to 'existing'
@@ -863,16 +892,34 @@ export default function App(){
                       <div className="p-2 max-w-xs">
                         <h3 className="font-bold text-sm mb-2">{selectedMarker.name}</h3>
                         <div className="space-y-2">
-                          {selectedMarker.googleMapsUri && (
+                          {/* POI Type */}
+                          {selectedMarker.poi_type_name && (
+                            <div className="text-xs text-gray-600">
+                              <span className="font-semibold">Type:</span> {selectedMarker.poi_type_name}
+                            </div>
+                          )}
+                          
+                          {/* Description */}
+                          {selectedMarker.description && (
+                            <div className="text-xs text-gray-600">
+                              <span className="font-semibold">Description:</span> {selectedMarker.description}
+                            </div>
+                          )}
+                          
+                          {/* URL with icon and cropped display */}
+                          {selectedMarker.url && (
                             <a 
-                              href={selectedMarker.googleMapsUri} 
+                              href={selectedMarker.url} 
                               target="_blank" 
                               rel="noopener noreferrer"
-                              className="text-blue-600 hover:underline text-xs block"
+                              className="text-blue-600 hover:underline text-xs flex items-center gap-1"
+                              title={selectedMarker.url}
                             >
-                              View on Google Maps
+                              <Link className="h-3 w-3 flex-shrink-0" />
+                              <span className="truncate">{formatURLForDisplay(selectedMarker.url)}</span>
                             </a>
                           )}
+                          
                           <div>
                             {(() => {
                               const markerKey = getMarkerKey(selectedMarker)
@@ -880,15 +927,15 @@ export default function App(){
                               
                               if (state === 'existing') {
                                 return (
-                                  <div className="text-xs text-gray-500 italic">
-                                    Existing POI • {selectedMarker.poi_type_name || 'generic'}
+                                  <div className="text-xs text-gray-500 italic mt-2">
+                                    Existing POI
                                   </div>
                                 )
                               } else if (state === 'suggested') {
                                 return (
                                   <button
                                     onClick={() => updateMarkerState(markerKey, 'selected')}
-                                    className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs font-medium"
+                                    className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs font-medium mt-2"
                                   >
                                     Keep
                                   </button>
@@ -897,7 +944,7 @@ export default function App(){
                                 return (
                                   <button
                                     onClick={() => updateMarkerState(markerKey, 'suggested')}
-                                    className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-xs font-medium"
+                                    className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-xs font-medium mt-2"
                                   >
                                     Remove
                                   </button>
