@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { Mountain, HelpCircle } from 'lucide-react'
 import { getCookie } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -21,6 +21,7 @@ import { RouteSelector, RouteSwitchDialog } from '@/features/routes'
 import { MapContainer } from '@/features/map'
 import { ElevationChart } from '@/features/elevation'
 import { POISearch, POISummary } from '@/features/poi'
+import { useAppStore } from '@/store'
 
 // Extend window interface for TypeScript
 declare global {
@@ -73,10 +74,61 @@ const POI_TYPE_NAMES: Record<string, string> = {
 };
 
 export default function App(){
-  const [authenticated, setAuthenticated] = useState(false)
-  // Read route color from CSS variable so it can be themed via CSS
-  const [routeColor, setRouteColor] = useState<string>('#fa6400')
+  // Get state and actions from Zustand store
+  const authenticated = useAppStore((state) => state.authenticated)
+  const setAuthenticated = useAppStore((state) => state.setAuthenticated)
+  
+  const routes = useAppStore((state) => state.routes)
+  const routesLoading = useAppStore((state) => state.routesLoading)
+  const selectedRouteId = useAppStore((state) => state.selectedRouteId)
+  const routePath = useAppStore((state) => state.routePath)
+  const routeColor = useAppStore((state) => state.routeColor)
+  const routeFullyLoaded = useAppStore((state) => state.routeFullyLoaded)
+  const setRoutes = useAppStore((state) => state.setRoutes)
+  const setRoutesLoading = useAppStore((state) => state.setRoutesLoading)
+  const setSelectedRouteId = useAppStore((state) => state.setSelectedRouteId)
+  const setRoutePath = useAppStore((state) => state.setRoutePath)
+  const setRouteColor = useAppStore((state) => state.setRouteColor)
+  const setRouteFullyLoaded = useAppStore((state) => state.setRouteFullyLoaded)
+  
+  const markers = useAppStore((state) => state.markers)
+  const markerStates = useAppStore((state) => state.markerStates)
+  const selectedMarker = useAppStore((state) => state.selectedMarker)
+  const poiProviders = useAppStore((state) => state.poiProviders)
+  const setMarkers = useAppStore((state) => state.setMarkers)
+  const setMarkerStates = useAppStore((state) => state.setMarkerStates)
+  const setSelectedMarker = useAppStore((state) => state.setSelectedMarker)
+  const setPOIProviders = useAppStore((state) => state.setPOIProviders)
+  const updateMarkerState = useAppStore((state) => state.updateMarkerState)
+  
+  const mapCenter = useAppStore((state) => state.mapCenter)
+  const mapZoom = useAppStore((state) => state.mapZoom)
+  const chartHoverPosition = useAppStore((state) => state.chartHoverPosition)
+  const googleMapsApiKey = useAppStore((state) => state.googleMapsApiKey)
+  const googleMapsApiKeyLoaded = useAppStore((state) => state.googleMapsApiKeyLoaded)
+  const setMapCenter = useAppStore((state) => state.setMapCenter)
+  const setMapZoom = useAppStore((state) => state.setMapZoom)
+  const setChartHoverPosition = useAppStore((state) => state.setChartHoverPosition)
+  const setGoogleMapsApiKey = useAppStore((state) => state.setGoogleMapsApiKey)
+  const setGoogleMapsApiKeyLoaded = useAppStore((state) => state.setGoogleMapsApiKeyLoaded)
+  
+  const elevationData = useAppStore((state) => state.elevationData)
+  const showElevation = useAppStore((state) => state.showElevation)
+  const setElevationData = useAppStore((state) => state.setElevationData)
+  const setShowElevation = useAppStore((state) => state.setShowElevation)
+  
+  const open = useAppStore((state) => state.open)
+  const value = useAppStore((state) => state.value)
+  const routeSwitchDialog = useAppStore((state) => state.routeSwitchDialog)
+  const showIntroScreen = useAppStore((state) => state.showIntroScreen)
+  const activeAccordionItem = useAppStore((state) => state.activeAccordionItem)
+  const setOpen = useAppStore((state) => state.setOpen)
+  const setValue = useAppStore((state) => state.setValue)
+  const setRouteSwitchDialog = useAppStore((state) => state.setRouteSwitchDialog)
+  const setShowIntroScreen = useAppStore((state) => state.setShowIntroScreen)
+  const setActiveAccordionItem = useAppStore((state) => state.setActiveAccordionItem)
 
+  // Read route color from CSS variable so it can be themed via CSS
   useEffect(() => {
     try {
       const cs = getComputedStyle(document.documentElement)
@@ -85,36 +137,9 @@ export default function App(){
     } catch (e) {
       // ignore in non-browser environments
     }
-  }, [])
-  const [routes, setRoutes] = useState<any[]>([])
-  const [routesLoading, setRoutesLoading] = useState(false)
-  const [open, setOpen] = useState(false)
-  const [value, setValue] = useState("")
-  const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null)
+  }, [setRouteColor])
 
-  const [markers, setMarkers] = useState<any[]>([])
-  const [elevationData, setElevationData] = useState<any[]>([])
-  const [showElevation, setShowElevation] = useState(false)
-  const [markerStates, setMarkerStates] = useState<{[key: string]: 'suggested' | 'selected' | 'existing'}>({}) // Track marker states by POI name+coordinates
-  const markerStatesRef = useRef<{[key: string]: 'suggested' | 'selected' | 'existing'}>({}) // Ref to current marker states
-  const [selectedMarker, setSelectedMarker] = useState<any>(null) // For InfoWindow
-  const [routeSwitchDialog, setRouteSwitchDialog] = useState<{show: boolean, newRoute: any, currentRouteName: string, selectedCount: number}>({show: false, newRoute: null, currentRouteName: '', selectedCount: 0})
-  const [mapCenter, setMapCenter] = useState({lat: 39.5, lng: -98.35})
-  const [mapZoom, setMapZoom] = useState(4)
-  const [routePath, setRoutePath] = useState<any[]>([])
-  const [googleMapsApiKey, setGoogleMapsApiKey] = useState<string>('')
-  const [googleMapsApiKeyLoaded, setGoogleMapsApiKeyLoaded] = useState<boolean>(false)
   const mapInstanceRef = useRef<any>(null)
-  const [chartHoverPosition, setChartHoverPosition] = useState<{lat: number, lng: number} | null>(null)
-  const [showIntroScreen, setShowIntroScreen] = useState(false)
-  const [routeFullyLoaded, setRouteFullyLoaded] = useState(false)
-  const [poiProviders, setPOIProviders] = useState<POIProvider[]>([])
-  const [activeAccordionItem, setActiveAccordionItem] = useState<string>('')
-
-  // Keep ref in sync with state
-  useEffect(() => {
-    markerStatesRef.current = markerStates
-  }, [markerStates])
 
   // Fetch Google Maps API key on mount
   useEffect(() => {
@@ -130,7 +155,7 @@ export default function App(){
       }
     }
     fetchApiKey()
-  }, [])
+  }, [setGoogleMapsApiKey, setGoogleMapsApiKeyLoaded])
 
   // Load enabled POI providers
   useEffect(() => {
@@ -144,7 +169,7 @@ export default function App(){
       }
     }
     loadProviders()
-  }, [])
+  }, [setPOIProviders])
 
   // Check if intro screen should be shown on mount
   useEffect(() => {
@@ -152,7 +177,7 @@ export default function App(){
     if (!dismissed) {
       setShowIntroScreen(true)
     }
-  }, [])
+  }, [setShowIntroScreen])
 
   // Helper: generate unique key for POI
   function getMarkerKey(poi: any) {
@@ -209,16 +234,6 @@ export default function App(){
         break
     }
   }
-  function updateMarkerState(markerKey: string, newState: 'suggested' | 'selected' | 'existing') {
-    // Don't allow changing state of existing POIs
-    if (markerStates[markerKey] === 'existing') {
-      return
-    }
-    setMarkerStates(prev => ({
-      ...prev,
-      [markerKey]: newState
-    }))
-  }
 
   // Updated marker click handler for React approach
   const handleMarkerClick = (poi: any) => {
@@ -264,7 +279,7 @@ export default function App(){
 
   useEffect(() => {
     fetchAuthState()
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function showRoute(id: any){
     console.log('[showRoute] Starting with id:', id, 'type:', typeof id)
