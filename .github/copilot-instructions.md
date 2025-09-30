@@ -182,3 +182,32 @@ This is a full-stack web application that helps cyclists explore routes and find
 - **Refactoring completed**: App.tsx successfully refactored from 1,153 to 680 lines
 - **Next phase**: Consider extracting custom hooks and adding context providers
 - **Testing**: Add unit tests for individual feature components
+
+## Documentation Guidelines
+
+### README Updates
+- **Update top-level README.md** when adding new major functionality or features
+- Keep the main README focused on user-facing features, setup, and high-level architecture
+- Major functionality includes: new POI providers, authentication methods, map features, route management capabilities
+
+### Technical Documentation
+- **Create or update technical docs in `docs/`** for architectural changes
+- All technical documentation must go in the `docs/` folder, never create top-level documentation files
+- Update `docs/STORE_USAGE_GUIDE.md` when state management patterns change
+- Create new docs in `docs/` for significant architectural decisions or new development patterns
+- Update `docs/README.md` when adding new documentation files
+
+### Architecture Documentation
+- This file (`.github/copilot-instructions.md`) should be updated for:
+  - Changes to the overall project structure
+  - New development patterns or conventions
+  - Changes to the technology stack
+  - Updates to API patterns or authentication flows
+  - New feature architecture patterns
+
+### Documentation Rules
+- **Never create documentation files in the project root** (except README.md)
+- All technical docs go in `docs/` folder
+- Keep documentation focused and avoid redundancy
+- Reference existing docs rather than duplicating information
+- Remove outdated documentation when functionality changes
