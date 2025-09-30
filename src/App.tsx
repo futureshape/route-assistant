@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, ChevronsUpDown, Mountain, ChevronUp, ChevronDown, HelpCircle, ListTodo } from 'lucide-react'
+import { Check, ChevronsUpDown, Mountain, ChevronUp, ChevronDown, HelpCircle, ListTodo, ExternalLink } from 'lucide-react'
 import { APIProvider, Map, Marker, InfoWindow, useMap } from '@vis.gl/react-google-maps'
 import { cn, getCookie } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -280,6 +280,33 @@ export default function App(){
     setSelectedMarker(poi)
   }
 
+  // Helper function to format URL for display
+  const formatURLForDisplay = (url: string): string => {
+    if (!url) return '';
+    try {
+      const urlObj = new URL(url);
+      const domain = urlObj.hostname.replace('www.', '');
+      const maxLength = 40;
+      
+      if (url.length <= maxLength) {
+        return url;
+      }
+      
+      // Show domain and crop the rest
+      const pathAndQuery = urlObj.pathname + urlObj.search;
+      const remaining = maxLength - domain.length - 3; // 3 for "..."
+      
+      if (pathAndQuery.length > remaining) {
+        return domain + pathAndQuery.slice(0, remaining) + '...';
+      }
+      
+      return domain + pathAndQuery;
+    } catch (e) {
+      // If URL parsing fails, just truncate
+      return url.length > 40 ? url.slice(0, 37) + '...' : url;
+    }
+  }
+
   // Custom Polyline component using useMap hook
   const RoutePolyline = ({ path }: { path: any[] }) => {
     const map = useMap()
@@ -395,10 +422,9 @@ export default function App(){
         name: poi.name || 'Unnamed POI',
         lat: poi.lat,
         lng: poi.lng,
-        type: poi.poi_type_name || 'generic',
+        poi_type_name: poi.poi_type_name || 'generic',
         description: poi.description || '',
         url: poi.url || '',
-        poi_type_name: poi.poi_type_name || 'generic',
         poiSource: 'existing'
       }))
       
@@ -867,9 +893,9 @@ export default function App(){
                         <h3 className="font-bold text-sm mb-2">{selectedMarker.name}</h3>
                         <div className="space-y-2">
                           {/* POI Type */}
-                          {(selectedMarker.poi_type_name || selectedMarker.type) && (
+                          {selectedMarker.poi_type_name && (
                             <div className="text-xs text-gray-600">
-                              <span className="font-semibold">Type:</span> {selectedMarker.poi_type_name || selectedMarker.type}
+                              <span className="font-semibold">Type:</span> {selectedMarker.poi_type_name}
                             </div>
                           )}
                           
@@ -880,15 +906,17 @@ export default function App(){
                             </div>
                           )}
                           
-                          {/* URL - prioritize googleMapsUri over url field */}
-                          {(selectedMarker.url || selectedMarker.googleMapsUri) && (
+                          {/* URL with icon and cropped display */}
+                          {selectedMarker.url && (
                             <a 
-                              href={selectedMarker.url || selectedMarker.googleMapsUri} 
+                              href={selectedMarker.url} 
                               target="_blank" 
                               rel="noopener noreferrer"
-                              className="text-blue-600 hover:underline text-xs block"
+                              className="text-blue-600 hover:underline text-xs flex items-center gap-1"
+                              title={selectedMarker.url}
                             >
-                              View on Google Maps
+                              <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                              <span className="truncate">{formatURLForDisplay(selectedMarker.url)}</span>
                             </a>
                           )}
                           

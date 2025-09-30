@@ -69,16 +69,14 @@ export class MockProvider implements POIProvider {
       const loc = p.location || {};
       const lat = loc.latitude ?? loc.lat;
       const lng = loc.longitude ?? loc.lng;
-      const primaryType = p.primaryType || 'establishment';
       
       return { 
         name: p.displayName?.text || p.name || '', 
         lat: parseFloat(lat), 
         lng: parseFloat(lng),
-        type: primaryType, // Type will be mapped on backend
+        poi_type_name: 'generic',
         description: p.description || 'Mock POI for demonstration',
         url: p.uri || '',
-        primaryType: primaryType, // Keep for backend mapping
         provider: this.id
       };
     }).filter((p: POIResult) => Number.isFinite(p.lat) && Number.isFinite(p.lng));

@@ -5,7 +5,7 @@ const axios = require('axios');
 const polyline = require('@mapbox/polyline');
 const qs = require('qs');
 const path = require('path');
-const { mapGoogleTypeToRideWithGPS, getRideWithGPSTypeId } = require('./poi-type-mapping');
+const { getRideWithGPSTypeId } = require('./poi-type-mapping');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -304,12 +304,12 @@ app.patch('/api/route/:id/pois', async (req, res) => {
     console.log(`[PATCH POIs] Existing POIs JSON:`, JSON.stringify(existingPOIs, null, 2));
     
     // Prepare new POIs for RideWithGPS format
+    // Type mapping now happens in the POI provider on the frontend
     const formattedNewPOIs = pois.map(poi => {
-      // Map Google Places primaryType to RideWithGPS POI type
-      const poiTypeName = mapGoogleTypeToRideWithGPS(poi.primaryType || poi.type);
+      const poiTypeName = poi.poi_type_name || 'generic';
       const poiTypeId = getRideWithGPSTypeId(poiTypeName);
       
-      console.log(`[PATCH POIs] Mapping POI "${poi.name}": Google type "${poi.primaryType || poi.type}" -> RideWithGPS "${poiTypeName}" (ID: ${poiTypeId})`);
+      console.log(`[PATCH POIs] Formatting POI "${poi.name}": type "${poiTypeName}" (ID: ${poiTypeId})`);
       
       return {
         lat: poi.lat,
