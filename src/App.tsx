@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, ChevronsUpDown, Mountain, ChevronUp, ChevronDown, HelpCircle, ListTodo, ExternalLink } from 'lucide-react'
+import { Check, ChevronsUpDown, Mountain, ChevronUp, ChevronDown, HelpCircle, ListTodo, Link } from 'lucide-react'
 import { APIProvider, Map, Marker, InfoWindow, useMap } from '@vis.gl/react-google-maps'
 import { cn, getCookie } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -915,7 +915,7 @@ export default function App(){
                               className="text-blue-600 hover:underline text-xs flex items-center gap-1"
                               title={selectedMarker.url}
                             >
-                              <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                              <Link className="h-3 w-3 flex-shrink-0" />
                               <span className="truncate">{formatURLForDisplay(selectedMarker.url)}</span>
                             </a>
                           )}
