@@ -17,12 +17,10 @@ import { POIProvider, POISearchParams } from '@/lib/poi-providers'
 import { getEnabledProviders } from '@/lib/provider-registry'
 import { AuthHeader } from '@/components/AuthHeader'
 import { IntroScreen } from '@/components/IntroScreen'
-import { RouteSelector } from '@/features/routes/RouteSelector'
-import { RouteSwitchDialog } from '@/features/routes/RouteSwitchDialog'
-import { MapContainer } from '@/features/map/MapContainer'
-import { ElevationChart } from '@/features/elevation/ElevationChart'
-import { POISearch } from '@/features/poi/POISearch'
-import { POISummary } from '@/features/poi/POISummary'
+import { RouteSelector, RouteSwitchDialog } from '@/features/routes'
+import { MapContainer } from '@/features/map'
+import { ElevationChart } from '@/features/elevation'
+import { POISearch, POISummary } from '@/features/poi'
 
 // Extend window interface for TypeScript
 declare global {
