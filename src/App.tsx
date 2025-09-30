@@ -21,7 +21,7 @@ import { RouteSelector, RouteSwitchDialog } from '@/features/routes'
 import { MapContainer } from '@/features/map'
 import { ElevationChart } from '@/features/elevation'
 import { POISearch, POISummary } from '@/features/poi'
-import { useAppStore } from '@/store'
+import { useAuth, useRoutes, usePOI, useMap, useElevation, useUI } from '@/store/selectors'
 
 // Extend window interface for TypeScript
 declare global {
@@ -74,59 +74,68 @@ const POI_TYPE_NAMES: Record<string, string> = {
 };
 
 export default function App(){
-  // Get state and actions from Zustand store
-  const authenticated = useAppStore((state) => state.authenticated)
-  const setAuthenticated = useAppStore((state) => state.setAuthenticated)
-  
-  const routes = useAppStore((state) => state.routes)
-  const routesLoading = useAppStore((state) => state.routesLoading)
-  const selectedRouteId = useAppStore((state) => state.selectedRouteId)
-  const routePath = useAppStore((state) => state.routePath)
-  const routeColor = useAppStore((state) => state.routeColor)
-  const routeFullyLoaded = useAppStore((state) => state.routeFullyLoaded)
-  const setRoutes = useAppStore((state) => state.setRoutes)
-  const setRoutesLoading = useAppStore((state) => state.setRoutesLoading)
-  const setSelectedRouteId = useAppStore((state) => state.setSelectedRouteId)
-  const setRoutePath = useAppStore((state) => state.setRoutePath)
-  const setRouteColor = useAppStore((state) => state.setRouteColor)
-  const setRouteFullyLoaded = useAppStore((state) => state.setRouteFullyLoaded)
-  
-  const markers = useAppStore((state) => state.markers)
-  const markerStates = useAppStore((state) => state.markerStates)
-  const selectedMarker = useAppStore((state) => state.selectedMarker)
-  const poiProviders = useAppStore((state) => state.poiProviders)
-  const setMarkers = useAppStore((state) => state.setMarkers)
-  const setMarkerStates = useAppStore((state) => state.setMarkerStates)
-  const setSelectedMarker = useAppStore((state) => state.setSelectedMarker)
-  const setPOIProviders = useAppStore((state) => state.setPOIProviders)
-  const updateMarkerState = useAppStore((state) => state.updateMarkerState)
-  
-  const mapCenter = useAppStore((state) => state.mapCenter)
-  const mapZoom = useAppStore((state) => state.mapZoom)
-  const chartHoverPosition = useAppStore((state) => state.chartHoverPosition)
-  const googleMapsApiKey = useAppStore((state) => state.googleMapsApiKey)
-  const googleMapsApiKeyLoaded = useAppStore((state) => state.googleMapsApiKeyLoaded)
-  const setMapCenter = useAppStore((state) => state.setMapCenter)
-  const setMapZoom = useAppStore((state) => state.setMapZoom)
-  const setChartHoverPosition = useAppStore((state) => state.setChartHoverPosition)
-  const setGoogleMapsApiKey = useAppStore((state) => state.setGoogleMapsApiKey)
-  const setGoogleMapsApiKeyLoaded = useAppStore((state) => state.setGoogleMapsApiKeyLoaded)
-  
-  const elevationData = useAppStore((state) => state.elevationData)
-  const showElevation = useAppStore((state) => state.showElevation)
-  const setElevationData = useAppStore((state) => state.setElevationData)
-  const setShowElevation = useAppStore((state) => state.setShowElevation)
-  
-  const open = useAppStore((state) => state.open)
-  const value = useAppStore((state) => state.value)
-  const routeSwitchDialog = useAppStore((state) => state.routeSwitchDialog)
-  const showIntroScreen = useAppStore((state) => state.showIntroScreen)
-  const activeAccordionItem = useAppStore((state) => state.activeAccordionItem)
-  const setOpen = useAppStore((state) => state.setOpen)
-  const setValue = useAppStore((state) => state.setValue)
-  const setRouteSwitchDialog = useAppStore((state) => state.setRouteSwitchDialog)
-  const setShowIntroScreen = useAppStore((state) => state.setShowIntroScreen)
-  const setActiveAccordionItem = useAppStore((state) => state.setActiveAccordionItem)
+  // Use selector hooks for cleaner, less verbose state access
+  const { authenticated, setAuthenticated } = useAuth()
+  const {
+    routes,
+    routesLoading,
+    selectedRouteId,
+    routePath,
+    routeColor,
+    routeFullyLoaded,
+    setRoutes,
+    setRoutesLoading,
+    setSelectedRouteId,
+    setRoutePath,
+    setRouteColor,
+    setRouteFullyLoaded,
+    selectRoute,
+    clearRouteSelection,
+  } = useRoutes()
+  const {
+    markers,
+    markerStates,
+    selectedMarker,
+    poiProviders,
+    setMarkers,
+    setMarkerStates,
+    setSelectedMarker,
+    setPOIProviders,
+    updateMarkerState,
+    clearAllPOIs,
+    clearSuggestedPOIs,
+    addExistingPOIs,
+  } = usePOI()
+  const {
+    mapCenter,
+    mapZoom,
+    chartHoverPosition,
+    googleMapsApiKey,
+    googleMapsApiKeyLoaded,
+    setMapCenter,
+    setMapZoom,
+    setChartHoverPosition,
+    setGoogleMapsApiKey,
+    setGoogleMapsApiKeyLoaded,
+  } = useMap()
+  const {
+    elevationData,
+    showElevation,
+    setElevationData,
+    setShowElevation,
+  } = useElevation()
+  const {
+    open,
+    value,
+    routeSwitchDialog,
+    showIntroScreen,
+    activeAccordionItem,
+    setOpen,
+    setValue,
+    setRouteSwitchDialog,
+    setShowIntroScreen,
+    setActiveAccordionItem,
+  } = useUI()
 
   // Read route color from CSS variable so it can be themed via CSS
   useEffect(() => {
@@ -229,9 +238,7 @@ export default function App(){
         
       case 'clear-points':
         // Clear all markers and switch to new route
-        setMarkers([])
-        setMarkerStates({})
-        setSelectedMarker(null)
+        clearAllPOIs()
         if (dialog.newRoute) {
           await showRoute(dialog.newRoute.id)
         }
@@ -289,8 +296,7 @@ export default function App(){
     console.log('[showRoute] Starting with id:', id, 'type:', typeof id)
     
     // Set the selected route ID immediately and reset loaded state
-    setSelectedRouteId(id)
-    setRouteFullyLoaded(false)
+    selectRoute(id)
     
     clearMarkers()
     
@@ -338,17 +344,8 @@ export default function App(){
         poiSource: 'existing'
       }))
       
-      // Add existing POIs to markers and set their state to 'existing'
-      setMarkers(prev => [...prev, ...existingPOIsForMap])
-      
-      // Set marker states for existing POIs
-      const existingMarkerStates: {[key: string]: 'existing'} = {}
-      existingPOIsForMap.forEach((poi: any) => {
-        const markerKey = getMarkerKey(poi)
-        existingMarkerStates[markerKey] = 'existing'
-      })
-      
-      setMarkerStates(prev => ({ ...prev, ...existingMarkerStates }))
+      // Add existing POIs to markers with their state set to 'existing'
+      addExistingPOIs(existingPOIsForMap, getMarkerKey)
       console.log('[showRoute] Existing POIs loaded:', existingPOIsForMap.length)
     }
     
@@ -415,26 +412,7 @@ export default function App(){
 
   function clearMarkers(){
     // Only clear suggested POI markers - keep existing and selected ones
-    setMarkers(prev => prev.filter(poi => {
-      const markerKey = getMarkerKey(poi)
-      const state = markerStates[markerKey]
-      // Keep existing POIs and selected POIs, only remove suggested ones
-      return state === 'existing' || state === 'selected'
-    }))
-    
-    // Remove marker states for suggested POIs only
-    setMarkerStates(prev => {
-      const newStates: {[key: string]: 'suggested' | 'selected' | 'existing'} = {}
-      Object.entries(prev).forEach(([key, state]) => {
-        if (state === 'existing' || state === 'selected') {
-          newStates[key] = state
-        }
-        // Don't include 'suggested' states - effectively removes them
-      })
-      return newStates
-    })
-    
-    setSelectedMarker(null)
+    clearSuggestedPOIs()
     
     // Intentionally do not clear the route path or elevation state here.
     // The route should remain visible until a different route is selected.
@@ -576,7 +554,7 @@ export default function App(){
                   onValueChange={(newValue) => {
                     if (newValue === "" && value !== "") {
                       // Clearing route selection
-                      setSelectedRouteId(null)
+                      clearRouteSelection()
                       setElevationData([])
                       setShowElevation(false)
                     }

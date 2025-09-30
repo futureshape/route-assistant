@@ -29,6 +29,10 @@ interface RoutesState {
   setRoutePath: (path: MapPosition[]) => void
   setRouteColor: (color: string) => void
   setRouteFullyLoaded: (loaded: boolean) => void
+  // Compound actions
+  loadRoutes: (routes: Route[]) => void
+  selectRoute: (id: number) => void
+  clearRouteSelection: () => void
 }
 
 // POI/Markers state slice
@@ -42,6 +46,10 @@ interface POIState {
   setSelectedMarker: (marker: POI | null) => void
   setPOIProviders: (providers: POIProvider[]) => void
   updateMarkerState: (markerKey: string, newState: 'suggested' | 'selected' | 'existing') => void
+  // Compound actions
+  clearAllPOIs: () => void
+  clearSuggestedPOIs: () => void
+  addExistingPOIs: (pois: POI[], getMarkerKey: (poi: POI) => string) => void
 }
 
 // Map state slice
@@ -102,6 +110,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
   setRoutePath: (routePath) => set({ routePath }),
   setRouteColor: (routeColor) => set({ routeColor }),
   setRouteFullyLoaded: (routeFullyLoaded) => set({ routeFullyLoaded }),
+  // Compound actions
+  loadRoutes: (routes) => set({ routes, routesLoading: false }),
+  selectRoute: (id) => set({ selectedRouteId: id, routeFullyLoaded: false }),
+  clearRouteSelection: () => set({ 
+    selectedRouteId: null, 
+    routePath: [], 
+    routeFullyLoaded: false 
+  }),
 
   // POI/Markers state
   markers: [],
@@ -129,6 +145,43 @@ export const useAppStore = create<AppStore>((set, get) => ({
         ...state.markerStates,
         [markerKey]: newState,
       },
+    })
+  },
+  // Compound actions
+  clearAllPOIs: () => set({
+    markers: [],
+    markerStates: {},
+    selectedMarker: null,
+  }),
+  clearSuggestedPOIs: () => {
+    const state = get()
+    const newMarkers = state.markers.filter(poi => {
+      const markerKey = `${poi.name}_${poi.lat}_${poi.lng}`
+      const markerState = state.markerStates[markerKey]
+      return markerState === 'existing' || markerState === 'selected'
+    })
+    const newMarkerStates: MarkerStates = {}
+    Object.entries(state.markerStates).forEach(([key, markerState]) => {
+      if (markerState === 'existing' || markerState === 'selected') {
+        newMarkerStates[key] = markerState
+      }
+    })
+    set({
+      markers: newMarkers,
+      markerStates: newMarkerStates,
+      selectedMarker: null,
+    })
+  },
+  addExistingPOIs: (pois, getMarkerKey) => {
+    const state = get()
+    const existingMarkerStates: MarkerStates = {}
+    pois.forEach((poi) => {
+      const markerKey = getMarkerKey(poi)
+      existingMarkerStates[markerKey] = 'existing'
+    })
+    set({
+      markers: [...state.markers, ...pois],
+      markerStates: { ...state.markerStates, ...existingMarkerStates },
     })
   },
 

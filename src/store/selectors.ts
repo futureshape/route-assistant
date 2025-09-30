@@ -21,6 +21,9 @@ export const useRoutes = () => useAppStore((state) => ({
   setRoutePath: state.setRoutePath,
   setRouteColor: state.setRouteColor,
   setRouteFullyLoaded: state.setRouteFullyLoaded,
+  loadRoutes: state.loadRoutes,
+  selectRoute: state.selectRoute,
+  clearRouteSelection: state.clearRouteSelection,
 }))
 
 export const usePOI = () => useAppStore((state) => ({
@@ -33,6 +36,9 @@ export const usePOI = () => useAppStore((state) => ({
   setSelectedMarker: state.setSelectedMarker,
   setPOIProviders: state.setPOIProviders,
   updateMarkerState: state.updateMarkerState,
+  clearAllPOIs: state.clearAllPOIs,
+  clearSuggestedPOIs: state.clearSuggestedPOIs,
+  addExistingPOIs: state.addExistingPOIs,
 }))
 
 export const useMap = () => useAppStore((state) => ({
