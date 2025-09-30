@@ -112,7 +112,6 @@ export default function App(){
     setPOIProviders,
     updateMarkerState,
     clearAllPOIs,
-    clearSuggestedPOIs,
     addExistingPOIs,
   } = usePOI()
   
@@ -432,8 +431,8 @@ export default function App(){
   }
 
   function clearMarkers(){
-    // Only clear suggested POI markers - keep existing and selected ones
-        clearSuggestedPOIs()
+    // Clear all POI markers when switching routes
+        clearAllPOIs()
     
     // Intentionally do not clear the route path or elevation state here.
     // The route should remain visible until a different route is selected.
