@@ -5,7 +5,7 @@ const axios = require('axios');
 const polyline = require('@mapbox/polyline');
 const qs = require('qs');
 const path = require('path');
-const { getRideWithGPSTypeId } = require('./poi-type-mapping');
+const { getRideWithGPSTypeId, mapGoogleTypeToRideWithGPS } = require('./poi-type-mapping');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -572,77 +572,7 @@ app.post('/api/poi-from-place-id', async (req, res) => {
   }
 });
 
-// Helper function to map Google Place types to RideWithGPS types
-function mapGoogleTypeToRideWithGPS(googleType) {
-  const mapping = {
-    'restaurant': 'food',
-    'meal_takeaway': 'food',
-    'meal_delivery': 'food',
-    'food': 'food',
-    'bakery': 'food',
-    'bar': 'bar',
-    'night_club': 'bar',
-    'cafe': 'coffee',
-    'coffee_shop': 'coffee',
-    'winery': 'winery',
-    'brewery': 'bar',
-    'lodging': 'lodging',
-    'hotel': 'lodging',
-    'motel': 'lodging',
-    'guest_house': 'lodging',
-    'hostel': 'lodging',
-    'bed_and_breakfast': 'lodging',
-    'campground': 'camping',
-    'rv_park': 'camping',
-    'parking': 'parking',
-    'gas_station': 'gas',
-    'petrol_station': 'gas',
-    'ferry_terminal': 'ferry',
-    'airport': 'transit',
-    'train_station': 'transit',
-    'subway_station': 'transit',
-    'bus_station': 'transit',
-    'transit_station': 'transit',
-    'taxi_stand': 'transit',
-    'hospital': 'hospital',
-    'pharmacy': 'first_aid',
-    'doctor': 'first_aid',
-    'dentist': 'first_aid',
-    'veterinary_care': 'first_aid',
-    'convenience_store': 'convenience_store',
-    'supermarket': 'convenience_store',
-    'grocery_store': 'convenience_store',
-    'shopping_mall': 'shopping',
-    'department_store': 'shopping',
-    'clothing_store': 'shopping',
-    'store': 'shopping',
-    'atm': 'atm',
-    'bank': 'atm',
-    'library': 'library',
-    'tourist_attraction': 'viewpoint',
-    'amusement_park': 'viewpoint',
-    'zoo': 'viewpoint',
-    'aquarium': 'viewpoint',
-    'museum': 'viewpoint',
-    'art_gallery': 'viewpoint',
-    'park': 'park',
-    'national_park': 'park',
-    'hiking_area': 'trailhead',
-    'mountain_peak': 'summit',
-    'natural_feature': 'viewpoint',
-    'scenic_lookout': 'viewpoint',
-    'bicycle_store': 'bike_shop',
-    'gym': 'rest_stop',
-    'spa': 'shower',
-    'swimming_pool': 'swimming',
-    'water_park': 'swimming',
-    'restroom': 'restroom',
-    'public_restroom': 'restroom'
-  };
 
-  const normalizedType = googleType?.toLowerCase() || '';
-  return mapping[normalizedType] || 'generic';
-}
 
 // Serve index.html with injected Google API key so frontend gets the correct key at runtime
 app.get('/', async (req, res, next) => {
