@@ -111,6 +111,7 @@ export default function App(){
     setSelectedMarker,
     setPOIProviders,
     updateMarkerState,
+    updatePOI,
     clearAllPOIs,
     addExistingPOIs,
   } = usePOI()
@@ -690,6 +691,7 @@ export default function App(){
                 onMarkerClick={handleMarkerClick}
                 onCloseInfoWindow={() => setSelectedMarker(null)}
                 onUpdateMarkerState={updateMarkerState}
+                onPOIUpdate={updatePOI}
                 onGooglePlacesPOIClick={handleGooglePlacesPOIClick}
                 getMarkerKey={getMarkerKey}
                 mapInstanceRef={mapInstanceRef}

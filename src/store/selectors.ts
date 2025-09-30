@@ -77,6 +77,7 @@ export const useSetMarkerStates = () => useAppStore((state) => state.setMarkerSt
 export const useSetSelectedMarker = () => useAppStore((state) => state.setSelectedMarker)
 export const useSetPOIProviders = () => useAppStore((state) => state.setPOIProviders)
 export const useUpdateMarkerState = () => useAppStore((state) => state.updateMarkerState)
+export const useUpdatePOI = () => useAppStore((state) => state.updatePOI)
 export const useClearAllPOIs = () => useAppStore((state) => state.clearAllPOIs)
 export const useClearSuggestedPOIs = () => useAppStore((state) => state.clearSuggestedPOIs)
 export const useAddExistingPOIs = () => useAppStore((state) => state.addExistingPOIs)
@@ -91,6 +92,7 @@ export const usePOI = () => {
   const setSelectedMarker = useSetSelectedMarker()
   const setPOIProviders = useSetPOIProviders()
   const updateMarkerState = useUpdateMarkerState()
+  const updatePOI = useUpdatePOI()
   const clearAllPOIs = useClearAllPOIs()
   const clearSuggestedPOIs = useClearSuggestedPOIs()
   const addExistingPOIs = useAddExistingPOIs()
@@ -105,6 +107,7 @@ export const usePOI = () => {
     setSelectedMarker,
     setPOIProviders,
     updateMarkerState,
+    updatePOI,
     clearAllPOIs,
     clearSuggestedPOIs,
     addExistingPOIs,

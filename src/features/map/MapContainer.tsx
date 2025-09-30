@@ -25,6 +25,7 @@ interface MapContainerProps {
   onMarkerClick: (poi: POI) => void
   onCloseInfoWindow: () => void
   onUpdateMarkerState: (markerKey: string, newState: MarkerState) => void
+  onPOIUpdate?: (markerKey: string, updatedPOI: Partial<POI>) => void
   onGooglePlacesPOIClick?: (poi: POIResult) => void
   getMarkerKey: (poi: POI) => string
   mapInstanceRef: React.MutableRefObject<google.maps.Map | null>
@@ -76,6 +77,7 @@ export function MapContainer({
   onMarkerClick,
   onCloseInfoWindow,
   onUpdateMarkerState,
+  onPOIUpdate,
   onGooglePlacesPOIClick,
   getMarkerKey,
   mapInstanceRef
@@ -140,6 +142,7 @@ export function MapContainer({
                   poiTypeNames={poiTypeNames}
                   onClose={onCloseInfoWindow}
                   onUpdateState={(newState) => onUpdateMarkerState(markerKey, newState)}
+                  onPOIUpdate={onPOIUpdate ? (updatedPOI) => onPOIUpdate(markerKey, updatedPOI) : undefined}
                 />
               )
             })()}
