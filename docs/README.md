@@ -6,6 +6,7 @@ This directory contains detailed technical documentation for developers working 
 
 ### Current Development Resources
 - **`STORE_USAGE_GUIDE.md`**: Zustand store usage patterns and best practices
+- **`OSM_PROVIDER.md`**: OpenStreetMap POI provider documentation and usage guide
 - **`../.github/copilot-instructions.md`**: Complete architecture and development guidelines
 
 ## Quick Links
@@ -14,6 +15,7 @@ This directory contains detailed technical documentation for developers working 
 - **Setup Instructions**: See `../README.md`
 - **Architecture Details**: See `../.github/copilot-instructions.md`
 - **State Management**: See `STORE_USAGE_GUIDE.md`
+- **OSM POI Provider**: See `OSM_PROVIDER.md`
 
 ## For New Developers
 

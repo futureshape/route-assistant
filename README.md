@@ -11,11 +11,12 @@ A full-stack web application that helps cyclists explore routes and discover Poi
 - **Elevation Profiles**: Interactive elevation charts with map synchronization
 
 ### Point of Interest Discovery
-- **Multiple POI Providers**: Modular system supporting Google Places and extensible to other providers
+- **Multiple POI Providers**: Modular system supporting Google Places, OpenStreetMap, and extensible to other providers
+- **OSM Integration**: Free, community-maintained POI data via Overpass API with 22 cycling-relevant amenity types
 - **Smart Search**: Search for specific POI types (restaurants, bike shops, lodging, etc.) along your route
 - **Native POI Integration**: Click on native Google Maps POI markers to add them to your route
 - **POI Management**: Add, review, and organize POIs before sending to RideWithGPS
-- **Automatic Type Mapping**: Intelligent conversion from Google Places types to RideWithGPS POI categories
+- **Automatic Type Mapping**: Intelligent conversion from Google Places and OSM types to RideWithGPS POI categories
 
 ### User Experience
 - **Responsive Design**: Works on desktop and mobile devices
@@ -54,6 +55,11 @@ A full-stack web application that helps cyclists explore routes and discover Poi
 Your Google API key must have the following APIs enabled:
 - **Maps JavaScript API**: For interactive map display
 - **Places API**: For POI search and place details
+
+### OpenStreetMap
+The OSM POI provider uses the public Overpass API at `https://overpass-api.de/api/interpreter`:
+- **No API Key Required**: Free to use with reasonable rate limits
+- **See**: [docs/OSM_PROVIDER.md](docs/OSM_PROVIDER.md) for detailed usage and configuration
 
 ### RideWithGPS OAuth
 Create an OAuth application in your RideWithGPS account with:
