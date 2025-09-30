@@ -74,8 +74,9 @@ const POI_TYPE_NAMES: Record<string, string> = {
 };
 
 export default function App(){
-  // Use selector hooks for cleaner, less verbose state access
+  // Get state and actions from Zustand store - using combined selectors
   const { authenticated, setAuthenticated } = useAuth()
+  
   const {
     routes,
     routesLoading,
@@ -85,13 +86,13 @@ export default function App(){
     routeFullyLoaded,
     setRoutes,
     setRoutesLoading,
-    setSelectedRouteId,
     setRoutePath,
     setRouteColor,
     setRouteFullyLoaded,
     selectRoute,
     clearRouteSelection,
   } = useRoutes()
+  
   const {
     markers,
     markerStates,
@@ -106,6 +107,7 @@ export default function App(){
     clearSuggestedPOIs,
     addExistingPOIs,
   } = usePOI()
+  
   const {
     mapCenter,
     mapZoom,
@@ -118,12 +120,14 @@ export default function App(){
     setGoogleMapsApiKey,
     setGoogleMapsApiKeyLoaded,
   } = useMap()
+  
   const {
     elevationData,
     showElevation,
     setElevationData,
     setShowElevation,
   } = useElevation()
+  
   const {
     open,
     value,
@@ -345,7 +349,7 @@ export default function App(){
       }))
       
       // Add existing POIs to markers with their state set to 'existing'
-      addExistingPOIs(existingPOIsForMap, getMarkerKey)
+            addExistingPOIs(existingPOIsForMap, getMarkerKey)
       console.log('[showRoute] Existing POIs loaded:', existingPOIsForMap.length)
     }
     
@@ -412,7 +416,7 @@ export default function App(){
 
   function clearMarkers(){
     // Only clear suggested POI markers - keep existing and selected ones
-    clearSuggestedPOIs()
+        clearSuggestedPOIs()
     
     // Intentionally do not clear the route path or elevation state here.
     // The route should remain visible until a different route is selected.
@@ -554,7 +558,7 @@ export default function App(){
                   onValueChange={(newValue) => {
                     if (newValue === "" && value !== "") {
                       // Clearing route selection
-                      clearRouteSelection()
+                                            clearRouteSelection()
                       setElevationData([])
                       setShowElevation(false)
                     }
