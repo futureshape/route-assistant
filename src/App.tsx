@@ -3,7 +3,6 @@ import { Check, ChevronsUpDown, Mountain, ChevronUp, ChevronDown, HelpCircle, Li
 import { APIProvider, Map, Marker, InfoWindow, useMap } from '@vis.gl/react-google-maps'
 import { cn, getCookie } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import {
   Command,
   CommandEmpty,
