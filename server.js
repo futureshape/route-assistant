@@ -516,6 +516,134 @@ app.post('/api/poi-search/mock', async (req, res) => {
   }
 });
 
+// New API endpoint to fetch place details from Google Places using place ID
+app.post('/api/poi-from-place-id', async (req, res) => {
+  try {
+    const { placeId } = req.body;
+    
+    if (!placeId) {
+      return res.status(400).json({ error: 'Place ID is required' });
+    }
+
+    const googleApiKey = process.env.GOOGLE_API_KEY;
+    if (!googleApiKey) {
+      return res.status(500).json({ error: 'Google Maps API key not configured' });
+    }
+
+    console.log('[POI from Place ID] Fetching details for place ID:', placeId);
+
+    // Use Google Places API to get place details
+    // Note: Place Details API uses different field names than search endpoints
+    const url = 'https://places.googleapis.com/v1/places/' + encodeURIComponent(placeId);
+    const response = await axios.get(url, {
+      headers: {
+        'X-Goog-Api-Key': googleApiKey,
+        'X-Goog-FieldMask': 'displayName,location,types,formattedAddress,websiteUri,editorialSummary'
+      }
+    });
+
+    const place = response.data;
+    console.log('[POI from Place ID] Google API response:', place);
+
+    if (!place || !place.location) {
+      return res.status(404).json({ error: 'Place not found or invalid' });
+    }
+
+    // Convert to our POI format (same as google-maps search)
+    const primaryType = place.types?.[0] || 'establishment';
+    
+    // Use the existing mapping function
+    const poi = {
+      name: place.displayName?.text || 'Unknown Place',
+      lat: place.location.latitude,
+      lng: place.location.longitude,
+      poi_type_name: mapGoogleTypeToRideWithGPS(primaryType),
+      description: place.editorialSummary?.text || place.formattedAddress || '',
+      url: place.websiteUri || '',
+      provider: 'google'
+    };
+
+    console.log('[POI from Place ID] Converted POI:', poi);
+    res.json(poi);
+  } catch (error) {
+    console.error('[POI from Place ID] Error:', error);
+    logAxiosError('[POI from Place ID]', error);
+    res.status(500).json({ error: 'Failed to fetch place details' });
+  }
+});
+
+// Helper function to map Google Place types to RideWithGPS types
+function mapGoogleTypeToRideWithGPS(googleType) {
+  const mapping = {
+    'restaurant': 'food',
+    'meal_takeaway': 'food',
+    'meal_delivery': 'food',
+    'food': 'food',
+    'bakery': 'food',
+    'bar': 'bar',
+    'night_club': 'bar',
+    'cafe': 'coffee',
+    'coffee_shop': 'coffee',
+    'winery': 'winery',
+    'brewery': 'bar',
+    'lodging': 'lodging',
+    'hotel': 'lodging',
+    'motel': 'lodging',
+    'guest_house': 'lodging',
+    'hostel': 'lodging',
+    'bed_and_breakfast': 'lodging',
+    'campground': 'camping',
+    'rv_park': 'camping',
+    'parking': 'parking',
+    'gas_station': 'gas',
+    'petrol_station': 'gas',
+    'ferry_terminal': 'ferry',
+    'airport': 'transit',
+    'train_station': 'transit',
+    'subway_station': 'transit',
+    'bus_station': 'transit',
+    'transit_station': 'transit',
+    'taxi_stand': 'transit',
+    'hospital': 'hospital',
+    'pharmacy': 'first_aid',
+    'doctor': 'first_aid',
+    'dentist': 'first_aid',
+    'veterinary_care': 'first_aid',
+    'convenience_store': 'convenience_store',
+    'supermarket': 'convenience_store',
+    'grocery_store': 'convenience_store',
+    'shopping_mall': 'shopping',
+    'department_store': 'shopping',
+    'clothing_store': 'shopping',
+    'store': 'shopping',
+    'atm': 'atm',
+    'bank': 'atm',
+    'library': 'library',
+    'tourist_attraction': 'viewpoint',
+    'amusement_park': 'viewpoint',
+    'zoo': 'viewpoint',
+    'aquarium': 'viewpoint',
+    'museum': 'viewpoint',
+    'art_gallery': 'viewpoint',
+    'park': 'park',
+    'national_park': 'park',
+    'hiking_area': 'trailhead',
+    'mountain_peak': 'summit',
+    'natural_feature': 'viewpoint',
+    'scenic_lookout': 'viewpoint',
+    'bicycle_store': 'bike_shop',
+    'gym': 'rest_stop',
+    'spa': 'shower',
+    'swimming_pool': 'swimming',
+    'water_park': 'swimming',
+    'restroom': 'restroom',
+    'public_restroom': 'restroom'
+  };
+
+  const normalizedType = googleType?.toLowerCase() || '';
+  return mapping[normalizedType] || 'generic';
+}
+
 // Serve index.html with injected Google API key so frontend gets the correct key at runtime
 app.get('/', async (req, res, next) => {
   try{

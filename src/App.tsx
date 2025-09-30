@@ -262,6 +262,37 @@ export default function App(){
     setSelectedMarker(poi)
   }
 
+  // Handler for when user clicks on native Google Maps POI markers
+  const handleGooglePlacesPOIClick = (poiResult: any) => {
+    console.log('[Google Places POI] User clicked on Google POI:', poiResult)
+    
+    // Convert POIResult to our POI format
+    const poi: POI = {
+      name: poiResult.name,
+      lat: poiResult.lat,
+      lng: poiResult.lng,
+      poi_type_name: poiResult.poi_type_name,
+      description: poiResult.description || '',
+      url: poiResult.url || '',
+      poiSource: 'google' // Same source as regular Google search POIs
+    }
+    
+    // Check if this POI already exists
+    const markerKey = getMarkerKey(poi)
+    const existingMarker = markers.find(m => getMarkerKey(m) === markerKey)
+    if (existingMarker) {
+      // If it already exists, just select it
+      setSelectedMarker(existingMarker)
+      return
+    }
+    
+    // Add as a single POI (like clicking from search results)
+    displayPOIResults([poi])
+    
+    // Select the new POI to show its info window
+    setSelectedMarker(poi)
+  }
+
   const handleAuthChange = () => {
     // Re-fetch session and routes
     fetchAuthState()
@@ -659,6 +690,7 @@ export default function App(){
                 onMarkerClick={handleMarkerClick}
                 onCloseInfoWindow={() => setSelectedMarker(null)}
                 onUpdateMarkerState={updateMarkerState}
+                onGooglePlacesPOIClick={handleGooglePlacesPOIClick}
                 getMarkerKey={getMarkerKey}
                 mapInstanceRef={mapInstanceRef}
               />

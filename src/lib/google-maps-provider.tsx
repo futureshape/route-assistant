@@ -125,6 +125,47 @@ const GoogleMapsSearchForm: React.FC<POISearchFormProps> = ({ onSearch, disabled
   );
 };
 
+// Function to set up Google Maps native POI click interception
+export function setupGoogleMapsPOIClickListener(
+  map: google.maps.Map,
+  onPOIClick: (poi: POIResult) => void
+): google.maps.MapsEventListener | null {
+  if (!map) return null;
+
+  const listener = map.addListener('click', async (event: google.maps.MapMouseEvent | google.maps.IconMouseEvent) => {
+    // Check if this is a POI click (has placeId)
+    if ('placeId' in event && event.placeId) {
+      console.log('[Google Maps POI] Clicked on native POI with place ID:', event.placeId);
+      
+      // Prevent the default info window from showing
+      event.stop();
+      
+      try {
+        // Fetch place details using our API
+        const response = await fetch('/api/poi-from-place-id', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ placeId: event.placeId })
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch place details: ${response.status}`);
+        }
+
+        const poi: POIResult = await response.json();
+        console.log('[Google Maps POI] Fetched POI details:', poi);
+        
+        // Call the callback with the POI
+        onPOIClick(poi);
+      } catch (error) {
+        console.error('[Google Maps POI] Error fetching place details:', error);
+      }
+    }
+  });
+
+  return listener;
+}
+
 // Google Maps POI Provider Implementation
 export class GoogleMapsProvider implements POIProvider {
   id = 'google';

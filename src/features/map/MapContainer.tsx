@@ -4,7 +4,9 @@ import { ListTodo } from 'lucide-react'
 import { RoutePolyline } from './RoutePolyline'
 import { POIMarkers } from './POIMarkers'
 import { POIInfoWindow } from './POIInfoWindow'
+import { setupGoogleMapsPOIClickListener } from '@/lib/google-maps-provider'
 import type { POI, MarkerState, MarkerStates } from '@/types/poi'
+import type { POIResult } from '@/lib/poi-providers'
 
 interface MapContainerProps {
   googleMapsApiKey: string
@@ -23,17 +25,36 @@ interface MapContainerProps {
   onMarkerClick: (poi: POI) => void
   onCloseInfoWindow: () => void
   onUpdateMarkerState: (markerKey: string, newState: MarkerState) => void
+  onGooglePlacesPOIClick?: (poi: POIResult) => void
   getMarkerKey: (poi: POI) => string
   mapInstanceRef: React.MutableRefObject<google.maps.Map | null>
 }
 
-// Component to capture map instance
-function MapInstanceCapture({ mapInstanceRef }: { mapInstanceRef: React.MutableRefObject<google.maps.Map | null> }) {
+// Component to capture map instance and set up POI click handling
+function MapInstanceCapture({ 
+  mapInstanceRef, 
+  onGooglePlacesPOIClick 
+}: { 
+  mapInstanceRef: React.MutableRefObject<google.maps.Map | null>
+  onGooglePlacesPOIClick?: (poi: POIResult) => void
+}) {
   const map = useMap()
   
   useEffect(() => {
     mapInstanceRef.current = map
-  }, [map, mapInstanceRef])
+    
+    // Set up Google Maps POI click listener if callback is provided
+    if (map && onGooglePlacesPOIClick) {
+      const listener = setupGoogleMapsPOIClickListener(map, onGooglePlacesPOIClick)
+      
+      // Cleanup listener when component unmounts
+      return () => {
+        if (listener) {
+          window.google?.maps?.event?.removeListener(listener)
+        }
+      }
+    }
+  }, [map, mapInstanceRef, onGooglePlacesPOIClick])
   
   return null
 }
@@ -55,6 +76,7 @@ export function MapContainer({
   onMarkerClick,
   onCloseInfoWindow,
   onUpdateMarkerState,
+  onGooglePlacesPOIClick,
   getMarkerKey,
   mapInstanceRef
 }: MapContainerProps) {
@@ -72,7 +94,10 @@ export function MapContainer({
             }}
           >
             {/* Capture map instance */}
-            <MapInstanceCapture mapInstanceRef={mapInstanceRef} />
+            <MapInstanceCapture 
+              mapInstanceRef={mapInstanceRef}
+              onGooglePlacesPOIClick={onGooglePlacesPOIClick}
+            />
 
             {/* Route Polyline */}
             {routePath.length > 0 && <RoutePolyline path={routePath} color={routeColor} />}
