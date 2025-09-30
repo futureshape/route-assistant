@@ -161,7 +161,7 @@ export function POIInfoWindow({
           {/* POI Type */}
           {isEditable ? (
             <Select value={editedType} onValueChange={handleTypeChange}>
-              <SelectTrigger className="text-xs h-8">
+              <SelectTrigger className="text-xs h-8" tabIndex={0}>
                 <SelectValue placeholder="Select type" />
               </SelectTrigger>
               <SelectContent>
