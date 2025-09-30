@@ -555,7 +555,7 @@ export default function App(){
     
     // Add route data if available (for Google Maps provider)
     if (routePath.length > 0) {
-      enhancedParams.encodedPolyline = window.lastFetchedEncodedPolyline || null;
+      enhancedParams.encodedPolyline = window.lastFetchedEncodedPolyline || undefined;
     }
     
     // Add map bounds if map is available (for Mock provider)
