@@ -46,6 +46,7 @@ interface POIState {
   setSelectedMarker: (marker: POI | null) => void
   setPOIProviders: (providers: POIProvider[]) => void
   updateMarkerState: (markerKey: string, newState: 'suggested' | 'selected' | 'existing') => void
+  updatePOI: (markerKey: string, updatedPOI: Partial<POI>) => void
   // Compound actions
   clearAllPOIs: () => void
   clearSuggestedPOIs: () => void
@@ -145,6 +146,29 @@ export const useAppStore = create<AppStore>((set, get) => ({
         ...state.markerStates,
         [markerKey]: newState,
       },
+    })
+  },
+  updatePOI: (markerKey, updatedPOI) => {
+    const state = get()
+    // Find and update the POI
+    const updatedMarkers = state.markers.map((poi) => {
+      const key = `${poi.name}_${poi.lat}_${poi.lng}`
+      if (key === markerKey) {
+        return { ...poi, ...updatedPOI }
+      }
+      return poi
+    })
+    
+    // Update selectedMarker if it's the one being updated
+    const updatedSelectedMarker = state.selectedMarker 
+      ? `${state.selectedMarker.name}_${state.selectedMarker.lat}_${state.selectedMarker.lng}` === markerKey
+        ? { ...state.selectedMarker, ...updatedPOI }
+        : state.selectedMarker
+      : null
+    
+    set({
+      markers: updatedMarkers,
+      selectedMarker: updatedSelectedMarker,
     })
   },
   // Compound actions

@@ -1,5 +1,16 @@
+import { useState } from 'react'
 import { InfoWindow } from '@vis.gl/react-google-maps'
 import { Link } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { RideWithGPSPOIType } from '@/lib/poi-providers'
 
 interface POI {
   name: string
@@ -17,6 +28,7 @@ interface POIInfoWindowProps {
   poiTypeNames: Record<string, string>
   onClose: () => void
   onUpdateState: (newState: 'suggested' | 'selected') => void
+  onPOIUpdate?: (updatedPOI: Partial<POI>) => void
 }
 
 // Helper: get human-readable POI type name
@@ -51,14 +63,70 @@ function formatURLForDisplay(url: string): string {
   }
 }
 
+// Helper to validate URL
+function isValidURL(url: string): boolean {
+  if (!url) return true; // Empty is valid
+  try {
+    new URL(url);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function POIInfoWindow({
   poi,
   markerState,
   poiTypeNames,
   onClose,
-  onUpdateState
+  onUpdateState,
+  onPOIUpdate
 }: POIInfoWindowProps) {
+  const [editedName, setEditedName] = useState(poi?.name || '')
+  const [editedType, setEditedType] = useState(poi?.poi_type_name || 'generic')
+  const [editedDescription, setEditedDescription] = useState(poi?.description || '')
+  const [editedUrl, setEditedUrl] = useState(poi?.url || '')
+  const [urlError, setUrlError] = useState(false)
+
   if (!poi) return null
+
+  const isEditable = markerState !== 'existing'
+
+  // Get all POI type options sorted alphabetically
+  const poiTypeOptions = Object.entries(poiTypeNames).sort((a, b) => 
+    a[1].localeCompare(b[1])
+  )
+
+  // Handle field updates
+  const handleNameChange = (value: string) => {
+    setEditedName(value)
+    if (onPOIUpdate) {
+      onPOIUpdate({ name: value })
+    }
+  }
+
+  const handleTypeChange = (value: string) => {
+    setEditedType(value)
+    if (onPOIUpdate) {
+      onPOIUpdate({ poi_type_name: value as RideWithGPSPOIType })
+    }
+  }
+
+  const handleDescriptionChange = (value: string) => {
+    setEditedDescription(value)
+    if (onPOIUpdate) {
+      onPOIUpdate({ description: value })
+    }
+  }
+
+  const handleUrlChange = (value: string) => {
+    setEditedUrl(value)
+    const valid = isValidURL(value)
+    setUrlError(!valid)
+    if (valid && onPOIUpdate) {
+      onPOIUpdate({ url: value })
+    }
+  }
 
   return (
     <InfoWindow
@@ -66,24 +134,68 @@ export function POIInfoWindow({
       onCloseClick={onClose}
     >
       <div className="p-2 max-w-xs">
-        <h3 className="font-bold text-sm mb-2">{poi.name}</h3>
         <div className="space-y-2">
-          {/* POI Type */}
-          {poi.poi_type_name && (
-            <div className="text-xs text-gray-600">
-              <span className="font-semibold">Type:</span> {getPOITypeName(poi.poi_type_name, poiTypeNames)}
-            </div>
+          {/* POI Name */}
+          {isEditable ? (
+            <Input
+              value={editedName}
+              onChange={(e) => handleNameChange(e.target.value)}
+              className="font-bold text-sm"
+              placeholder="POI Name"
+            />
+          ) : (
+            <h3 className="font-bold text-sm">{poi.name}</h3>
           )}
+          
+          {/* POI Type */}
+          {isEditable ? (
+            <Select value={editedType} onValueChange={handleTypeChange}>
+              <SelectTrigger className="text-xs h-8">
+                <SelectValue placeholder="Select type" />
+              </SelectTrigger>
+              <SelectContent>
+                {poiTypeOptions.map(([key, label]) => (
+                  <SelectItem key={key} value={key} className="text-xs">
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : poi.poi_type_name ? (
+            <div className="text-xs text-gray-600">
+              {getPOITypeName(poi.poi_type_name, poiTypeNames)}
+            </div>
+          ) : null}
           
           {/* Description */}
-          {poi.description && (
-            <div className="text-xs text-gray-600">
-              <span className="font-semibold">Description:</span> {poi.description}
-            </div>
-          )}
+          {isEditable ? (
+            <Textarea
+              value={editedDescription}
+              onChange={(e) => handleDescriptionChange(e.target.value)}
+              placeholder="Description (optional)"
+              className="text-xs min-h-[60px]"
+            />
+          ) : poi.description ? (
+            <div className="text-xs text-gray-600">{poi.description}</div>
+          ) : null}
           
-          {/* URL with icon and cropped display */}
-          {poi.url && (
+          {/* URL */}
+          {isEditable ? (
+            <div>
+              <div className="flex items-center gap-1">
+                <Link className="h-3 w-3 flex-shrink-0 text-gray-500" />
+                <Input
+                  value={editedUrl}
+                  onChange={(e) => handleUrlChange(e.target.value)}
+                  placeholder="URL (optional)"
+                  className={`text-xs h-8 ${urlError ? 'border-red-500' : ''}`}
+                />
+              </div>
+              {urlError && (
+                <p className="text-xs text-red-500 mt-1">Please enter a valid URL</p>
+              )}
+            </div>
+          ) : poi.url ? (
             <a 
               href={poi.url} 
               target="_blank" 
@@ -94,7 +206,7 @@ export function POIInfoWindow({
               <Link className="h-3 w-3 flex-shrink-0" />
               <span className="truncate">{formatURLForDisplay(poi.url)}</span>
             </a>
-          )}
+          ) : null}
           
           <div>
             {markerState === 'existing' ? (
