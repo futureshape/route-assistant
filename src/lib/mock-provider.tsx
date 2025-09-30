@@ -42,7 +42,8 @@ export class MockProvider implements POIProvider {
   name = 'Mock Provider';
   description = 'Demo provider that returns a pin at the center of the viewport';
 
-  isEnabled(context?: { mapBounds?: unknown }): boolean {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  isEnabled(_context?: { mapBounds?: unknown }): boolean {
     // Mock provider is always enabled
     return true;
   }
@@ -73,7 +74,7 @@ export class MockProvider implements POIProvider {
     const data = await response.json();
     const places: MockPlace[] = data.places || [];
     
-    return places.map((p) => {
+    return places.map((p): POIResult => {
       const loc = p.location || {};
       const lat = loc.latitude ?? loc.lat;
       const lng = loc.longitude ?? loc.lng;
@@ -87,7 +88,7 @@ export class MockProvider implements POIProvider {
         url: p.uri || '',
         provider: this.id
       };
-    }).filter((p: POIResult) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
+    }).filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
   }
 
   getSearchFormComponent() {

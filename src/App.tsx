@@ -594,7 +594,12 @@ export default function App(){
                 poiProviders={poiProviders}
                 activeAccordionItem={activeAccordionItem}
                 routePath={routePath}
-                mapBounds={mapInstanceRef.current?.getBounds()}
+                mapBounds={mapInstanceRef.current?.getBounds() ? {
+                  north: mapInstanceRef.current.getBounds()!.getNorthEast().lat(),
+                  south: mapInstanceRef.current.getBounds()!.getSouthWest().lat(),
+                  east: mapInstanceRef.current.getBounds()!.getNorthEast().lng(),
+                  west: mapInstanceRef.current.getBounds()!.getSouthWest().lng()
+                } : null}
                 onAccordionChange={setActiveAccordionItem}
                 onPOISearch={handlePOISearch}
                 onClearMarkers={clearMarkers}

@@ -165,6 +165,8 @@ export class GoogleMapsProvider implements POIProvider {
       primaryType?: string
       description?: string
       websiteUri?: string
+      editorialSummary?: { text?: string }
+      googleMapsUri?: string
     }
 
     const data = await response.json();
@@ -172,8 +174,22 @@ export class GoogleMapsProvider implements POIProvider {
     
     return places.map((p) => {
       const loc = p.location || p.geoCode?.location || p.geometry?.location || p.center || {};
-      const lat = loc.latitude ?? (loc as any).lat ?? (loc as any).latLng?.latitude;
-      const lng = loc.longitude ?? (loc as any).lng ?? (loc as any).latLng?.longitude;
+      // Handle different location formats
+      let lat: number | undefined;
+      let lng: number | undefined;
+      
+      if ('latitude' in loc && typeof loc.latitude === 'number') {
+        lat = loc.latitude;
+        lng = (loc as { longitude?: number }).longitude;
+      } else if ('lat' in loc && typeof loc.lat === 'number') {
+        lat = loc.lat;
+        lng = (loc as { lng?: number }).lng;
+      } else if ('latLng' in loc && loc.latLng && typeof loc.latLng === 'object') {
+        const latLng = loc.latLng as { latitude?: number; longitude?: number };
+        lat = latLng.latitude;
+        lng = latLng.longitude;
+      }
+      
       const primaryType = p.primaryType || 'establishment';
       
       return { 

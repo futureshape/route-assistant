@@ -1,5 +1,6 @@
 // Type definitions for the application store
 import type { POIProvider as LibPOIProvider } from '@/lib/poi-providers'
+import type { Route as RouteType } from '@/types/route'
 
 // Re-export types from central types directory
 export type { Route, RouteCoordinate } from '@/types/route'
@@ -20,7 +21,7 @@ export interface ElevationDataPoint {
 
 export interface RouteSwitchDialogState {
   show: boolean
-  newRoute: Route | null
+  newRoute: RouteType | null
   currentRouteName: string
   selectedCount: number
 }
