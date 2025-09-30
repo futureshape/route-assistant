@@ -24,7 +24,7 @@ interface Route {
 
 interface RouteSelectorProps {
   routes: Route[]
-  selectedRouteId: string | null
+  selectedRouteId: number | null
   value: string
   open: boolean
   routesLoading: boolean
@@ -38,8 +38,8 @@ function formatRouteMetrics(route: Route) {
   if (!route || typeof route !== 'object') return { distanceText: null, elevationText: null }
   const distMeters = route.distance
   const elevMeters = route.elevation_gain
-  const distanceText = Number.isFinite(distMeters) ? `${(distMeters / 1000).toFixed(1)} km` : null
-  const elevationText = Number.isFinite(elevMeters) ? `${Math.round(elevMeters)} m` : null
+  const distanceText = (distMeters != null && Number.isFinite(distMeters)) ? `${(distMeters / 1000).toFixed(1)} km` : null
+  const elevationText = (elevMeters != null && Number.isFinite(elevMeters)) ? `${Math.round(elevMeters)} m` : null
   return { distanceText, elevationText }
 }
 
@@ -67,7 +67,7 @@ export function RouteSelector({
             <span className="truncate">
               {routesLoading
                 ? "Loading routes..."
-                : value ? routes.find(r => r.id.toString() === value)?.name || "Route not found" : "Select route..."
+                : value ? routes.find(r => r.id === Number(value))?.name || "Route not found" : "Select route..."
               }
             </span>
             {routesLoading ? (
@@ -96,7 +96,7 @@ export function RouteSelector({
                       console.log('[Route Selection] Available routes:', routes.length, routes.map(r => ({ id: r.id, name: r.name })))
                       
                       // Use the route ID directly
-                      const selectedRoute = routes.find(r => r.id.toString() === currentValue)
+                      const selectedRoute = routes.find(r => r.id === Number(currentValue))
                       if (selectedRoute) {
                         onValueChange(currentValue === value ? "" : currentValue)
                         onOpenChange(false)
@@ -126,12 +126,12 @@ export function RouteSelector({
                         )
                       })()}
                     </div>
-                    <Check
-                      className={cn(
-                        "ml-auto h-4 w-4 flex-shrink-0",
-                        selectedRouteId === route.id.toString() ? "opacity-100" : "opacity-0"
-                      )}
-                    />
+                                          <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          selectedRouteId === route.id ? "opacity-100" : "opacity-0"
+                        )}
+                      />
                   </CommandItem>
                 ))}
               </CommandGroup>

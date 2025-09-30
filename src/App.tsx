@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { Mountain, HelpCircle } from 'lucide-react'
 import { getCookie } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -21,6 +21,7 @@ import { RouteSelector, RouteSwitchDialog } from '@/features/routes'
 import { MapContainer } from '@/features/map'
 import { ElevationChart } from '@/features/elevation'
 import { POISearch, POISummary } from '@/features/poi'
+import { useAuth, useRoutes, usePOI, useMap, useElevation, useUI } from '@/store/selectors'
 
 // Extend window interface for TypeScript
 declare global {
@@ -73,10 +74,74 @@ const POI_TYPE_NAMES: Record<string, string> = {
 };
 
 export default function App(){
-  const [authenticated, setAuthenticated] = useState(false)
-  // Read route color from CSS variable so it can be themed via CSS
-  const [routeColor, setRouteColor] = useState<string>('#fa6400')
+  // Get state and actions from Zustand store - using combined selectors
+  const { authenticated, setAuthenticated } = useAuth()
+  
+  const {
+    routes,
+    routesLoading,
+    selectedRouteId,
+    routePath,
+    routeColor,
+    routeFullyLoaded,
+    setRoutes,
+    setRoutesLoading,
+    setRoutePath,
+    setRouteColor,
+    setRouteFullyLoaded,
+    selectRoute,
+    clearRouteSelection,
+  } = useRoutes()
+  
+  const {
+    markers,
+    markerStates,
+    selectedMarker,
+    poiProviders,
+    setMarkers,
+    setMarkerStates,
+    setSelectedMarker,
+    setPOIProviders,
+    updateMarkerState,
+    clearAllPOIs,
+    clearSuggestedPOIs,
+    addExistingPOIs,
+  } = usePOI()
+  
+  const {
+    mapCenter,
+    mapZoom,
+    chartHoverPosition,
+    googleMapsApiKey,
+    googleMapsApiKeyLoaded,
+    setMapCenter,
+    setMapZoom,
+    setChartHoverPosition,
+    setGoogleMapsApiKey,
+    setGoogleMapsApiKeyLoaded,
+  } = useMap()
+  
+  const {
+    elevationData,
+    showElevation,
+    setElevationData,
+    setShowElevation,
+  } = useElevation()
+  
+  const {
+    open,
+    value,
+    routeSwitchDialog,
+    showIntroScreen,
+    activeAccordionItem,
+    setOpen,
+    setValue,
+    setRouteSwitchDialog,
+    setShowIntroScreen,
+    setActiveAccordionItem,
+  } = useUI()
 
+  // Read route color from CSS variable so it can be themed via CSS
   useEffect(() => {
     try {
       const cs = getComputedStyle(document.documentElement)
@@ -85,36 +150,9 @@ export default function App(){
     } catch (e) {
       // ignore in non-browser environments
     }
-  }, [])
-  const [routes, setRoutes] = useState<any[]>([])
-  const [routesLoading, setRoutesLoading] = useState(false)
-  const [open, setOpen] = useState(false)
-  const [value, setValue] = useState("")
-  const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null)
+  }, [setRouteColor])
 
-  const [markers, setMarkers] = useState<any[]>([])
-  const [elevationData, setElevationData] = useState<any[]>([])
-  const [showElevation, setShowElevation] = useState(false)
-  const [markerStates, setMarkerStates] = useState<{[key: string]: 'suggested' | 'selected' | 'existing'}>({}) // Track marker states by POI name+coordinates
-  const markerStatesRef = useRef<{[key: string]: 'suggested' | 'selected' | 'existing'}>({}) // Ref to current marker states
-  const [selectedMarker, setSelectedMarker] = useState<any>(null) // For InfoWindow
-  const [routeSwitchDialog, setRouteSwitchDialog] = useState<{show: boolean, newRoute: any, currentRouteName: string, selectedCount: number}>({show: false, newRoute: null, currentRouteName: '', selectedCount: 0})
-  const [mapCenter, setMapCenter] = useState({lat: 39.5, lng: -98.35})
-  const [mapZoom, setMapZoom] = useState(4)
-  const [routePath, setRoutePath] = useState<any[]>([])
-  const [googleMapsApiKey, setGoogleMapsApiKey] = useState<string>('')
-  const [googleMapsApiKeyLoaded, setGoogleMapsApiKeyLoaded] = useState<boolean>(false)
   const mapInstanceRef = useRef<any>(null)
-  const [chartHoverPosition, setChartHoverPosition] = useState<{lat: number, lng: number} | null>(null)
-  const [showIntroScreen, setShowIntroScreen] = useState(false)
-  const [routeFullyLoaded, setRouteFullyLoaded] = useState(false)
-  const [poiProviders, setPOIProviders] = useState<POIProvider[]>([])
-  const [activeAccordionItem, setActiveAccordionItem] = useState<string>('')
-
-  // Keep ref in sync with state
-  useEffect(() => {
-    markerStatesRef.current = markerStates
-  }, [markerStates])
 
   // Fetch Google Maps API key on mount
   useEffect(() => {
@@ -130,7 +168,7 @@ export default function App(){
       }
     }
     fetchApiKey()
-  }, [])
+  }, [setGoogleMapsApiKey, setGoogleMapsApiKeyLoaded])
 
   // Load enabled POI providers
   useEffect(() => {
@@ -144,7 +182,7 @@ export default function App(){
       }
     }
     loadProviders()
-  }, [])
+  }, [setPOIProviders])
 
   // Check if intro screen should be shown on mount
   useEffect(() => {
@@ -152,7 +190,7 @@ export default function App(){
     if (!dismissed) {
       setShowIntroScreen(true)
     }
-  }, [])
+  }, [setShowIntroScreen])
 
   // Helper: generate unique key for POI
   function getMarkerKey(poi: any) {
@@ -162,7 +200,7 @@ export default function App(){
   // Helper: get current route name
   function getCurrentRouteName() {
     if (!selectedRouteId) return ''
-    const currentRoute = routes.find(r => r.id.toString() === selectedRouteId)
+    const currentRoute = routes.find(r => r.id === selectedRouteId)
     return currentRoute?.name || 'Unknown Route'
   }
 
@@ -192,32 +230,24 @@ export default function App(){
     switch (action) {
       case 'keep-editing':
         // Reset dropdown to current route and stay on current route
-        setValue(selectedRouteId || '')
+        setValue(selectedRouteId?.toString() || '')
         break
         
       case 'keep-points':
         // Switch route but keep the selected POIs (they'll become orphaned but still selected)
-        await showRoute(dialog.newRoute.id)
+        if (dialog.newRoute) {
+          await showRoute(dialog.newRoute.id)
+        }
         break
         
       case 'clear-points':
         // Clear all markers and switch to new route
-        setMarkers([])
-        setMarkerStates({})
-        setSelectedMarker(null)
-        await showRoute(dialog.newRoute.id)
+        clearAllPOIs()
+        if (dialog.newRoute) {
+          await showRoute(dialog.newRoute.id)
+        }
         break
     }
-  }
-  function updateMarkerState(markerKey: string, newState: 'suggested' | 'selected' | 'existing') {
-    // Don't allow changing state of existing POIs
-    if (markerStates[markerKey] === 'existing') {
-      return
-    }
-    setMarkerStates(prev => ({
-      ...prev,
-      [markerKey]: newState
-    }))
   }
 
   // Updated marker click handler for React approach
@@ -264,14 +294,13 @@ export default function App(){
 
   useEffect(() => {
     fetchAuthState()
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function showRoute(id: any){
     console.log('[showRoute] Starting with id:', id, 'type:', typeof id)
     
     // Set the selected route ID immediately and reset loaded state
-    setSelectedRouteId(id.toString())
-    setRouteFullyLoaded(false)
+    selectRoute(id)
     
     clearMarkers()
     
@@ -319,17 +348,8 @@ export default function App(){
         poiSource: 'existing'
       }))
       
-      // Add existing POIs to markers and set their state to 'existing'
-      setMarkers(prev => [...prev, ...existingPOIsForMap])
-      
-      // Set marker states for existing POIs
-      const existingMarkerStates: {[key: string]: 'existing'} = {}
-      existingPOIsForMap.forEach((poi: any) => {
-        const markerKey = getMarkerKey(poi)
-        existingMarkerStates[markerKey] = 'existing'
-      })
-      
-      setMarkerStates(prev => ({ ...prev, ...existingMarkerStates }))
+      // Add existing POIs to markers with their state set to 'existing'
+            addExistingPOIs(existingPOIsForMap, getMarkerKey)
       console.log('[showRoute] Existing POIs loaded:', existingPOIsForMap.length)
     }
     
@@ -396,26 +416,7 @@ export default function App(){
 
   function clearMarkers(){
     // Only clear suggested POI markers - keep existing and selected ones
-    setMarkers(prev => prev.filter(poi => {
-      const markerKey = getMarkerKey(poi)
-      const state = markerStates[markerKey]
-      // Keep existing POIs and selected POIs, only remove suggested ones
-      return state === 'existing' || state === 'selected'
-    }))
-    
-    // Remove marker states for suggested POIs only
-    setMarkerStates(prev => {
-      const newStates: {[key: string]: 'suggested' | 'selected' | 'existing'} = {}
-      Object.entries(prev).forEach(([key, state]) => {
-        if (state === 'existing' || state === 'selected') {
-          newStates[key] = state
-        }
-        // Don't include 'suggested' states - effectively removes them
-      })
-      return newStates
-    })
-    
-    setSelectedMarker(null)
+        clearSuggestedPOIs()
     
     // Intentionally do not clear the route path or elevation state here.
     // The route should remain visible until a different route is selected.
@@ -557,7 +558,7 @@ export default function App(){
                   onValueChange={(newValue) => {
                     if (newValue === "" && value !== "") {
                       // Clearing route selection
-                      setSelectedRouteId(null)
+                                            clearRouteSelection()
                       setElevationData([])
                       setShowElevation(false)
                     }
