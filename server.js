@@ -5,7 +5,7 @@ const axios = require('axios');
 const polyline = require('@mapbox/polyline');
 const qs = require('qs');
 const path = require('path');
-const { getRideWithGPSTypeId, mapGoogleTypeToRideWithGPS } = require('./poi-type-mapping');
+const { getRideWithGPSTypeId, mapGoogleTypeToRideWithGPS, mapOSMAmenityToRideWithGPS } = require('./poi-type-mapping');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -60,7 +60,7 @@ if (!process.env.RWGPS_CLIENT_ID || !process.env.RWGPS_CLIENT_SECRET || !process
 }
 
 // POI Provider Configuration
-const ENABLED_POI_PROVIDERS = (process.env.ENABLED_POI_PROVIDERS || 'google').split(',').map(p => p.trim());
+const ENABLED_POI_PROVIDERS = (process.env.ENABLED_POI_PROVIDERS || 'google,osm').split(',').map(p => p.trim());
 console.log('Enabled POI providers:', ENABLED_POI_PROVIDERS);
 
 // In production serve built client; in dev Vite middleware will be attached later
@@ -472,6 +472,80 @@ app.post('/api/poi-search/google-maps', async (req, res) => {
     return res.status(500).send({ error: 'Search failed', details: { status, type, snippet } });
   }
   return res.status(500).send({ error: 'Search failed', details: { message: err && err.message ? err.message : String(err) } });
+  }
+});
+
+// OSM POI Provider endpoint - queries Overpass API
+app.post('/api/poi-search/osm', async (req, res) => {
+  const { amenities, mapBounds } = req.body || {};
+  if (!amenities) return res.status(400).send({ error: 'amenities required' });
+  if (!mapBounds) return res.status(400).send({ error: 'mapBounds required' });
+  
+  try {
+    console.info('[OSM POI] Incoming search request:', { amenities, mapBounds });
+    
+    // Parse amenities (comma-separated string)
+    const amenityList = amenities.split(',').map(a => a.trim()).filter(Boolean);
+    
+    if (amenityList.length === 0) {
+      return res.status(400).send({ error: 'At least one amenity type required' });
+    }
+    
+    // Build Overpass QL query
+    // Format: (south, west, north, east) for bbox
+    const bbox = `${mapBounds.south},${mapBounds.west},${mapBounds.north},${mapBounds.east}`;
+    
+    // Build query for multiple amenity types using union
+    // We query for nodes, ways, and relations with the specified amenity tags
+    const amenityQueries = amenityList.map(amenity => 
+      `node["amenity"="${amenity}"](${bbox});
+  way["amenity"="${amenity}"](${bbox});
+  relation["amenity"="${amenity}"](${bbox});`
+    ).join('\n  ');
+    
+    const overpassQuery = `
+[out:json][timeout:25];
+(
+  ${amenityQueries}
+);
+out center;
+`;
+
+    console.debug('[OSM POI] Overpass query:', overpassQuery);
+    
+    // Query Overpass API
+    const overpassUrl = 'https://overpass-api.de/api/interpreter';
+    const overpassResponse = await axios.post(overpassUrl, overpassQuery, {
+      headers: {
+        'Content-Type': 'text/plain'
+      },
+      timeout: 30000 // 30 second timeout
+    });
+    
+    console.info('[OSM POI] Overpass response:', {
+      status: overpassResponse.status,
+      elementCount: overpassResponse.data?.elements?.length || 0
+    });
+    
+    // Return the Overpass API response
+    res.json(overpassResponse.data);
+  } catch (err) {
+    logAxiosError('OSM POI search error', err);
+    const resp = err?.response;
+    if (resp) {
+      const status = resp.status;
+      const type = resp.headers && resp.headers['content-type'];
+      let snippet = '';
+      try { 
+        snippet = (type && type.includes('application/json')) 
+          ? JSON.stringify(resp.data).slice(0, 1000) 
+          : String(resp.data).slice(0, 500); 
+      } catch(e) { 
+        snippet = String(resp.data).slice(0, 200); 
+      }
+      return res.status(500).send({ error: 'OSM search failed', details: { status, type, snippet } });
+    }
+    return res.status(500).send({ error: 'OSM search failed', details: { message: err && err.message ? err.message : String(err) } });
   }
 });
 
