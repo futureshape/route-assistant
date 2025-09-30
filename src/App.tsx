@@ -550,7 +550,7 @@ export default function App(){
   }
 
   // Prepare search parameters with context data each provider might need
-  async function prepareSearchParams(provider: POIProvider, params: POISearchParams): Promise<POISearchParams> {
+  async function prepareSearchParams(_provider: POIProvider, params: POISearchParams): Promise<POISearchParams> {
     const enhancedParams = { ...params };
     
     // Add route data if available (for Google Maps provider)
