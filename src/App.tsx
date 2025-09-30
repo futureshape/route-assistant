@@ -1,21 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, ChevronsUpDown, Mountain, ChevronUp, ChevronDown, HelpCircle, ListTodo, Link } from 'lucide-react'
-import { APIProvider, Map, Marker, InfoWindow, useMap } from '@vis.gl/react-google-maps'
-import { cn, getCookie } from '@/lib/utils'
+import { Mountain, HelpCircle } from 'lucide-react'
+import { getCookie } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
 import {
   Sidebar,
   SidebarContent,
@@ -27,28 +13,14 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from '@/components/ui/sidebar'
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible'
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion"
 import { POIProvider, POISearchParams } from '@/lib/poi-providers'
 import { getEnabledProviders } from '@/lib/provider-registry'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  ChartConfig,
-  ChartContainer,
-  ChartTooltip,
-} from '@/components/ui/chart'
-import { Area, AreaChart, XAxis, YAxis, ResponsiveContainer } from 'recharts'
 import { AuthHeader } from '@/components/AuthHeader'
 import { IntroScreen } from '@/components/IntroScreen'
+import { RouteSelector, RouteSwitchDialog } from '@/features/routes'
+import { MapContainer } from '@/features/map'
+import { ElevationChart } from '@/features/elevation'
+import { POISearch, POISummary } from '@/features/poi'
 
 // Extend window interface for TypeScript
 declare global {
@@ -182,84 +154,9 @@ export default function App(){
     }
   }, [])
 
-  // Chart configuration for elevation profile
-  const chartConfig = {
-    elevation: {
-      label: "Elevation",
-  color: "var(--route-color)",
-    },
-  } satisfies ChartConfig
-
-  // Custom tooltip for elevation chart
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload
-      return (
-        <div className="bg-popover border border-border rounded-lg p-3 shadow-lg">
-          <p className="font-medium text-sm text-popover-foreground">{`Distance: ${Number(label).toFixed(1)} km`}</p>
-          <p className="text-sm text-muted-foreground">{`Elevation: ${Math.round(data.elevation)} m`}</p>
-        </div>
-      )
-    }
-    return null
-  }
-
-  // Helper: get human-readable POI type name
-  function getPOITypeName(poiType: string): string {
-    return POI_TYPE_NAMES[poiType] || poiType || 'Unknown'
-  }
-
-  // Helper: format distance (meters -> km) and elevation_gain (meters) from RWGPS route object
-  function formatRouteMetrics(route: any) {
-    if (!route || typeof route !== 'object') return { distanceText: null, elevationText: null }
-    const distMeters = route.distance
-    const elevMeters = route.elevation_gain
-    const distanceText = Number.isFinite(distMeters) ? `${(distMeters / 1000).toFixed(1)} km` : null
-    const elevationText = Number.isFinite(elevMeters) ? `${Math.round(elevMeters)} m` : null
-    return { distanceText, elevationText }
-  }
-
   // Helper: generate unique key for POI
   function getMarkerKey(poi: any) {
     return `${poi.name}_${poi.lat}_${poi.lng}`
-  }
-
-  // Helper: get marker icon based on state
-  function getMarkerIcon(state: 'suggested' | 'selected' | 'existing') {
-    if (state === 'existing') {
-      return {
-        url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="#6b7280" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
-            <circle cx="12" cy="10" r="3"/>
-          </svg>
-        `),
-        scaledSize: new window.google.maps.Size(28, 28),
-        anchor: new window.google.maps.Point(14, 28)
-      }
-    } else if (state === 'selected') {
-      return {
-        url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="#22c55e" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
-            <path d="m9 12 2 2 4-4"/>
-          </svg>
-        `),
-        scaledSize: new window.google.maps.Size(32, 32),
-        anchor: new window.google.maps.Point(16, 32)
-      }
-    } else {
-        return {
-        url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="${routeColor}" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
-            <circle cx="12" cy="10" r="3"/>
-          </svg>
-        `),
-        scaledSize: new window.google.maps.Size(32, 32),
-        anchor: new window.google.maps.Point(16, 32)
-      }
-    }
   }
 
   // Helper: get current route name
@@ -326,63 +223,6 @@ export default function App(){
   // Updated marker click handler for React approach
   const handleMarkerClick = (poi: any) => {
     setSelectedMarker(poi)
-  }
-
-  // Helper function to format URL for display
-  const formatURLForDisplay = (url: string): string => {
-    if (!url) return '';
-    try {
-      const urlObj = new URL(url);
-      const domain = urlObj.hostname.replace('www.', '');
-      const maxLength = 40;
-      
-      if (url.length <= maxLength) {
-        return url;
-      }
-      
-      // Show domain and crop the rest
-      const pathAndQuery = urlObj.pathname + urlObj.search;
-      const remaining = maxLength - domain.length - 3; // 3 for "..."
-      
-      if (pathAndQuery.length > remaining) {
-        return domain + pathAndQuery.slice(0, remaining) + '...';
-      }
-      
-      return domain + pathAndQuery;
-    } catch (e) {
-      // If URL parsing fails, just truncate
-      return url.length > 40 ? url.slice(0, 37) + '...' : url;
-    }
-  }
-
-  // Custom Polyline component using useMap hook
-  const RoutePolyline = ({ path }: { path: any[] }) => {
-    const map = useMap()
-    
-    useEffect(() => {
-      // Store map reference for use in showRoute
-      mapInstanceRef.current = map
-    }, [map])
-    
-    useEffect(() => {
-      if (!map || !path || path.length === 0) return
-      
-  const polyline = new window.google.maps.Polyline({
-        path: path,
-        geodesic: true,
-  strokeColor: routeColor,
-        strokeWeight: 4,
-        strokeOpacity: 0.8
-      })
-      
-      polyline.setMap(map)
-      
-      return () => {
-        polyline.setMap(null)
-      }
-    }, [map, path])
-    
-    return null
   }
 
   const handleAuthChange = () => {
@@ -707,94 +547,24 @@ export default function App(){
             <SidebarGroup>
               <SidebarGroupLabel>Your Routes</SidebarGroupLabel>
               <SidebarGroupContent>
-                <div className="p-2">
-                  <Popover open={open} onOpenChange={setOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        role="combobox"
-                        aria-expanded={open}
-                        className="w-full justify-between"
-                        disabled={routesLoading}
-                      >
-                        <span className="truncate">
-                          {routesLoading
-                            ? "Loading routes..."
-                            : value ? routes.find(r => r.id.toString() === value)?.name || "Route not found" : "Select route..."
-                          }
-                        </span>
-                        {routesLoading ? (
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-300 flex-shrink-0" />
-                        ) : (
-                          <ChevronsUpDown className="opacity-50 flex-shrink-0" />
-                        )}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
-                      <Command>
-                        <CommandInput placeholder="Search route..." className="h-9" />
-                        <CommandList>
-                          <CommandEmpty>
-                            {routesLoading ? "Loading routes..." : "No route found."}
-                          </CommandEmpty>
-                          <CommandGroup>
-                            {routes.map((route) => (
-                              <CommandItem
-                                key={route.id}
-                                value={route.id.toString()}
-                                keywords={[route.name]}
-                                onSelect={(currentValue: string) => {
-                                  console.log('[Route Selection] onSelect triggered with ID:', currentValue)
-                                  console.log('[Route Selection] Current value state:', value)
-                                  console.log('[Route Selection] Available routes:', routes.length, routes.map(r => ({ id: r.id, name: r.name })))
-                                  
-                                  // Use the route ID directly
-                                  const selectedRoute = routes.find(r => r.id.toString() === currentValue)
-                                  if (selectedRoute) {
-                                    setValue(currentValue === value ? "" : currentValue)
-                                    setOpen(false)
-                                    if (currentValue !== value) {
-                                      console.log('[Route Selection] Found route:', selectedRoute)
-                                      console.log('[Route Selection] Calling handleRouteSwitch with route:', selectedRoute.name)
-                                      handleRouteSwitch(selectedRoute)
-                                    } else {
-                                      console.log('[Route Selection] Clearing route selection')
-                                      setSelectedRouteId(null)
-                                      setElevationData([])
-                                      setShowElevation(false)
-                                    }
-                                  } else {
-                                    console.warn('[Route Selection] No route found for ID:', currentValue)
-                                  }
-                                }}
-                              >
-                                <div className="flex-1 min-w-0">
-                                  <div className="truncate font-medium">{route.name}</div>
-                                  {(() => {
-                                    const { distanceText, elevationText } = formatRouteMetrics(route)
-                                    if (!distanceText && !elevationText) return null
-                                    return (
-                                      <div className="text-xs text-muted-foreground">
-                                        {distanceText && <span className="mr-2">{distanceText}</span>}
-                                        {elevationText && <span>{elevationText}</span>}
-                                      </div>
-                                    )
-                                  })()}
-                                </div>
-                                <Check
-                                  className={cn(
-                                    "ml-auto h-4 w-4 flex-shrink-0",
-                                    selectedRouteId === route.id.toString() ? "opacity-100" : "opacity-0"
-                                  )}
-                                />
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                </div>
+                <RouteSelector
+                  routes={routes}
+                  selectedRouteId={selectedRouteId}
+                  value={value}
+                  open={open}
+                  routesLoading={routesLoading}
+                  onOpenChange={setOpen}
+                  onValueChange={(newValue) => {
+                    if (newValue === "" && value !== "") {
+                      // Clearing route selection
+                      setSelectedRouteId(null)
+                      setElevationData([])
+                      setShowElevation(false)
+                    }
+                    setValue(newValue)
+                  }}
+                  onRouteSelect={handleRouteSwitch}
+                />
               </SidebarGroupContent>
             </SidebarGroup>
           )}
@@ -802,50 +572,15 @@ export default function App(){
           <SidebarGroup>
             <SidebarGroupLabel>Search POIs along route</SidebarGroupLabel>
             <SidebarGroupContent>
-              <div className="p-2 space-y-2">
-                {poiProviders.length > 0 ? (
-                  <>
-                    <Accordion 
-                      type="single" 
-                      collapsible 
-                      value={activeAccordionItem}
-                      onValueChange={setActiveAccordionItem}
-                    >
-                      {poiProviders.map((provider) => {
-                        const SearchForm = provider.getSearchFormComponent();
-                        const providerContext = { routePath, mapBounds: mapInstanceRef.current?.getBounds() };
-                        const isEnabled = provider.isEnabled(providerContext);
-                        
-                        return (
-                          <AccordionItem key={provider.id} value={provider.id}>
-                            <AccordionTrigger className="text-sm">
-                              {provider.name}
-                            </AccordionTrigger>
-                            <AccordionContent>
-                              <div className="space-y-2">
-                                <p className="text-xs text-muted-foreground">
-                                  {provider.description}
-                                </p>
-                                <SearchForm 
-                                  onSearch={(params) => handlePOISearch(provider, params)}
-                                  disabled={!isEnabled}
-                                />
-                              </div>
-                            </AccordionContent>
-                          </AccordionItem>
-                        );
-                      })}
-                    </Accordion>
-                    <div className="pt-2">
-                      <Button onClick={clearMarkers} variant="outline" size="sm" className="w-full">
-                        Clear All POIs
-                      </Button>
-                    </div>
-                  </>
-                ) : (
-                  <div className="text-sm text-muted-foreground">Loading POI providers...</div>
-                )}
-              </div>
+              <POISearch
+                poiProviders={poiProviders}
+                activeAccordionItem={activeAccordionItem}
+                routePath={routePath}
+                mapBounds={mapInstanceRef.current?.getBounds()}
+                onAccordionChange={setActiveAccordionItem}
+                onPOISearch={handlePOISearch}
+                onClearMarkers={clearMarkers}
+              />
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
@@ -853,25 +588,11 @@ export default function App(){
       <SidebarInset>
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger />
-          {(() => {
-            const selectedCount = Object.values(markerStates).filter(state => state === 'selected').length
-            return selectedCount > 0 ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <svg className="h-4 w-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"/>
-                </svg>
-                <span>{selectedCount} new point{selectedCount !== 1 ? 's' : ''}</span>
-                <Button 
-                  onClick={sendPOIsToRideWithGPS} 
-                  size="sm" 
-                  className="ml-2"
-                  disabled={!selectedRouteId}
-                >
-                  Send to RideWithGPS
-                </Button>
-              </div>
-            ) : null
-          })()}
+          <POISummary
+            selectedCount={Object.values(markerStates).filter(state => state === 'selected').length}
+            selectedRouteId={selectedRouteId}
+            onSendPOIs={sendPOIsToRideWithGPS}
+          />
           {selectedRouteId && elevationData.length > 0 && (
             <Button
               variant="outline"
@@ -896,147 +617,29 @@ export default function App(){
         <div className="flex flex-col flex-1">
           <div className="flex-1 relative">
             {googleMapsApiKeyLoaded ? (
-              <div className="relative w-full h-full">
-                {googleMapsApiKey && (
-                  <APIProvider apiKey={googleMapsApiKey} libraries={['geometry', 'places']}>
-                    <Map
-                      defaultCenter={mapCenter}
-                      defaultZoom={mapZoom}
-                      mapTypeId="roadmap"
-                      style={{ width: '100%', height: '100%' }}
-                      onCameraChanged={(event) => {
-                        setMapCenter(event.detail.center)
-                        setMapZoom(event.detail.zoom)
-                      }}
-                    >
-                    {/* Route Polyline */}
-                    {routePath.length > 0 && <RoutePolyline path={routePath} />}
-                  
-                  {/* Chart hover position marker */}
-                  {chartHoverPosition && (
-                    <Marker
-                      position={chartHoverPosition}
-                      icon={{
-                        url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="${routeColor}" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="12" cy="12" r="10"/>
-                            <circle cx="12" cy="12" r="3"/>
-                          </svg>
-                        `),
-                        scaledSize: new window.google.maps.Size(16, 16),
-                        anchor: new window.google.maps.Point(8, 8)
-                      }}
-                    />
-                  )}
-                  
-                  {/* POI Markers */}
-                  {markers.map((poi) => {
-                    const markerKey = getMarkerKey(poi)
-                    const markerState = markerStates[markerKey] || 'suggested'
-                    
-                    return (
-                      <Marker
-                        key={markerKey}
-                        position={{ lat: poi.lat, lng: poi.lng }}
-                        title={poi.name}
-                        icon={getMarkerIcon(markerState)}
-                        onClick={() => handleMarkerClick(poi)}
-                      />
-                    )
-                  })}
-                  
-                  {/* Info Window for selected marker */}
-                  {selectedMarker && (
-                    <InfoWindow
-                      position={{ lat: selectedMarker.lat, lng: selectedMarker.lng }}
-                      onCloseClick={() => setSelectedMarker(null)}
-                    >
-                      <div className="p-2 max-w-xs">
-                        <h3 className="font-bold text-sm mb-2">{selectedMarker.name}</h3>
-                        <div className="space-y-2">
-                          {/* POI Type */}
-                          {selectedMarker.poi_type_name && (
-                            <div className="text-xs text-gray-600">
-                              <span className="font-semibold">Type:</span> {getPOITypeName(selectedMarker.poi_type_name)}
-                            </div>
-                          )}
-                          
-                          {/* Description */}
-                          {selectedMarker.description && (
-                            <div className="text-xs text-gray-600">
-                              <span className="font-semibold">Description:</span> {selectedMarker.description}
-                            </div>
-                          )}
-                          
-                          {/* URL with icon and cropped display */}
-                          {selectedMarker.url && (
-                            <a 
-                              href={selectedMarker.url} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="text-blue-600 hover:underline text-xs flex items-center gap-1"
-                              title={selectedMarker.url}
-                            >
-                              <Link className="h-3 w-3 flex-shrink-0" />
-                              <span className="truncate">{formatURLForDisplay(selectedMarker.url)}</span>
-                            </a>
-                          )}
-                          
-                          <div>
-                            {(() => {
-                              const markerKey = getMarkerKey(selectedMarker)
-                              const state = markerStates[markerKey] || 'suggested'
-                              
-                              if (state === 'existing') {
-                                return (
-                                  <div className="text-xs text-gray-500 italic mt-2">
-                                    Existing POI
-                                  </div>
-                                )
-                              } else if (state === 'suggested') {
-                                return (
-                                  <button
-                                    onClick={() => updateMarkerState(markerKey, 'selected')}
-                                    className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs font-medium mt-2"
-                                  >
-                                    Keep
-                                  </button>
-                                )
-                              } else {
-                                return (
-                                  <button
-                                    onClick={() => updateMarkerState(markerKey, 'suggested')}
-                                    className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-xs font-medium mt-2"
-                                  >
-                                    Remove
-                                  </button>
-                                )
-                              }
-                            })()}
-                          </div>
-                        </div>
-                      </div>
-                    </InfoWindow>
-                  )}
-                    </Map>
-                  </APIProvider>
-                )}
-                
-                {/* Overlay when no route is selected or route is not fully loaded */}
-                {(!selectedRouteId || !routeFullyLoaded) && (
-                  <div className="absolute inset-0 bg-background flex items-center justify-center z-10">
-                    <div className="text-center space-y-4">
-                      <ListTodo className="h-12 w-12 mx-auto text-muted-foreground" />
-                      <p className="text-muted-foreground">
-                        {!selectedRouteId 
-                          ? "To get started, log in to RideWithGPS and select a route"
-                          : "Loading route..."
-                        }
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <MapContainer
+                googleMapsApiKey={googleMapsApiKey}
+                mapCenter={mapCenter}
+                mapZoom={mapZoom}
+                routePath={routePath}
+                routeColor={routeColor}
+                markers={markers}
+                markerStates={markerStates}
+                selectedMarker={selectedMarker}
+                chartHoverPosition={chartHoverPosition}
+                selectedRouteId={selectedRouteId}
+                routeFullyLoaded={routeFullyLoaded}
+                poiTypeNames={POI_TYPE_NAMES}
+                onCameraChange={(center, zoom) => {
+                  setMapCenter(center)
+                  setMapZoom(zoom)
+                }}
+                onMarkerClick={handleMarkerClick}
+                onCloseInfoWindow={() => setSelectedMarker(null)}
+                onUpdateMarkerState={updateMarkerState}
+                getMarkerKey={getMarkerKey}
+                mapInstanceRef={mapInstanceRef}
+              />
             ) : (
               <div className="flex items-center justify-center h-full">
                 <div className="text-center space-y-4">
@@ -1048,67 +651,14 @@ export default function App(){
           </div>
           
           {selectedRouteId && elevationData.length > 0 && (
-            <Collapsible open={showElevation} onOpenChange={setShowElevation}>
-              <CollapsibleContent className="border-t">
-                <Card className="rounded-none border-0">
-                  <CardHeader className="pb-4">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-base">Elevation Profile</CardTitle>
-                      <CollapsibleTrigger asChild>
-                        <Button variant="ghost" size="sm">
-                          {showElevation ? (
-                            <ChevronDown className="h-4 w-4" />
-                          ) : (
-                            <ChevronUp className="h-4 w-4" />
-                          )}
-                        </Button>
-                      </CollapsibleTrigger>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    {elevationData.length > 0 ? (
-                      <ChartContainer config={chartConfig} className="h-[200px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart 
-                            data={elevationData}
-                            onMouseMove={handleChartMouseMove}
-                            onMouseLeave={handleChartMouseLeave}
-                          >
-                            <XAxis 
-                              dataKey="distance" 
-                              tickFormatter={(value) => `${Number(value).toFixed(0)}km`}
-                              axisLine={false}
-                              tickLine={false}
-                              className="text-xs"
-                            />
-                            <YAxis 
-                              tickFormatter={(value) => `${Math.round(value)}m`}
-                              axisLine={false}
-                              tickLine={false}
-                              className="text-xs"
-                            />
-                            <ChartTooltip content={<CustomTooltip />} />
-                            <Area
-                              type="monotone"
-                              dataKey="elevation"
-                              stroke={routeColor}
-                              fill={routeColor}
-                              fillOpacity={0.6}
-                              strokeWidth={2}
-                              isAnimationActive={false}
-                            />
-                          </AreaChart>
-                        </ResponsiveContainer>
-                      </ChartContainer>
-                    ) : (
-                      <div className="h-[200px] flex items-center justify-center text-muted-foreground">
-                        No elevation data available for this route
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </CollapsibleContent>
-            </Collapsible>
+            <ElevationChart
+              elevationData={elevationData}
+              showElevation={showElevation}
+              routeColor={routeColor}
+              onShowElevationChange={setShowElevation}
+              onChartMouseMove={handleChartMouseMove}
+              onChartMouseLeave={handleChartMouseLeave}
+            />
           )}
         </div>
       </SidebarInset>
@@ -1118,36 +668,13 @@ export default function App(){
       />
       
       {/* Route Switch Confirmation Dialog */}
-      {routeSwitchDialog.show && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md mx-4 shadow-xl">
-            <h3 className="text-lg font-semibold mb-4">Unsaved Points</h3>
-            <p className="text-sm text-gray-600 mb-6">
-              You have {routeSwitchDialog.selectedCount} point{routeSwitchDialog.selectedCount !== 1 ? 's' : ''} selected for the route "{routeSwitchDialog.currentRouteName}" that you haven't sent to RideWithGPS. What do you want to do?
-            </p>
-            <div className="space-y-3">
-              <button
-                onClick={() => handleRouteSwitchAction('keep-editing')}
-                className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-              >
-                Keep editing "{routeSwitchDialog.currentRouteName}"
-              </button>
-              <button
-                onClick={() => handleRouteSwitchAction('keep-points')}
-                className="w-full px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 transition-colors"
-              >
-                Keep points and switch to "{routeSwitchDialog.newRoute?.name}"
-              </button>
-              <button
-                onClick={() => handleRouteSwitchAction('clear-points')}
-                className="w-full px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
-              >
-                Clear points and switch to "{routeSwitchDialog.newRoute?.name}"
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <RouteSwitchDialog
+        show={routeSwitchDialog.show}
+        newRouteName={routeSwitchDialog.newRoute?.name || ''}
+        currentRouteName={routeSwitchDialog.currentRouteName}
+        selectedCount={routeSwitchDialog.selectedCount}
+        onAction={handleRouteSwitchAction}
+      />
     </SidebarProvider>
   )
 }
