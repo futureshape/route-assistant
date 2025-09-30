@@ -168,7 +168,7 @@ app.get('/api/routes', async (req, res) => {
     let allRoutes = [];
     let page = 1;
     let hasMorePages = true;
-    const perPage = 50;
+    const perPage = 20; // I think RideWithGPS max is 20
     const maxPages = 100; // Safety limit to prevent infinite loops
     
     while (hasMorePages && page <= maxPages) {

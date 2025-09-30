@@ -728,28 +728,29 @@ export default function App(){
                               <CommandItem
                                 key={route.id}
                                 value={route.id.toString()}
+                                keywords={[route.name]}
                                 onSelect={(currentValue: string) => {
                                   console.log('[Route Selection] onSelect triggered with ID:', currentValue)
                                   console.log('[Route Selection] Current value state:', value)
                                   console.log('[Route Selection] Available routes:', routes.length, routes.map(r => ({ id: r.id, name: r.name })))
                                   
-                                  setValue(currentValue === value ? "" : currentValue)
-                                  setOpen(false)
-                                  if (currentValue !== value) {
-                                    const selectedRoute = routes.find(r => r.id.toString() === currentValue)
-                                    console.log('[Route Selection] Found route:', selectedRoute)
-                                    if (selectedRoute) {
+                                  // Use the route ID directly
+                                  const selectedRoute = routes.find(r => r.id.toString() === currentValue)
+                                  if (selectedRoute) {
+                                    setValue(currentValue === value ? "" : currentValue)
+                                    setOpen(false)
+                                    if (currentValue !== value) {
+                                      console.log('[Route Selection] Found route:', selectedRoute)
                                       console.log('[Route Selection] Calling handleRouteSwitch with route:', selectedRoute.name)
                                       handleRouteSwitch(selectedRoute)
                                     } else {
-                                      console.warn('[Route Selection] No route found for ID:', currentValue)
-                                      console.warn('[Route Selection] Available route IDs:', routes.map(r => r.id.toString()))
+                                      console.log('[Route Selection] Clearing route selection')
+                                      setSelectedRouteId(null)
+                                      setElevationData([])
+                                      setShowElevation(false)
                                     }
                                   } else {
-                                    console.log('[Route Selection] Clearing route selection')
-                                    setSelectedRouteId(null)
-                                    setElevationData([])
-                                    setShowElevation(false)
+                                    console.warn('[Route Selection] No route found for ID:', currentValue)
                                   }
                                 }}
                               >
