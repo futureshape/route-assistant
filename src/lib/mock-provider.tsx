@@ -42,7 +42,7 @@ export class MockProvider implements POIProvider {
   name = 'Mock Provider';
   description = 'Demo provider that returns a pin at the center of the viewport';
 
-  isEnabled(context?: any): boolean {
+  isEnabled(context?: { mapBounds?: unknown }): boolean {
     // Mock provider is always enabled
     return true;
   }
@@ -62,18 +62,26 @@ export class MockProvider implements POIProvider {
       throw new Error(`Mock search failed: ${text}`);
     }
 
+    interface MockPlace {
+      displayName?: { text?: string }
+      name?: string
+      location?: { latitude?: number; longitude?: number; lat?: number; lng?: number }
+      description?: string
+      uri?: string
+    }
+
     const data = await response.json();
-    const places = data.places || [];
+    const places: MockPlace[] = data.places || [];
     
-    return places.map((p: any) => {
+    return places.map((p) => {
       const loc = p.location || {};
       const lat = loc.latitude ?? loc.lat;
       const lng = loc.longitude ?? loc.lng;
       
       return { 
         name: p.displayName?.text || p.name || '', 
-        lat: parseFloat(lat), 
-        lng: parseFloat(lng),
+        lat: parseFloat(String(lat)), 
+        lng: parseFloat(String(lng)),
         poi_type_name: 'generic',
         description: p.description || 'Mock POI for demonstration',
         url: p.uri || '',

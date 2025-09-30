@@ -4,16 +4,7 @@ import { ListTodo } from 'lucide-react'
 import { RoutePolyline } from './RoutePolyline'
 import { POIMarkers } from './POIMarkers'
 import { POIInfoWindow } from './POIInfoWindow'
-
-interface POI {
-  name: string
-  lat: number
-  lng: number
-  poi_type_name?: string
-  description?: string
-  url?: string
-  poiSource?: string
-}
+import type { POI, MarkerState, MarkerStates } from '@/types/poi'
 
 interface MapContainerProps {
   googleMapsApiKey: string
@@ -22,7 +13,7 @@ interface MapContainerProps {
   routePath: Array<{ lat: number; lng: number }>
   routeColor: string
   markers: POI[]
-  markerStates: { [key: string]: 'suggested' | 'selected' | 'existing' }
+  markerStates: MarkerStates
   selectedMarker: POI | null
   chartHoverPosition: { lat: number; lng: number } | null
   selectedRouteId: number | null
@@ -31,13 +22,13 @@ interface MapContainerProps {
   onCameraChange: (center: { lat: number; lng: number }, zoom: number) => void
   onMarkerClick: (poi: POI) => void
   onCloseInfoWindow: () => void
-  onUpdateMarkerState: (markerKey: string, newState: 'suggested' | 'selected') => void
+  onUpdateMarkerState: (markerKey: string, newState: MarkerState) => void
   getMarkerKey: (poi: POI) => string
-  mapInstanceRef: React.MutableRefObject<any>
+  mapInstanceRef: React.MutableRefObject<google.maps.Map | null>
 }
 
 // Component to capture map instance
-function MapInstanceCapture({ mapInstanceRef }: { mapInstanceRef: React.MutableRefObject<any> }) {
+function MapInstanceCapture({ mapInstanceRef }: { mapInstanceRef: React.MutableRefObject<google.maps.Map | null> }) {
   const map = useMap()
   
   useEffect(() => {

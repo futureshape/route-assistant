@@ -1,29 +1,9 @@
 // Type definitions for the application store
 import type { POIProvider as LibPOIProvider } from '@/lib/poi-providers'
 
-export interface Route {
-  id: number
-  name: string
-  encoded_polyline?: string
-  [key: string]: any
-}
-
-export interface POI {
-  name: string
-  lat: number
-  lng: number
-  poi_type_name?: string
-  description?: string
-  url?: string
-  poiSource?: 'google' | 'existing' | string
-  [key: string]: any
-}
-
-export type MarkerState = 'suggested' | 'selected' | 'existing'
-
-export interface MarkerStates {
-  [key: string]: MarkerState
-}
+// Re-export types from central types directory
+export type { Route, RouteCoordinate } from '@/types/route'
+export type { POI, POIMarker, MarkerState, MarkerStates } from '@/types/poi'
 
 export interface MapPosition {
   lat: number
