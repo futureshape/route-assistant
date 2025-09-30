@@ -18,7 +18,8 @@ let viteServer = null; // in dev, populated with Vite middleware
 // Places API FieldMask to request specific fields (do not use env var per user request)
 // API reference: https://developers.google.com/maps/documentation/places/web-service/nearby-search
 // Include coordinates so the frontend can render markers
-const GOOGLE_PLACES_FIELDMASK = 'places.displayName,places.googleMapsUri,places.location,places.primaryType';
+// Include editorialSummary for description field
+const GOOGLE_PLACES_FIELDMASK = 'places.displayName,places.googleMapsUri,places.location,places.primaryType,places.editorialSummary';
 
 // Strict helper: convert route.track_points -> [[lat,lng],...]
 // Per user instruction, do NOT use heuristics. Only consider `route.track_points` if present.
@@ -305,16 +306,17 @@ app.patch('/api/route/:id/pois', async (req, res) => {
     // Prepare new POIs for RideWithGPS format
     const formattedNewPOIs = pois.map(poi => {
       // Map Google Places primaryType to RideWithGPS POI type
-      const poiTypeName = mapGoogleTypeToRideWithGPS(poi.primaryType);
+      const poiTypeName = mapGoogleTypeToRideWithGPS(poi.primaryType || poi.type);
       const poiTypeId = getRideWithGPSTypeId(poiTypeName);
       
-      console.log(`[PATCH POIs] Mapping POI "${poi.name}": Google type "${poi.primaryType}" -> RideWithGPS "${poiTypeName}" (ID: ${poiTypeId})`);
+      console.log(`[PATCH POIs] Mapping POI "${poi.name}": Google type "${poi.primaryType || poi.type}" -> RideWithGPS "${poiTypeName}" (ID: ${poiTypeId})`);
       
       return {
         lat: poi.lat,
         lng: poi.lng,
         name: poi.name,
-        description: '',
+        description: poi.description || '',
+        url: poi.url || '',
         poi_type: poiTypeId,
         poi_type_name: poiTypeName,
         user_id: currentUserId

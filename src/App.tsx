@@ -395,8 +395,11 @@ export default function App(){
         name: poi.name || 'Unnamed POI',
         lat: poi.lat,
         lng: poi.lng,
-        poiSource: 'existing',
-        poi_type_name: poi.poi_type_name || 'generic'
+        type: poi.poi_type_name || 'generic',
+        description: poi.description || '',
+        url: poi.url || '',
+        poi_type_name: poi.poi_type_name || 'generic',
+        poiSource: 'existing'
       }))
       
       // Add existing POIs to markers and set their state to 'existing'
@@ -863,9 +866,24 @@ export default function App(){
                       <div className="p-2 max-w-xs">
                         <h3 className="font-bold text-sm mb-2">{selectedMarker.name}</h3>
                         <div className="space-y-2">
-                          {selectedMarker.googleMapsUri && (
+                          {/* POI Type */}
+                          {(selectedMarker.poi_type_name || selectedMarker.type) && (
+                            <div className="text-xs text-gray-600">
+                              <span className="font-semibold">Type:</span> {selectedMarker.poi_type_name || selectedMarker.type}
+                            </div>
+                          )}
+                          
+                          {/* Description */}
+                          {selectedMarker.description && (
+                            <div className="text-xs text-gray-600">
+                              <span className="font-semibold">Description:</span> {selectedMarker.description}
+                            </div>
+                          )}
+                          
+                          {/* URL - prioritize googleMapsUri over url field */}
+                          {(selectedMarker.url || selectedMarker.googleMapsUri) && (
                             <a 
-                              href={selectedMarker.googleMapsUri} 
+                              href={selectedMarker.url || selectedMarker.googleMapsUri} 
                               target="_blank" 
                               rel="noopener noreferrer"
                               className="text-blue-600 hover:underline text-xs block"
@@ -873,6 +891,7 @@ export default function App(){
                               View on Google Maps
                             </a>
                           )}
+                          
                           <div>
                             {(() => {
                               const markerKey = getMarkerKey(selectedMarker)
@@ -880,15 +899,15 @@ export default function App(){
                               
                               if (state === 'existing') {
                                 return (
-                                  <div className="text-xs text-gray-500 italic">
-                                    Existing POI • {selectedMarker.poi_type_name || 'generic'}
+                                  <div className="text-xs text-gray-500 italic mt-2">
+                                    Existing POI
                                   </div>
                                 )
                               } else if (state === 'suggested') {
                                 return (
                                   <button
                                     onClick={() => updateMarkerState(markerKey, 'selected')}
-                                    className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs font-medium"
+                                    className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs font-medium mt-2"
                                   >
                                     Keep
                                   </button>
@@ -897,7 +916,7 @@ export default function App(){
                                 return (
                                   <button
                                     onClick={() => updateMarkerState(markerKey, 'suggested')}
-                                    className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-xs font-medium"
+                                    className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-xs font-medium mt-2"
                                   >
                                     Remove
                                   </button>

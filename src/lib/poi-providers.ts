@@ -16,11 +16,13 @@ export interface POISearchParams {
 }
 
 export interface POIResult {
-  name: string;
-  lat: number;
-  lng: number;
-  primaryType: string;
-  uri?: string;
+  name: string; // Required
+  lat: number; // Required
+  lng: number; // Required
+  type: string; // RideWithGPS POI type (defaults to 'generic')
+  description?: string;
+  url?: string;
+  primaryType?: string; // Google-specific type for mapping
   provider: string;
 }
 

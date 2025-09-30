@@ -70,12 +70,16 @@ export class GoogleMapsProvider implements POIProvider {
       const loc = p.location || p.geoCode?.location || p.geometry?.location || p.center || {};
       const lat = loc.latitude ?? loc.lat ?? loc.latLng?.latitude;
       const lng = loc.longitude ?? loc.lng ?? loc.latLng?.longitude;
+      const primaryType = p.primaryType || 'establishment';
+      
       return { 
         name: p.displayName?.text || p.name || '', 
-        uri: p.googleMapsUri, 
         lat: parseFloat(lat), 
         lng: parseFloat(lng),
-        primaryType: p.primaryType || 'establishment',
+        type: primaryType, // Type will be mapped on backend
+        description: p.editorialSummary?.text || '',
+        url: p.googleMapsUri || '',
+        primaryType: primaryType, // Keep for backend mapping
         provider: this.id
       };
     }).filter((p: POIResult) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
