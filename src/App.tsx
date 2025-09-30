@@ -57,6 +57,49 @@ declare global {
   }
 }
 
+// Mapping of RideWithGPS POI types to human-readable names
+const POI_TYPE_NAMES: Record<string, string> = {
+  camping: 'Camping',
+  lodging: 'Lodging',
+  parking: 'Parking',
+  food: 'Food',
+  viewpoint: 'Viewpoint',
+  restroom: 'Restroom',
+  generic: 'Generic',
+  aid_station: 'Aid Station',
+  bar: 'Bar',
+  bike_shop: 'Bike Shop',
+  bike_parking: 'Bike Parking',
+  convenience_store: 'Convenience Store',
+  first_aid: 'First Aid',
+  hospital: 'Hospital',
+  rest_stop: 'Rest Stop',
+  trailhead: 'Trailhead',
+  geocache: 'Geocache',
+  water: 'Water',
+  control: 'Control',
+  winery: 'Winery',
+  start: 'Start',
+  stop: 'Stop',
+  finish: 'Finish',
+  atm: 'ATM',
+  caution: 'Caution',
+  coffee: 'Coffee',
+  ferry: 'Ferry',
+  gas: 'Gas Station',
+  library: 'Library',
+  monument: 'Monument',
+  park: 'Park',
+  segment_start: 'Segment Start',
+  segment_end: 'Segment End',
+  shopping: 'Shopping',
+  shower: 'Shower',
+  summit: 'Summit',
+  swimming: 'Swimming',
+  transit: 'Transit Center',
+  bikeshare: 'Bike Share'
+};
+
 export default function App(){
   const [authenticated, setAuthenticated] = useState(false)
   // Read route color from CSS variable so it can be themed via CSS
@@ -158,6 +201,11 @@ export default function App(){
       )
     }
     return null
+  }
+
+  // Helper: get human-readable POI type name
+  function getPOITypeName(poiType: string): string {
+    return POI_TYPE_NAMES[poiType] || poiType || 'Unknown'
   }
 
   // Helper: format distance (meters -> km) and elevation_gain (meters) from RWGPS route object
@@ -894,7 +942,7 @@ export default function App(){
                           {/* POI Type */}
                           {selectedMarker.poi_type_name && (
                             <div className="text-xs text-gray-600">
-                              <span className="font-semibold">Type:</span> {selectedMarker.poi_type_name}
+                              <span className="font-semibold">Type:</span> {getPOITypeName(selectedMarker.poi_type_name)}
                             </div>
                           )}
                           
