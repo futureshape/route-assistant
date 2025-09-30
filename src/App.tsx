@@ -187,7 +187,7 @@ export default function App(){
   // Helper: get current route name
   function getCurrentRouteName() {
     if (!selectedRouteId) return ''
-    const currentRoute = routes.find(r => r.id.toString() === selectedRouteId)
+    const currentRoute = routes.find(r => r.id === selectedRouteId)
     return currentRoute?.name || 'Unknown Route'
   }
 
@@ -217,7 +217,7 @@ export default function App(){
     switch (action) {
       case 'keep-editing':
         // Reset dropdown to current route and stay on current route
-        setValue(selectedRouteId || '')
+        setValue(selectedRouteId?.toString() || '')
         break
         
       case 'keep-points':
@@ -289,7 +289,7 @@ export default function App(){
     console.log('[showRoute] Starting with id:', id, 'type:', typeof id)
     
     // Set the selected route ID immediately and reset loaded state
-    setSelectedRouteId(id.toString())
+    setSelectedRouteId(id)
     setRouteFullyLoaded(false)
     
     clearMarkers()

@@ -19,13 +19,13 @@ interface AuthState {
 interface RoutesState {
   routes: Route[]
   routesLoading: boolean
-  selectedRouteId: string | null
+  selectedRouteId: number | null
   routePath: MapPosition[]
   routeColor: string
   routeFullyLoaded: boolean
   setRoutes: (routes: Route[]) => void
   setRoutesLoading: (loading: boolean) => void
-  setSelectedRouteId: (id: string | null) => void
+  setSelectedRouteId: (id: number | null) => void
   setRoutePath: (path: MapPosition[]) => void
   setRouteColor: (color: string) => void
   setRouteFullyLoaded: (loaded: boolean) => void

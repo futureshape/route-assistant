@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import { APIProvider, Map, Marker, useMap } from '@vis.gl/react-google-maps'
 import { ListTodo } from 'lucide-react'
 import { RoutePolyline } from './RoutePolyline'
@@ -25,7 +25,7 @@ interface MapContainerProps {
   markerStates: { [key: string]: 'suggested' | 'selected' | 'existing' }
   selectedMarker: POI | null
   chartHoverPosition: { lat: number; lng: number } | null
-  selectedRouteId: string | null
+  selectedRouteId: number | null
   routeFullyLoaded: boolean
   poiTypeNames: Record<string, string>
   onCameraChange: (center: { lat: number; lng: number }, zoom: number) => void

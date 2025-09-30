@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button'
 
 interface POISummaryProps {
   selectedCount: number
-  selectedRouteId: string | null
+  selectedRouteId: number | null
   onSendPOIs: () => void
 }
 

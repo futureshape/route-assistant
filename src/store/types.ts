@@ -2,7 +2,7 @@
 import type { POIProvider as LibPOIProvider } from '@/lib/poi-providers'
 
 export interface Route {
-  id: string | number
+  id: number
   name: string
   encoded_polyline?: string
   [key: string]: any
