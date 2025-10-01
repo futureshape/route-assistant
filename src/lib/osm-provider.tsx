@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { POIProvider, POISearchParams, POIResult, POISearchFormProps, RideWithGPSPOIType } from '@/lib/poi-providers';
+import { POIProvider, POISearchParams, POIResult, POISearchFormProps } from '@/lib/poi-providers';
 
 // Preset OSM amenity tags relevant for cycling
 // Based on https://wiki.openstreetmap.org/wiki/Key:amenity
@@ -31,92 +31,6 @@ const PRESET_AMENITIES = [
   { value: 'bus_station', label: 'Bus Station', description: 'Backup transport option' },
   { value: 'ferry_terminal', label: 'Ferry Terminal', description: 'Alternate transport option' },
 ];
-
-// Mapping from OSM amenity tags to RideWithGPS POI types
-// This mirrors the backend mapping in poi-type-mapping.js
-const OSM_TO_RIDEWITHGPS_MAPPING: Record<string, RideWithGPSPOIType> = {
-  // Essential cycling amenities
-  'toilets': 'restroom',
-  'drinking_water': 'water',
-  'water_point': 'water',
-  'shelter': 'rest_stop',
-  'bench': 'rest_stop',
-  'shower': 'shower',
-  'bicycle_parking': 'bike_parking',
-  'bicycle_repair_station': 'bike_shop',
-  'compressed_air': 'bike_shop',
-  
-  // Food & Drink
-  'restaurant': 'food',
-  'cafe': 'coffee',
-  'fast_food': 'food',
-  'bar': 'bar',
-  'pub': 'bar',
-  'biergarten': 'bar',
-  'food_court': 'food',
-  'ice_cream': 'food',
-  
-  // Fuel & Vehicle Services
-  'fuel': 'gas',
-  
-  // Healthcare & Safety
-  'pharmacy': 'first_aid',
-  'hospital': 'hospital',
-  'clinic': 'hospital',
-  'doctors': 'first_aid',
-  'dentist': 'first_aid',
-  'veterinary': 'first_aid',
-  
-  // General parking & rest areas
-  'parking': 'parking',
-  'parking_space': 'parking',
-  
-  // Postal services
-  'post_office': 'generic',
-  'post_box': 'generic',
-  'parcel_locker': 'generic',
-  
-  // Vending & quick services
-  'vending_machine': 'convenience_store',
-  
-  // Public transport
-  'bus_station': 'transit',
-  'ferry_terminal': 'ferry',
-  'taxi': 'transit',
-  
-  // Shopping
-  'marketplace': 'convenience_store',
-  'bicycle_rental': 'bikeshare',
-  
-  // Other common amenities
-  'telephone': 'generic',
-  'waste_basket': 'generic',
-  'recycling': 'generic',
-  'charging_station': 'generic',
-  'atm': 'atm',
-  'bank': 'atm',
-  'bureau_de_change': 'atm',
-  'public_bookcase': 'library',
-  'library': 'library',
-  'community_centre': 'rest_stop',
-  'social_facility': 'rest_stop',
-  'townhall': 'generic',
-  'police': 'first_aid',
-  'fire_station': 'first_aid',
-  'ranger_station': 'first_aid',
-  'emergency_phone': 'first_aid',
-  'place_of_worship': 'monument',
-  'fountain': 'water',
-  'watering_place': 'water',
-  'bbq': 'rest_stop',
-  'picnic_table': 'rest_stop',
-};
-
-function mapOSMAmenityToRideWithGPS(osmAmenity: string | undefined): RideWithGPSPOIType {
-  if (!osmAmenity) return 'generic';
-  const normalizedAmenity = osmAmenity.toLowerCase();
-  return OSM_TO_RIDEWITHGPS_MAPPING[normalizedAmenity] || 'generic';
-}
 
 // OSM POI Search Form Component
 const OSMSearchForm: React.FC<POISearchFormProps> = ({ onSearch, disabled }) => {
@@ -254,43 +168,10 @@ export class OSMProvider implements POIProvider {
       throw new Error(`OSM search failed: ${text}`);
     }
 
-    interface OSMElement {
-      type: string
-      id: number
-      lat?: number
-      lon?: number
-      center?: { lat: number; lon: number }
-      tags?: {
-        name?: string
-        amenity?: string
-        description?: string
-        website?: string
-        [key: string]: string | undefined
-      }
-    }
-
     const data = await response.json();
-    const elements: OSMElement[] = data.elements || [];
     
-    return elements.map((element): POIResult => {
-      // Get coordinates - nodes have lat/lon, ways/relations have center
-      const lat = element.lat ?? element.center?.lat ?? 0;
-      const lon = element.lon ?? element.center?.lon ?? 0;
-      
-      const tags = element.tags || {};
-      const amenity = tags.amenity || 'unknown';
-      const name = tags.name || `${amenity.charAt(0).toUpperCase() + amenity.slice(1).replace(/_/g, ' ')}`;
-      
-      return {
-        name,
-        lat: parseFloat(String(lat)),
-        lng: parseFloat(String(lon)),
-        poi_type_name: mapOSMAmenityToRideWithGPS(amenity),
-        description: tags.description || '',
-        url: tags.website || `https://www.openstreetmap.org/${element.type}/${element.id}`,
-        provider: this.id
-      };
-    }).filter((p: POIResult) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
+    // Backend now returns formatted POIs in same structure as Google Maps provider
+    return data.places || [];
   }
 
   getSearchFormComponent() {

@@ -582,8 +582,35 @@ out center;
       elementCount: overpassResponse.data?.elements?.length || 0
     });
     
-    // Return the Overpass API response
-    res.json(overpassResponse.data);
+    // Process and format OSM data into standard POI format
+    const elements = overpassResponse.data?.elements || [];
+    const formattedPOIs = elements.map(element => {
+      // Get coordinates - nodes have lat/lon, ways/relations have center
+      const lat = element.lat ?? element.center?.lat ?? 0;
+      const lon = element.lon ?? element.center?.lon ?? 0;
+      
+      const tags = element.tags || {};
+      const amenity = tags.amenity || 'unknown';
+      const name = tags.name || `${amenity.charAt(0).toUpperCase() + amenity.slice(1).replace(/_/g, ' ')}`;
+      
+      return {
+        name,
+        lat: parseFloat(String(lat)),
+        lng: parseFloat(String(lon)),
+        poi_type_name: mapOSMAmenityToRideWithGPS(amenity),
+        description: tags.description || '',
+        url: tags.website || `https://www.openstreetmap.org/${element.type}/${element.id}`,
+        provider: 'osm'
+      };
+    }).filter(poi => Number.isFinite(poi.lat) && Number.isFinite(poi.lng));
+
+    console.info('[OSM POI] Formatted POIs:', {
+      count: formattedPOIs.length,
+      sample: formattedPOIs.slice(0, 3)
+    });
+
+    // Return formatted POI data in same structure as Google Maps provider
+    res.json({ places: formattedPOIs });
   } catch (err) {
     logAxiosError('OSM POI search error', err);
     const resp = err?.response;
