@@ -82,11 +82,13 @@ interface UIState {
   routeSwitchDialog: RouteSwitchDialogState
   showIntroScreen: boolean
   activeAccordionItem: string
+  loadingProviderId: string | null // Track which POI provider is currently searching
   setOpen: (open: boolean) => void
   setValue: (value: string) => void
   setRouteSwitchDialog: (dialog: RouteSwitchDialogState) => void
   setShowIntroScreen: (show: boolean) => void
   setActiveAccordionItem: (item: string) => void
+  setLoadingProviderId: (id: string | null) => void
 }
 
 // Combined store type
@@ -238,9 +240,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
   showIntroScreen: false,
   activeAccordionItem: '',
+  loadingProviderId: null,
   setOpen: (open) => set({ open }),
   setValue: (value) => set({ value }),
   setRouteSwitchDialog: (routeSwitchDialog) => set({ routeSwitchDialog }),
   setShowIntroScreen: (showIntroScreen) => set({ showIntroScreen }),
   setActiveAccordionItem: (activeAccordionItem) => set({ activeAccordionItem }),
+  setLoadingProviderId: (loadingProviderId) => set({ loadingProviderId }),
 }))

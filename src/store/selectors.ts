@@ -178,11 +178,13 @@ export const useValue = () => useAppStore((state) => state.value)
 export const useRouteSwitchDialog = () => useAppStore((state) => state.routeSwitchDialog)
 export const useShowIntroScreen = () => useAppStore((state) => state.showIntroScreen)
 export const useActiveAccordionItem = () => useAppStore((state) => state.activeAccordionItem)
+export const useLoadingProviderId = () => useAppStore((state) => state.loadingProviderId)
 export const useSetOpen = () => useAppStore((state) => state.setOpen)
 export const useSetValue = () => useAppStore((state) => state.setValue)
 export const useSetRouteSwitchDialog = () => useAppStore((state) => state.setRouteSwitchDialog)
 export const useSetShowIntroScreen = () => useAppStore((state) => state.setShowIntroScreen)
 export const useSetActiveAccordionItem = () => useAppStore((state) => state.setActiveAccordionItem)
+export const useSetLoadingProviderId = () => useAppStore((state) => state.setLoadingProviderId)
 
 export const useUI = () => {
   const open = useOpen()
@@ -190,11 +192,13 @@ export const useUI = () => {
   const routeSwitchDialog = useRouteSwitchDialog()
   const showIntroScreen = useShowIntroScreen()
   const activeAccordionItem = useActiveAccordionItem()
+  const loadingProviderId = useLoadingProviderId()
   const setOpen = useSetOpen()
   const setValue = useSetValue()
   const setRouteSwitchDialog = useSetRouteSwitchDialog()
   const setShowIntroScreen = useSetShowIntroScreen()
   const setActiveAccordionItem = useSetActiveAccordionItem()
+  const setLoadingProviderId = useSetLoadingProviderId()
   
   return {
     open,
@@ -202,10 +206,12 @@ export const useUI = () => {
     routeSwitchDialog,
     showIntroScreen,
     activeAccordionItem,
+    loadingProviderId,
     setOpen,
     setValue,
     setRouteSwitchDialog,
     setShowIntroScreen,
     setActiveAccordionItem,
+    setLoadingProviderId,
   }
 }

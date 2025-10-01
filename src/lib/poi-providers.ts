@@ -80,4 +80,5 @@ export interface POIProvider {
 export interface POISearchFormProps {
   onSearch: (params: POISearchParams) => void;
   disabled?: boolean;
+  loading?: boolean;
 }

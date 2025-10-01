@@ -142,11 +142,13 @@ export default function App(){
     routeSwitchDialog,
     showIntroScreen,
     activeAccordionItem,
+    loadingProviderId,
     setOpen,
     setValue,
     setRouteSwitchDialog,
     setShowIntroScreen,
     setActiveAccordionItem,
+    setLoadingProviderId,
   } = useUI()
 
   // Read route color from CSS variable so it can be themed via CSS
@@ -473,6 +475,9 @@ export default function App(){
   // Handle POI search using provider system
   async function handlePOISearch(provider: POIProvider, params: POISearchParams) {
     try {
+      // Set loading state
+      setLoadingProviderId(provider.id);
+      
       // Prepare enhanced search parameters based on provider needs
       const enhancedParams = await prepareSearchParams(provider, params);
       
@@ -486,6 +491,9 @@ export default function App(){
     } catch (error) {
       console.error('POI search failed:', error);
       alert(`POI search failed: ${error}`);
+    } finally {
+      // Clear loading state
+      setLoadingProviderId(null);
     }
   }
 
@@ -631,6 +639,7 @@ export default function App(){
                   east: mapInstanceRef.current.getBounds()!.getNorthEast().lng(),
                   west: mapInstanceRef.current.getBounds()!.getSouthWest().lng()
                 } : null}
+                loadingProviderId={loadingProviderId}
                 onAccordionChange={setActiveAccordionItem}
                 onPOISearch={handlePOISearch}
                 onClearMarkers={clearMarkers}
