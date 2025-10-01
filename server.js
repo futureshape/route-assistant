@@ -5,7 +5,7 @@ const axios = require('axios');
 const polyline = require('@mapbox/polyline');
 const qs = require('qs');
 const path = require('path');
-const { getRideWithGPSTypeId, mapGoogleTypeToRideWithGPS } = require('./poi-type-mapping');
+const { getRideWithGPSTypeId, mapGoogleTypeToRideWithGPS, mapOSMAmenityToRideWithGPS } = require('./poi-type-mapping');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -60,7 +60,7 @@ if (!process.env.RWGPS_CLIENT_ID || !process.env.RWGPS_CLIENT_SECRET || !process
 }
 
 // POI Provider Configuration
-const ENABLED_POI_PROVIDERS = (process.env.ENABLED_POI_PROVIDERS || 'google').split(',').map(p => p.trim());
+const ENABLED_POI_PROVIDERS = (process.env.ENABLED_POI_PROVIDERS || 'google,osm').split(',').map(p => p.trim());
 console.log('Enabled POI providers:', ENABLED_POI_PROVIDERS);
 
 // In production serve built client; in dev Vite middleware will be attached later
@@ -472,6 +472,162 @@ app.post('/api/poi-search/google-maps', async (req, res) => {
     return res.status(500).send({ error: 'Search failed', details: { status, type, snippet } });
   }
   return res.status(500).send({ error: 'Search failed', details: { message: err && err.message ? err.message : String(err) } });
+  }
+});
+
+// OSM POI Provider endpoint - queries Overpass API
+app.post('/api/poi-search/osm', async (req, res) => {
+  const { amenities, encodedPolyline, mapBounds } = req.body || {};
+  if (!amenities) return res.status(400).send({ error: 'amenities required' });
+  
+  // Prefer route-based search, fall back to bounding box
+  if (!encodedPolyline && !mapBounds) {
+    return res.status(400).send({ error: 'Either encodedPolyline or mapBounds required' });
+  }
+  
+  try {
+    console.info('[OSM POI] Incoming search request:', { 
+      amenities, 
+      hasPolyline: !!encodedPolyline,
+      hasBounds: !!mapBounds 
+    });
+    
+    // Parse amenities (comma-separated string)
+    const amenityList = amenities.split(',').map(a => a.trim()).filter(Boolean);
+    
+    if (amenityList.length === 0) {
+      return res.status(400).send({ error: 'At least one amenity type required' });
+    }
+    
+    let overpassQuery;
+    
+    if (encodedPolyline) {
+      // Route-based search: decode polyline and search around route points
+      const coords = polyline.decode(encodedPolyline);
+      
+      // If route is small, don't sample at all
+      let finalCoords;
+      if (coords.length < 100) {
+        finalCoords = coords;
+      } else {
+        // Sample the route using a percentage-based approach (e.g., 25% of points)
+        const samplePercent = 0.25;
+        const minPoints = 5;
+        const numPoints = Math.max(minPoints, Math.floor(coords.length * samplePercent));
+        const step = Math.max(1, Math.floor(coords.length / numPoints));
+        finalCoords = coords.filter((_, i) => i % step === 0);
+      }
+      const sampledCoords = finalCoords;
+      // Search radius in meters (500m on each side of route = ~1km total width)
+      const searchRadius = 500;
+      
+      // Build coordinate list for around operator: radius,lat1,lon1,lat2,lon2,...
+      const coordsList = sampledCoords.map(([lat, lng]) => `${lat},${lng}`).join(',');
+      
+      // Build query for multiple amenity types using union with around operator
+      const amenityQueries = amenityList.map(amenity => 
+        `node["amenity"="${amenity}"](around:${searchRadius},${coordsList});
+  way["amenity"="${amenity}"](around:${searchRadius},${coordsList});
+  relation["amenity"="${amenity}"](around:${searchRadius},${coordsList});`
+      ).join('\n  ');
+      
+      overpassQuery = `
+[out:json][timeout:25];
+(
+  ${amenityQueries}
+);
+out center;
+`;
+      
+      console.info('[OSM POI] Using route-based search:', { 
+        totalRoutePoints: coords.length,
+        sampledPoints: sampledCoords.length,
+        searchRadius: searchRadius + 'm'
+      });
+    } else {
+      // Bounding box search (fallback)
+      const bbox = `${mapBounds.south},${mapBounds.west},${mapBounds.north},${mapBounds.east}`;
+      
+      // Build query for multiple amenity types using union
+      const amenityQueries = amenityList.map(amenity => 
+        `node["amenity"="${amenity}"](${bbox});
+  way["amenity"="${amenity}"](${bbox});
+  relation["amenity"="${amenity}"](${bbox});`
+      ).join('\n  ');
+      
+      overpassQuery = `
+[out:json][timeout:25];
+(
+  ${amenityQueries}
+);
+out center;
+`;
+      
+      console.info('[OSM POI] Using bounding box search:', { bbox });
+    }
+
+    console.debug('[OSM POI] Overpass query:', overpassQuery.substring(0, 500) + '...');
+    
+    // Query Overpass API
+    const overpassUrl = 'https://overpass-api.de/api/interpreter';
+    const overpassResponse = await axios.post(overpassUrl, overpassQuery, {
+      headers: {
+        'Content-Type': 'text/plain'
+      },
+      timeout: 30000 // 30 second timeout
+    });
+    
+    console.info('[OSM POI] Overpass response:', {
+      status: overpassResponse.status,
+      elementCount: overpassResponse.data?.elements?.length || 0
+    });
+    
+    // Process and format OSM data into standard POI format
+    const elements = overpassResponse.data?.elements || [];
+    const formattedPOIs = elements.map(element => {
+      // Get coordinates - nodes have lat/lon, ways/relations have center
+      const lat = element.lat ?? element.center?.lat ?? 0;
+      const lon = element.lon ?? element.center?.lon ?? 0;
+      
+      const tags = element.tags || {};
+      const amenity = tags.amenity || 'unknown';
+      const name = tags.name || `${amenity.charAt(0).toUpperCase() + amenity.slice(1).replace(/_/g, ' ')}`;
+      
+      return {
+        name,
+        lat: parseFloat(String(lat)),
+        lng: parseFloat(String(lon)),
+        poi_type_name: mapOSMAmenityToRideWithGPS(amenity),
+        description: tags.description || '',
+        url: tags.website || `https://www.openstreetmap.org/${element.type}/${element.id}`,
+        provider: 'osm'
+      };
+    }).filter(poi => Number.isFinite(poi.lat) && Number.isFinite(poi.lng));
+
+    console.info('[OSM POI] Formatted POIs:', {
+      count: formattedPOIs.length,
+      sample: formattedPOIs.slice(0, 3)
+    });
+
+    // Return formatted POI data in same structure as Google Maps provider
+    res.json({ places: formattedPOIs });
+  } catch (err) {
+    logAxiosError('OSM POI search error', err);
+    const resp = err?.response;
+    if (resp) {
+      const status = resp.status;
+      const type = resp.headers && resp.headers['content-type'];
+      let snippet = '';
+      try { 
+        snippet = (type && type.includes('application/json')) 
+          ? JSON.stringify(resp.data).slice(0, 1000) 
+          : String(resp.data).slice(0, 500); 
+      } catch(e) { 
+        snippet = String(resp.data).slice(0, 200); 
+      }
+      return res.status(500).send({ error: 'OSM search failed', details: { status, type, snippet } });
+    }
+    return res.status(500).send({ error: 'OSM search failed', details: { message: err && err.message ? err.message : String(err) } });
   }
 });
 

@@ -1,10 +1,12 @@
 import { POIProvider } from '@/lib/poi-providers';
 import { GoogleMapsProvider } from '@/lib/google-maps-provider';
 import { MockProvider } from '@/lib/mock-provider';
+import { OSMProvider } from '@/lib/osm-provider';
 
 // Registry of all available POI providers
 const ALL_PROVIDERS: POIProvider[] = [
   new GoogleMapsProvider(),
+  new OSMProvider(),
   new MockProvider(),
 ];
 

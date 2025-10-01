@@ -229,8 +229,107 @@ function getRideWithGPSTypeId(typeName) {
   return TYPE_NAME_TO_ID[typeName] || TYPE_NAME_TO_ID['generic'];
 }
 
+// Mapping from OpenStreetMap amenity tags to RideWithGPS POI types
+// OSM amenity tags: https://wiki.openstreetmap.org/wiki/Key:amenity
+// RideWithGPS POI types: see TYPE_NAME_TO_ID mapping
+const OSM_TO_RIDEWITHGPS_MAPPING = {
+  // Essential cycling amenities
+  'toilets': 'restroom',
+  'drinking_water': 'water',
+  'water_point': 'water',
+  'shelter': 'rest_stop',
+  'bench': 'rest_stop',
+  'shower': 'shower',
+  'bicycle_parking': 'bike_parking',
+  'bicycle_repair_station': 'bike_shop',
+  'compressed_air': 'bike_shop',
+  
+  // Food & Drink
+  'restaurant': 'food',
+  'cafe': 'coffee',
+  'fast_food': 'food',
+  'bar': 'bar',
+  'pub': 'bar',
+  'biergarten': 'bar',
+  'food_court': 'food',
+  'ice_cream': 'food',
+  
+  // Fuel & Vehicle Services
+  'fuel': 'gas',
+  
+  // Healthcare & Safety
+  'pharmacy': 'first_aid',
+  'hospital': 'hospital',
+  'clinic': 'hospital',
+  'doctors': 'first_aid',
+  'dentist': 'first_aid',
+  'veterinary': 'first_aid',
+  
+  // General parking & rest areas
+  'parking': 'parking',
+  'parking_space': 'parking',
+  
+  // Postal services
+  'post_office': 'generic',
+  'post_box': 'generic',
+  'parcel_locker': 'generic',
+  
+  // Vending & quick services
+  'vending_machine': 'convenience_store',
+  
+  // Public transport
+  'bus_station': 'transit',
+  'ferry_terminal': 'ferry',
+  'taxi': 'transit',
+  
+  // Shopping
+  'marketplace': 'convenience_store',
+  'bicycle_rental': 'bikeshare',
+  
+  // Other common amenities
+  'telephone': 'generic',
+  'toilets': 'restroom',
+  'waste_basket': 'generic',
+  'recycling': 'generic',
+  'charging_station': 'generic',
+  'atm': 'atm',
+  'bank': 'atm',
+  'bureau_de_change': 'atm',
+  'public_bookcase': 'library',
+  'library': 'library',
+  'community_centre': 'rest_stop',
+  'social_facility': 'rest_stop',
+  'townhall': 'generic',
+  'police': 'first_aid',
+  'fire_station': 'first_aid',
+  'ranger_station': 'first_aid',
+  'emergency_phone': 'first_aid',
+  'place_of_worship': 'monument',
+  'fountain': 'water',
+  'watering_place': 'water',
+  'bbq': 'rest_stop',
+  'picnic_table': 'rest_stop',
+};
+
+/**
+ * Maps an OpenStreetMap amenity tag to a RideWithGPS POI type
+ * @param {string} osmAmenity - The amenity tag from OpenStreetMap
+ * @returns {string} - The corresponding RideWithGPS POI type name (defaults to 'generic')
+ */
+function mapOSMAmenityToRideWithGPS(osmAmenity) {
+  if (!osmAmenity) return 'generic';
+  
+  // Convert to lowercase for case-insensitive matching
+  const normalizedAmenity = osmAmenity.toLowerCase();
+  
+  // Return mapped type or default to generic
+  return OSM_TO_RIDEWITHGPS_MAPPING[normalizedAmenity] || 'generic';
+}
+
 module.exports = {
   mapGoogleTypeToRideWithGPS,
   getRideWithGPSTypeId,
-  GOOGLE_TO_RIDEWITHGPS_MAPPING
+  mapOSMAmenityToRideWithGPS,
+  GOOGLE_TO_RIDEWITHGPS_MAPPING,
+  OSM_TO_RIDEWITHGPS_MAPPING
 };
