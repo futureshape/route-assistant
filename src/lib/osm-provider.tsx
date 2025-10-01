@@ -135,10 +135,6 @@ const OSMSearchForm: React.FC<POISearchFormProps> = ({ onSearch, disabled }) => 
   };
 
   const handleSearch = () => {
-    if (selectedAmenities.length === 0) {
-      alert('Please select at least one amenity type');
-      return;
-    }
     // Pass the selected amenities as a comma-separated textQuery
     onSearch({ textQuery: selectedAmenities.join(',') });
   };
@@ -207,7 +203,12 @@ const OSMSearchForm: React.FC<POISearchFormProps> = ({ onSearch, disabled }) => 
         <span>{selectedAmenities.length} amenity type{selectedAmenities.length !== 1 ? 's' : ''} selected</span>
       </div>
 
-      <Button onClick={handleSearch} size="sm" disabled={disabled} className="w-full">
+      <Button 
+        onClick={handleSearch} 
+        size="sm" 
+        disabled={disabled || selectedAmenities.length === 0} 
+        className="w-full"
+      >
         Search OSM POIs
       </Button>
       
