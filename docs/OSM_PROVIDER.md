@@ -65,15 +65,17 @@ The OSM provider includes the following preset amenity types optimized for cycli
 The OSM provider queries the Overpass API at `https://overpass-api.de/api/interpreter`:
 
 ```javascript
-// Example Overpass QL query
+// Example Overpass QL query for route-based search
 [out:json][timeout:25];
 (
-  node["amenity"="drinking_water"](bbox);
-  way["amenity"="drinking_water"](bbox);
-  relation["amenity"="drinking_water"](bbox);
+  node["amenity"="drinking_water"](around:500,lat1,lng1,lat2,lng2,...);
+  way["amenity"="drinking_water"](around:500,lat1,lng1,lat2,lng2,...);
+  relation["amenity"="drinking_water"](around:500,lat1,lng1,lat2,lng2,...);
 );
 out center;
 ```
+
+The query searches within 500 meters (configurable) on each side of the route, creating an approximate 1km-wide corridor along the route path. This provides more relevant results than a bounding box search.
 
 ### Amenity Mapping
 
@@ -102,6 +104,14 @@ Request body:
 ```json
 {
   "amenities": "drinking_water,toilets,cafe",
+  "encodedPolyline": "route_polyline_here"
+}
+```
+
+Or fallback to bounding box if route is not available:
+```json
+{
+  "amenities": "drinking_water,toilets,cafe",
   "mapBounds": {
     "south": 37.7,
     "west": -122.5,
@@ -112,6 +122,15 @@ Request body:
 ```
 
 Response: Overpass API JSON format with `elements` array
+
+**Search Strategy**:
+- **Route-based (preferred)**: Searches within 500m radius along the route points
+  - Samples route to max 50 points for reasonable query size
+  - Creates a corridor ~1km wide along the entire route
+  - More relevant results for cyclists
+- **Bounding box (fallback)**: Searches within the entire map viewport
+  - Used when route data is not available
+  - May return POIs far from the actual route
 
 ## Configuration
 
@@ -128,6 +147,7 @@ ENABLED_POI_PROVIDERS=google,osm,mock
 - **Global Coverage**: Works worldwide wherever OSM has data
 - **Open Source**: Fully transparent data and queries
 - **Cycling-Friendly**: Many bike-specific amenities
+- **Route-Focused**: Searches along your route, not just map bounds, providing more relevant results
 
 ## Limitations
 
@@ -135,11 +155,12 @@ ENABLED_POI_PROVIDERS=google,osm,mock
 - **Data Quality**: Varies by region based on OSM contributor activity
 - **No Reviews**: Unlike commercial providers, no user reviews/ratings
 - **Timeout**: Complex queries may timeout (25 second limit)
+- **Route Sampling**: Long routes are sampled to ~50 points to keep queries manageable
 
 ## Best Practices
 
 1. **Be Selective**: Choose only the amenity types you need to reduce query complexity
-2. **Smaller Areas**: Search works best with focused map areas (not entire continents)
+2. **Route-Based Search**: The provider automatically uses route-based search when available for better results
 3. **Verify Data**: OSM data quality varies; verify critical amenities if possible
 4. **Contribute Back**: If you find missing data, consider contributing to OSM!
 

@@ -477,12 +477,20 @@ app.post('/api/poi-search/google-maps', async (req, res) => {
 
 // OSM POI Provider endpoint - queries Overpass API
 app.post('/api/poi-search/osm', async (req, res) => {
-  const { amenities, mapBounds } = req.body || {};
+  const { amenities, encodedPolyline, mapBounds } = req.body || {};
   if (!amenities) return res.status(400).send({ error: 'amenities required' });
-  if (!mapBounds) return res.status(400).send({ error: 'mapBounds required' });
+  
+  // Prefer route-based search, fall back to bounding box
+  if (!encodedPolyline && !mapBounds) {
+    return res.status(400).send({ error: 'Either encodedPolyline or mapBounds required' });
+  }
   
   try {
-    console.info('[OSM POI] Incoming search request:', { amenities, mapBounds });
+    console.info('[OSM POI] Incoming search request:', { 
+      amenities, 
+      hasPolyline: !!encodedPolyline,
+      hasBounds: !!mapBounds 
+    });
     
     // Parse amenities (comma-separated string)
     const amenityList = amenities.split(',').map(a => a.trim()).filter(Boolean);
@@ -491,27 +499,67 @@ app.post('/api/poi-search/osm', async (req, res) => {
       return res.status(400).send({ error: 'At least one amenity type required' });
     }
     
-    // Build Overpass QL query
-    // Format: (south, west, north, east) for bbox
-    const bbox = `${mapBounds.south},${mapBounds.west},${mapBounds.north},${mapBounds.east}`;
+    let overpassQuery;
     
-    // Build query for multiple amenity types using union
-    // We query for nodes, ways, and relations with the specified amenity tags
-    const amenityQueries = amenityList.map(amenity => 
-      `node["amenity"="${amenity}"](${bbox});
-  way["amenity"="${amenity}"](${bbox});
-  relation["amenity"="${amenity}"](${bbox});`
-    ).join('\n  ');
-    
-    const overpassQuery = `
+    if (encodedPolyline) {
+      // Route-based search: decode polyline and search around route points
+      const coords = polyline.decode(encodedPolyline);
+      
+      // Sample the route to avoid too many points (max ~50 points for reasonable query size)
+      const maxPoints = 50;
+      const sampledCoords = coords.length <= maxPoints 
+        ? coords 
+        : coords.filter((_, i) => i % Math.ceil(coords.length / maxPoints) === 0);
+      
+      // Search radius in meters (500m on each side of route = ~1km total width)
+      const searchRadius = 500;
+      
+      // Build coordinate list for around operator: radius,lat1,lon1,lat2,lon2,...
+      const coordsList = sampledCoords.map(([lat, lng]) => `${lat},${lng}`).join(',');
+      
+      // Build query for multiple amenity types using union with around operator
+      const amenityQueries = amenityList.map(amenity => 
+        `node["amenity"="${amenity}"](around:${searchRadius},${coordsList});
+  way["amenity"="${amenity}"](around:${searchRadius},${coordsList});
+  relation["amenity"="${amenity}"](around:${searchRadius},${coordsList});`
+      ).join('\n  ');
+      
+      overpassQuery = `
 [out:json][timeout:25];
 (
   ${amenityQueries}
 );
 out center;
 `;
+      
+      console.info('[OSM POI] Using route-based search:', { 
+        totalRoutePoints: coords.length,
+        sampledPoints: sampledCoords.length,
+        searchRadius: searchRadius + 'm'
+      });
+    } else {
+      // Bounding box search (fallback)
+      const bbox = `${mapBounds.south},${mapBounds.west},${mapBounds.north},${mapBounds.east}`;
+      
+      // Build query for multiple amenity types using union
+      const amenityQueries = amenityList.map(amenity => 
+        `node["amenity"="${amenity}"](${bbox});
+  way["amenity"="${amenity}"](${bbox});
+  relation["amenity"="${amenity}"](${bbox});`
+      ).join('\n  ');
+      
+      overpassQuery = `
+[out:json][timeout:25];
+(
+  ${amenityQueries}
+);
+out center;
+`;
+      
+      console.info('[OSM POI] Using bounding box search:', { bbox });
+    }
 
-    console.debug('[OSM POI] Overpass query:', overpassQuery);
+    console.debug('[OSM POI] Overpass query:', overpassQuery.substring(0, 500) + '...');
     
     // Query Overpass API
     const overpassUrl = 'https://overpass-api.de/api/interpreter';

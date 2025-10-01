@@ -230,17 +230,18 @@ export class OSMProvider implements POIProvider {
   }
 
   async searchPOIs(params: POISearchParams): Promise<POIResult[]> {
-    const { textQuery, mapBounds } = params;
+    const { textQuery, encodedPolyline, mapBounds } = params;
     
     if (!textQuery) {
       throw new Error('OSM provider requires amenity types (textQuery)');
     }
 
-    if (!mapBounds) {
-      throw new Error('OSM provider requires map bounds');
+    // Prefer route-based search if available, fall back to map bounds
+    if (!encodedPolyline && !mapBounds) {
+      throw new Error('OSM provider requires either a route (encodedPolyline) or map bounds');
     }
 
-    const payload = { amenities: textQuery, mapBounds };
+    const payload = { amenities: textQuery, encodedPolyline, mapBounds };
     const response = await fetch('/api/poi-search/osm', { 
       method: 'POST', 
       headers: { 'Content-Type': 'application/json' }, 
