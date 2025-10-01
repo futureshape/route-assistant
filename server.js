@@ -505,12 +505,19 @@ app.post('/api/poi-search/osm', async (req, res) => {
       // Route-based search: decode polyline and search around route points
       const coords = polyline.decode(encodedPolyline);
       
-      // Sample the route to avoid too many points (max ~50 points for reasonable query size)
-      const maxPoints = 50;
-      const sampledCoords = coords.length <= maxPoints 
-        ? coords 
-        : coords.filter((_, i) => i % Math.ceil(coords.length / maxPoints) === 0);
-      
+      // If route is small, don't sample at all
+      let finalCoords;
+      if (coords.length < 100) {
+        finalCoords = coords;
+      } else {
+        // Sample the route using a percentage-based approach (e.g., 25% of points)
+        const samplePercent = 0.25;
+        const minPoints = 5;
+        const numPoints = Math.max(minPoints, Math.floor(coords.length * samplePercent));
+        const step = Math.max(1, Math.floor(coords.length / numPoints));
+        finalCoords = coords.filter((_, i) => i % step === 0);
+      }
+      const sampledCoords = finalCoords;
       // Search radius in meters (500m on each side of route = ~1km total width)
       const searchRadius = 500;
       
