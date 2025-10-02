@@ -8,15 +8,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu'
-import { LogOut, User } from 'lucide-react'
-
-interface User {
-  id: number
-  email: string
-  name: string
-  created_at: string
-  updated_at: string
-}
+import { LogOut, User as UserIcon } from 'lucide-react'
+import { User } from '@/types/user'
 
 interface AuthHeaderProps {
   authenticated: boolean
@@ -139,7 +132,7 @@ export function AuthHeader({ authenticated, onAuthChange }: AuthHeaderProps) {
             className="flex items-center space-x-2 cursor-pointer"
             onClick={() => window.open(`https://ridewithgps.com/users/${user.id}`, '_blank')}
           >
-            <User className="h-4 w-4" />
+            <UserIcon className="h-4 w-4" />
             <span>Profile</span>
           </DropdownMenuItem>
           <DropdownMenuSeparator />

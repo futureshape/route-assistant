@@ -3,6 +3,7 @@
 
 import { Route, RouteWithDetails } from './route'
 import { POI } from './poi'
+import { User } from './user'
 
 export interface ApiResponse<T> {
   success: boolean
@@ -12,11 +13,7 @@ export interface ApiResponse<T> {
 
 export interface SessionResponse {
   authenticated: boolean
-  user?: {
-    id: string
-    email: string
-    name: string
-  }
+  user?: User
 }
 
 export interface RoutesResponse {
@@ -36,6 +33,7 @@ export interface ElevationPoint {
   elevation: number // meters
   lat: number
   lng: number
+  index: number // point index in the route
 }
 
 export interface GoogleMapsKeyResponse {

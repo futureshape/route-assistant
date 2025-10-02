@@ -11,16 +11,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { RideWithGPSPOIType } from '@/lib/poi-providers'
-
-interface POI {
-  name: string
-  lat: number
-  lng: number
-  poi_type_name?: string
-  description?: string
-  url?: string
-  providerId?: string
-}
+import { POI } from '@/types/poi'
 
 interface POIInfoWindowProps {
   poi: POI | null

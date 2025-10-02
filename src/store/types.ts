@@ -5,18 +5,11 @@ import type { Route as RouteType } from '@/types/route'
 // Re-export types from central types directory
 export type { Route, RouteCoordinate } from '@/types/route'
 export type { POI, POIMarker, MarkerState, MarkerStates } from '@/types/poi'
+export type { ElevationPoint } from '@/types/api'
 
 export interface MapPosition {
   lat: number
   lng: number
-}
-
-export interface ElevationDataPoint {
-  distance: number
-  elevation: number
-  lat: number
-  lng: number
-  index: number
 }
 
 export interface RouteSwitchDialogState {
