@@ -19,7 +19,7 @@ interface POI {
   poi_type_name?: string
   description?: string
   url?: string
-  poiSource?: string
+  providerId?: string
 }
 
 interface POIInfoWindowProps {
