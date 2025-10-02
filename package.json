@@ -7,7 +7,9 @@
     "start": "node server.js",
     "dev": "nodemon server.js",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deploy-check": "npm run build && echo '✅ Build successful - ready to tag and deploy!'",
+    "release": "node -e \"const v=process.argv[1]; console.log('Creating release '+v); require('child_process').execSync('git tag -a '+v+' -m \"Release '+v+'\" && git push origin '+v, {stdio:'inherit'})\""
   },
   "dependencies": {
     "@mapbox/polyline": "^1.1.1",
