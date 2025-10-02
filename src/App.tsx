@@ -13,6 +13,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from '@/components/ui/sidebar'
+import { Spinner } from '@/components/ui/spinner'
 import { POIProvider, POISearchParams } from '@/lib/poi-providers'
 import { getEnabledProviders } from '@/lib/provider-registry'
 import { AuthHeader } from '@/components/AuthHeader'
@@ -708,7 +709,7 @@ export default function App(){
             ) : (
               <div className="flex items-center justify-center h-full">
                 <div className="text-center space-y-4">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                  <Spinner size="md" className="mx-auto text-blue-600" />
                   <p className="text-gray-600">Loading Google Maps...</p>
                 </div>
               </div>
