@@ -599,8 +599,7 @@ out center;
         lng: parseFloat(String(lon)),
         poi_type_name: mapOSMAmenityToRideWithGPS(amenity),
         description: tags.description || '',
-        url: tags.website || `https://www.openstreetmap.org/${element.type}/${element.id}`,
-        provider: 'osm'
+        url: tags.website || `https://www.openstreetmap.org/${element.type}/${element.id}`
       };
     }).filter(poi => Number.isFinite(poi.lat) && Number.isFinite(poi.lng));
 
