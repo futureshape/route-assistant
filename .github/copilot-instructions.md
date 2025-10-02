@@ -101,6 +101,18 @@ This is a full-stack web application that helps cyclists explore routes and find
 - **Props-based communication**: Parent components pass state and callbacks to features
 - **Loading states**: Components show loading indicators during async operations
 
+### UI Development
+- **Always use shadcn/ui components** when available - never create custom versions
+- **Follow shadcn/ui patterns** for consistent styling and behavior
+- **Use Lucide icons** from `lucide-react` package for all icon needs
+- **Avoid inline SVGs** - check Lucide library first before creating custom icons
+- **Loading indicators**: Use `<Loader2 className="animate-spin" />` pattern for spinners
+- **Button states**: Follow shadcn/ui button patterns for loading, disabled, and variant states
+- **Form components**: Use shadcn/ui form components (Input, Select, Checkbox, etc.)
+- **Consistent spacing**: Use Tailwind spacing utilities consistently with shadcn/ui
+- **Color system**: Use CSS variables and shadcn/ui color tokens
+- **Responsive design**: Follow Tailwind responsive patterns
+
 ### Authentication Flow
 1. User clicks "Sign in with RideWithGPS"
 2. Redirects to RideWithGPS OAuth
