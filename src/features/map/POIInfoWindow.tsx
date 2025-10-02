@@ -79,6 +79,16 @@ export function POIInfoWindow({
   const [editedUrl, setEditedUrl] = useState(poi?.url || '')
   const [urlError, setUrlError] = useState(false)
 
+  // Helper: allow only http/https links for anchor tags
+  const isSafeHref = (url: string) => {
+    try {
+      const u = new URL(url);
+      return u.protocol === 'http:' || u.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  };
+
   // Reset state when POI changes
   useEffect(() => {
     if (poi) {
@@ -185,7 +195,7 @@ export function POIInfoWindow({
           {isEditable ? (
             <div>
               <div className="flex items-center gap-1">
-                {editedUrl && !urlError ? (
+                {editedUrl && !urlError && isSafeHref(editedUrl) ? (
                   <a
                     href={editedUrl}
                     target="_blank"
