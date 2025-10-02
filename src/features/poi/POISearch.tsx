@@ -19,6 +19,7 @@ interface POISearchProps {
   activeAccordionItem: string
   routePath: Array<{ lat: number; lng: number }>
   mapBounds: MapBounds | null
+  loadingProviderId: string | null
   onAccordionChange: (value: string) => void
   onPOISearch: (provider: POIProvider, params: POISearchParams) => void
   onClearMarkers: () => void
@@ -29,6 +30,7 @@ export function POISearch({
   activeAccordionItem,
   routePath,
   mapBounds,
+  loadingProviderId,
   onAccordionChange,
   onPOISearch,
   onClearMarkers
@@ -47,6 +49,7 @@ export function POISearch({
               const SearchForm = provider.getSearchFormComponent();
               const providerContext = { routePath, mapBounds };
               const isEnabled = provider.isEnabled(providerContext);
+              const isLoading = loadingProviderId === provider.id;
               
               return (
                 <AccordionItem key={provider.id} value={provider.id}>
@@ -60,7 +63,8 @@ export function POISearch({
                       </p>
                       <SearchForm 
                         onSearch={(params) => onPOISearch(provider, params)}
-                        disabled={!isEnabled}
+                        disabled={!isEnabled || isLoading}
+                        loading={isLoading}
                       />
                     </div>
                   </AccordionContent>

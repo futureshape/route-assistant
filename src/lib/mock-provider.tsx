@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Loader2 } from 'lucide-react';
 import { POIProvider, POISearchParams, POIResult, POISearchFormProps } from '@/lib/poi-providers';
 
 // Mock POI Search Form Component
-const MockSearchForm: React.FC<POISearchFormProps> = ({ onSearch, disabled }) => {
+const MockSearchForm: React.FC<POISearchFormProps> = ({ onSearch, disabled, loading }) => {
   const [query, setQuery] = useState('');
 
   const handleSearch = () => {
@@ -22,11 +23,18 @@ const MockSearchForm: React.FC<POISearchFormProps> = ({ onSearch, disabled }) =>
         onChange={(e) => setQuery(e.target.value)} 
         onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSearch(); } }}
         placeholder="Mock search (returns center pin)"
-        disabled={disabled}
+        disabled={disabled || loading}
       />
       <div className="flex gap-2">
-        <Button onClick={handleSearch} size="sm" disabled={disabled}>
-          Mock Search
+        <Button onClick={handleSearch} size="sm" disabled={disabled || loading}>
+          {loading ? (
+            <>
+              <Loader2 className="animate-spin mr-2 h-4 w-4" />
+              Searching...
+            </>
+          ) : (
+            'Mock Search'
+          )}
         </Button>
       </div>
       <div className="text-xs text-muted-foreground">

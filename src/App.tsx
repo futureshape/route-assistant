@@ -13,6 +13,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from '@/components/ui/sidebar'
+import { Loader2 } from 'lucide-react'
 import { POIProvider, POISearchParams } from '@/lib/poi-providers'
 import { getEnabledProviders } from '@/lib/provider-registry'
 import { AuthHeader } from '@/components/AuthHeader'
@@ -142,11 +143,13 @@ export default function App(){
     routeSwitchDialog,
     showIntroScreen,
     activeAccordionItem,
+    loadingProviderId,
     setOpen,
     setValue,
     setRouteSwitchDialog,
     setShowIntroScreen,
     setActiveAccordionItem,
+    setLoadingProviderId,
   } = useUI()
 
   // Read route color from CSS variable so it can be themed via CSS
@@ -473,6 +476,9 @@ export default function App(){
   // Handle POI search using provider system
   async function handlePOISearch(provider: POIProvider, params: POISearchParams) {
     try {
+      // Set loading state
+      setLoadingProviderId(provider.id);
+      
       // Prepare enhanced search parameters based on provider needs
       const enhancedParams = await prepareSearchParams(provider, params);
       
@@ -486,6 +492,9 @@ export default function App(){
     } catch (error) {
       console.error('POI search failed:', error);
       alert(`POI search failed: ${error}`);
+    } finally {
+      // Clear loading state
+      setLoadingProviderId(null);
     }
   }
 
@@ -631,6 +640,7 @@ export default function App(){
                   east: mapInstanceRef.current.getBounds()!.getNorthEast().lng(),
                   west: mapInstanceRef.current.getBounds()!.getSouthWest().lng()
                 } : null}
+                loadingProviderId={loadingProviderId}
                 onAccordionChange={setActiveAccordionItem}
                 onPOISearch={handlePOISearch}
                 onClearMarkers={clearMarkers}
@@ -699,7 +709,7 @@ export default function App(){
             ) : (
               <div className="flex items-center justify-center h-full">
                 <div className="text-center space-y-4">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                  <Loader2 className="animate-spin mx-auto text-blue-600 h-8 w-8" />
                   <p className="text-gray-600">Loading Google Maps...</p>
                 </div>
               </div>

@@ -1,4 +1,4 @@
-import { Check, ChevronsUpDown } from 'lucide-react'
+import { Check, ChevronsUpDown, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -71,7 +71,7 @@ export function RouteSelector({
               }
             </span>
             {routesLoading ? (
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-300 flex-shrink-0" />
+              <Loader2 className="animate-spin text-muted-foreground flex-shrink-0 h-4 w-4" />
             ) : (
               <ChevronsUpDown className="opacity-50 flex-shrink-0" />
             )}

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Loader2 } from 'lucide-react';
 import { POIProvider, POISearchParams, POIResult, POISearchFormProps, RideWithGPSPOIType } from '@/lib/poi-providers';
 
 // Mapping from Google Places API primaryType to RideWithGPS POI types
@@ -96,7 +97,7 @@ function mapGoogleTypeToRideWithGPS(googleType: string | undefined): RideWithGPS
 }
 
 // Google Maps POI Search Form Component
-const GoogleMapsSearchForm: React.FC<POISearchFormProps> = ({ onSearch, disabled }) => {
+const GoogleMapsSearchForm: React.FC<POISearchFormProps> = ({ onSearch, disabled, loading }) => {
   const [query, setQuery] = useState('');
 
   const handleSearch = () => {
@@ -114,11 +115,18 @@ const GoogleMapsSearchForm: React.FC<POISearchFormProps> = ({ onSearch, disabled
         onChange={(e) => setQuery(e.target.value)} 
         onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSearch(); } }}
         placeholder="e.g., coffee, restroom, bike shop"
-        disabled={disabled}
+        disabled={disabled || loading}
       />
       <div className="flex gap-2">
-        <Button onClick={handleSearch} size="sm" disabled={disabled}>
-          Search POIs
+        <Button onClick={handleSearch} size="sm" disabled={disabled || loading}>
+          {loading ? (
+            <>
+              <Loader2 className="animate-spin mr-2 h-4 w-4" />
+              Searching...
+            </>
+          ) : (
+            'Search POIs'
+          )}
         </Button>
       </div>
     </div>

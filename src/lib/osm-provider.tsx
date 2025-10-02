@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Loader2 } from 'lucide-react';
 import { POIProvider, POISearchParams, POIResult, POISearchFormProps } from '@/lib/poi-providers';
 
 // Preset OSM amenity tags relevant for cycling
@@ -33,7 +34,7 @@ const PRESET_AMENITIES = [
 ];
 
 // OSM POI Search Form Component
-const OSMSearchForm: React.FC<POISearchFormProps> = ({ onSearch, disabled }) => {
+const OSMSearchForm: React.FC<POISearchFormProps> = ({ onSearch, disabled, loading }) => {
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>([
     'drinking_water',
     'toilets',
@@ -70,7 +71,7 @@ const OSMSearchForm: React.FC<POISearchFormProps> = ({ onSearch, disabled }) => 
             variant="ghost" 
             size="sm" 
             onClick={handleSelectAll}
-            disabled={disabled}
+            disabled={disabled || loading}
             className="h-7 text-xs"
           >
             Select All
@@ -79,7 +80,7 @@ const OSMSearchForm: React.FC<POISearchFormProps> = ({ onSearch, disabled }) => 
             variant="ghost" 
             size="sm" 
             onClick={handleClearAll}
-            disabled={disabled}
+            disabled={disabled || loading}
             className="h-7 text-xs"
           >
             Clear
@@ -95,7 +96,7 @@ const OSMSearchForm: React.FC<POISearchFormProps> = ({ onSearch, disabled }) => 
                 id={amenity.value}
                 checked={selectedAmenities.includes(amenity.value)}
                 onCheckedChange={() => handleToggleAmenity(amenity.value)}
-                disabled={disabled}
+                disabled={disabled || loading}
               />
               <div className="grid gap-1 leading-none">
                 <Label
@@ -120,10 +121,17 @@ const OSMSearchForm: React.FC<POISearchFormProps> = ({ onSearch, disabled }) => 
       <Button 
         onClick={handleSearch} 
         size="sm" 
-        disabled={disabled || selectedAmenities.length === 0} 
+        disabled={disabled || loading || selectedAmenities.length === 0} 
         className="w-full"
       >
-        Search OSM POIs
+        {loading ? (
+          <>
+            <Loader2 className="animate-spin mr-2 h-4 w-4" />
+            Searching...
+          </>
+        ) : (
+          'Search OSM POIs'
+        )}
       </Button>
       
       <div className="text-xs text-muted-foreground">
