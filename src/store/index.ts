@@ -4,7 +4,7 @@ import type {
   POI,
   MarkerStates,
   MapPosition,
-  ElevationDataPoint,
+  ElevationPoint,
   RouteSwitchDialogState,
   POIProvider,
 } from './types'
@@ -69,10 +69,10 @@ interface MapState {
 
 // Elevation state slice
 interface ElevationState {
-  elevationData: ElevationDataPoint[]
-  showElevation: boolean
-  setElevationData: (data: ElevationDataPoint[]) => void
-  setShowElevation: (show: boolean) => void
+  elevationData: ElevationPoint[]
+  hoveredPointIndex: number | null
+  setElevationData: (data: ElevationPoint[]) => void
+  setHoveredPointIndex: (index: number | null) => void
 }
 
 // UI state slice (dialogs, selectors, etc.)
@@ -81,12 +81,14 @@ interface UIState {
   value: string // Route selector value
   routeSwitchDialog: RouteSwitchDialogState
   showIntroScreen: boolean
+  showElevation: boolean
   activeAccordionItem: string
   loadingProviderId: string | null // Track which POI provider is currently searching
   setOpen: (open: boolean) => void
   setValue: (value: string) => void
   setRouteSwitchDialog: (dialog: RouteSwitchDialogState) => void
   setShowIntroScreen: (show: boolean) => void
+  setShowElevation: (show: boolean) => void
   setActiveAccordionItem: (item: string) => void
   setLoadingProviderId: (id: string | null) => void
 }
@@ -236,9 +238,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   // Elevation state
   elevationData: [],
-  showElevation: false,
+  hoveredPointIndex: null,
   setElevationData: (elevationData) => set({ elevationData }),
-  setShowElevation: (showElevation) => set({ showElevation }),
+  setHoveredPointIndex: (hoveredPointIndex) => set({ hoveredPointIndex }),
 
   // UI state
   open: false,
@@ -250,12 +252,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
     selectedCount: 0,
   },
   showIntroScreen: false,
+  showElevation: false,
   activeAccordionItem: '',
   loadingProviderId: null,
   setOpen: (open) => set({ open }),
   setValue: (value) => set({ value }),
   setRouteSwitchDialog: (routeSwitchDialog) => set({ routeSwitchDialog }),
   setShowIntroScreen: (showIntroScreen) => set({ showIntroScreen }),
+  setShowElevation: (showElevation) => set({ showElevation }),
   setActiveAccordionItem: (activeAccordionItem) => set({ activeAccordionItem }),
   setLoadingProviderId: (loadingProviderId) => set({ loadingProviderId }),
 }))

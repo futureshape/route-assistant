@@ -14,13 +14,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-
-interface Route {
-  id: number
-  name: string
-  distance?: number
-  elevation_gain?: number
-}
+import { Route } from '@/types/route'
 
 interface RouteSelectorProps {
   routes: Route[]

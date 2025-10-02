@@ -3,3 +3,4 @@
 export * from './api'
 export * from './route'
 export * from './poi'
+export * from './user'
