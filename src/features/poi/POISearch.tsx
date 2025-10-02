@@ -74,7 +74,7 @@ export function POISearch({
           </Accordion>
           <div className="pt-2">
             <Button onClick={onClearMarkers} variant="outline" size="sm" className="w-full">
-              Clear All POIs
+              Clear Suggested POIs
             </Button>
           </div>
         </>

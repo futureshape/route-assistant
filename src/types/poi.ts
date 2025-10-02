@@ -11,6 +11,7 @@ export interface POI {
   description?: string
   url?: string
   poiSource?: 'google' | 'existing' | string
+  providerId?: string // Track which provider created this POI
 }
 
 export interface POIMarker extends POI {

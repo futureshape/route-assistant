@@ -114,6 +114,7 @@ export default function App(){
     updateMarkerState,
     updatePOI,
     clearAllPOIs,
+    clearSuggestedPOIs,
     addExistingPOIs,
   } = usePOI()
   
@@ -485,8 +486,8 @@ export default function App(){
       console.log(`[POI Search] Using provider: ${provider.name}`, enhancedParams);
       const results = await provider.searchPOIs(enhancedParams);
       
-      // Generic result handling - display POIs on map
-      displayPOIResults(results);
+      // Generic result handling - display POIs on map with provider ID
+      displayPOIResults(results, provider.id);
       
       console.log(`[POI Search] Found ${results.length} POIs from ${provider.name}`);
     } catch (error) {
@@ -524,28 +525,38 @@ export default function App(){
   }
 
   // Generic function to display POI results on the map
-  function displayPOIResults(results: POI[]) {
-    // First remove any existing suggested POIs from previous searches
-    setMarkers(prev => prev.filter(poi => {
-      const markerKey = getMarkerKey(poi)
-      const state = markerStates[markerKey]
-      // Keep existing POIs and selected POIs, remove old suggested ones
-      return state === 'existing' || state === 'selected'
-    }))
-    
-    // Remove marker states for old suggested POIs
-    setMarkerStates(prev => {
-      const newStates: {[key: string]: 'suggested' | 'selected' | 'existing'} = {}
-      Object.entries(prev).forEach(([key, state]) => {
-        if (state === 'existing' || state === 'selected') {
-          newStates[key] = state
-        }
+  function displayPOIResults(results: POI[], providerId?: string) {
+    if (providerId) {
+      // Remove only suggested POIs from THIS provider's previous searches
+      setMarkers(prev => prev.filter(poi => {
+        const markerKey = getMarkerKey(poi)
+        const state = markerStates[markerKey]
+        // Keep existing POIs, selected POIs, and suggested POIs from other providers
+        return state === 'existing' || state === 'selected' || poi.providerId !== providerId
+      }))
+      
+      // Remove marker states for old suggested POIs from this provider
+      setMarkerStates(prev => {
+        const newStates: {[key: string]: 'suggested' | 'selected' | 'existing'} = {}
+        Object.entries(prev).forEach(([key, state]) => {
+          // Find the POI for this key
+          const poi = markers.find(p => getMarkerKey(p) === key)
+          // Keep state if it's existing/selected, OR if it's suggested but from a different provider
+          if (state === 'existing' || state === 'selected' || (poi && poi.providerId !== providerId)) {
+            newStates[key] = state
+          }
+        })
+        return newStates
       })
-      return newStates
-    })
-    
-    // Add new search results to markers
-    setMarkers(prev => [...prev, ...results])
+      
+      // Tag new results with the provider ID and add to markers
+      const taggedResults = results.map(poi => ({ ...poi, providerId }))
+      setMarkers(prev => [...prev, ...taggedResults])
+    } else {
+      // No provider specified - legacy behavior for manual POI additions
+      // Just add the POIs without clearing anything
+      setMarkers(prev => [...prev, ...results])
+    }
   }
 
   async function sendPOIsToRideWithGPS(){
@@ -643,7 +654,7 @@ export default function App(){
                 loadingProviderId={loadingProviderId}
                 onAccordionChange={setActiveAccordionItem}
                 onPOISearch={handlePOISearch}
-                onClearMarkers={clearMarkers}
+                onClearMarkers={clearSuggestedPOIs}
               />
             </SidebarGroupContent>
           </SidebarGroup>
