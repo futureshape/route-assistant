@@ -8,6 +8,7 @@ This directory contains detailed technical documentation for developers working 
 - **`STORE_USAGE_GUIDE.md`**: Zustand store usage patterns and best practices
 - **`POI_PROVIDER_ARCHITECTURE.md`**: POI provider system architecture and implementation guidelines
 - **`OSM_PROVIDER.md`**: OpenStreetMap POI provider documentation and usage guide
+- **`DEPLOYMENT_STRATEGY.md`**: Source control strategy, release management, and deployment procedures
 - **`../.github/copilot-instructions.md`**: Complete architecture and development guidelines
 
 ## Quick Links
@@ -18,6 +19,7 @@ This directory contains detailed technical documentation for developers working 
 - **State Management**: See `STORE_USAGE_GUIDE.md`
 - **POI Provider Development**: See `POI_PROVIDER_ARCHITECTURE.md`
 - **OSM POI Provider**: See `OSM_PROVIDER.md`
+- **Deployment and Release**: See `DEPLOYMENT_STRATEGY.md`
 
 ## For New Developers
 
@@ -26,4 +28,5 @@ This directory contains detailed technical documentation for developers working 
 3. Refer to `STORE_USAGE_GUIDE.md` for state management patterns
 4. See `POI_PROVIDER_ARCHITECTURE.md` for POI provider development guidelines
 5. Check `OSM_PROVIDER.md` for OSM-specific implementation details
-6. Check `../package.json` for available commands and dependencies
+6. Review `DEPLOYMENT_STRATEGY.md` for release and deployment procedures
+7. Check `../package.json` for available commands and dependencies
