@@ -1,4 +1,4 @@
-import { Check, ChevronsUpDown } from 'lucide-react'
+import { Check, ChevronsUpDown, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -14,7 +14,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import { Spinner } from '@/components/ui/spinner'
 
 interface Route {
   id: number
@@ -72,7 +71,7 @@ export function RouteSelector({
               }
             </span>
             {routesLoading ? (
-              <Spinner className="text-muted-foreground flex-shrink-0" />
+              <Loader2 className="animate-spin text-muted-foreground flex-shrink-0 h-4 w-4" />
             ) : (
               <ChevronsUpDown className="opacity-50 flex-shrink-0" />
             )}

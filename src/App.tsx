@@ -13,7 +13,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from '@/components/ui/sidebar'
-import { Spinner } from '@/components/ui/spinner'
+import { Loader2 } from 'lucide-react'
 import { POIProvider, POISearchParams } from '@/lib/poi-providers'
 import { getEnabledProviders } from '@/lib/provider-registry'
 import { AuthHeader } from '@/components/AuthHeader'
@@ -709,7 +709,7 @@ export default function App(){
             ) : (
               <div className="flex items-center justify-center h-full">
                 <div className="text-center space-y-4">
-                  <Spinner size="md" className="mx-auto text-blue-600" />
+                  <Loader2 className="animate-spin mx-auto text-blue-600 h-8 w-8" />
                   <p className="text-gray-600">Loading Google Maps...</p>
                 </div>
               </div>

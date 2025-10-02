@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Spinner } from '@/components/ui/spinner';
+import { Loader2 } from 'lucide-react';
 import { POIProvider, POISearchParams, POIResult, POISearchFormProps } from '@/lib/poi-providers';
 
 // Mock POI Search Form Component
@@ -29,7 +29,7 @@ const MockSearchForm: React.FC<POISearchFormProps> = ({ onSearch, disabled, load
         <Button onClick={handleSearch} size="sm" disabled={disabled || loading}>
           {loading ? (
             <>
-              <Spinner className="mr-2" />
+              <Loader2 className="animate-spin mr-2 h-4 w-4" />
               Searching...
             </>
           ) : (
