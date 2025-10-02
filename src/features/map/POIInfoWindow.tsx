@@ -185,7 +185,20 @@ export function POIInfoWindow({
           {isEditable ? (
             <div>
               <div className="flex items-center gap-1">
-                <Link className="h-3 w-3 flex-shrink-0 text-gray-500" />
+                {editedUrl && !urlError ? (
+                  <a
+                    href={editedUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="h-3 w-3 flex-shrink-0 text-blue-600 hover:text-blue-800 cursor-pointer"
+                    title="Open link in new tab"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Link className="h-3 w-3" />
+                  </a>
+                ) : (
+                  <Link className="h-3 w-3 flex-shrink-0 text-gray-500" />
+                )}
                 <Input
                   value={editedUrl}
                   onChange={(e) => handleUrlChange(e.target.value)}
