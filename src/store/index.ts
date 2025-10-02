@@ -192,10 +192,21 @@ export const useAppStore = create<AppStore>((set, get) => ({
         newMarkerStates[key] = markerState
       }
     })
+    
+    // Only clear selectedMarker if it was a suggested POI
+    let newSelectedMarker = state.selectedMarker
+    if (state.selectedMarker) {
+      const selectedKey = `${state.selectedMarker.name}_${state.selectedMarker.lat}_${state.selectedMarker.lng}`
+      const selectedState = state.markerStates[selectedKey]
+      if (selectedState === 'suggested') {
+        newSelectedMarker = null
+      }
+    }
+    
     set({
       markers: newMarkers,
       markerStates: newMarkerStates,
-      selectedMarker: null,
+      selectedMarker: newSelectedMarker,
     })
   },
   addExistingPOIs: (pois, getMarkerKey) => {

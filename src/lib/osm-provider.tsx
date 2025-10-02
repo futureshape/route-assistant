@@ -177,9 +177,13 @@ export class OSMProvider implements POIProvider {
     }
 
     const data = await response.json();
+    const places = data.places || [];
     
-    // Backend now returns formatted POIs in same structure as Google Maps provider
-    return data.places || [];
+    // Set provider field for each POI to be consistent with other providers
+    return places.map((poi: POIResult) => ({
+      ...poi,
+      provider: this.id
+    }));
   }
 
   getSearchFormComponent() {

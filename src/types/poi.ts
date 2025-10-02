@@ -10,7 +10,7 @@ export interface POI {
   poi_type_name?: RideWithGPSPOIType | string
   description?: string
   url?: string
-  poiSource?: 'google' | 'existing' | string
+  providerId?: string // Track which provider created this POI
 }
 
 export interface POIMarker extends POI {
