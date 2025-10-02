@@ -116,9 +116,6 @@ export function AuthHeader({ authenticated, onAuthChange }: AuthHeaderProps) {
                 <div className="text-sm font-medium text-sidebar-foreground">
                   {user.name}
                 </div>
-                <div className="text-xs text-sidebar-foreground/70">
-                  {user.email}
-                </div>
               </div>
             </div>
           </Button>
