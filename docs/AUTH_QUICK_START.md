@@ -295,9 +295,9 @@ app.get('/api/admin-endpoint', requireAuth, requireAdmin, async (req, res) => {
 4. As users sign up, approve them:
    ```bash
    node admin-cli.js list  # Check new signups
-   node admin-cli.js approve <user_id>  # Approve each one
+   node admin-cli.js approve <user_id>  # Approve - sends email notification automatically
    ```
-5. Email users when approved
+5. Users receive email notification when approved (if Mailersend is configured)
 
 ### Workflow 2: Public Launch
 
@@ -334,15 +334,49 @@ If a user is abusing the system:
    sqlite3 route-assistant.db "DELETE FROM users WHERE rwgps_user_id = <user_id>;"
    ```
 
+## Email Notifications
+
+Route Assistant includes automated email notifications via Mailersend:
+
+### Email Verification
+When users provide their email:
+- Verification email is sent automatically
+- Confirms the email address is valid
+- Provides welcome information
+
+### Beta Access Notification
+When users are approved (waitlist → beta/active):
+- Notification email sent automatically
+- Informs user they now have access
+- Sent via CLI approval or admin API
+
+### Configuration
+
+1. **Sign up for Mailersend** at [mailersend.com](https://www.mailersend.com)
+2. **Create email templates** in Mailersend dashboard:
+   - Email verification template
+   - Beta access notification template
+3. **Configure environment variables** in `.env`:
+   ```bash
+   MAILERSEND_API_KEY=your_api_key
+   MAILERSEND_FROM_EMAIL=noreply@yourdomain.com
+   MAILERSEND_FROM_NAME=Route Assistant
+   MAILERSEND_VERIFICATION_TEMPLATE_ID=template_id
+   MAILERSEND_BETA_ACCESS_TEMPLATE_ID=template_id
+   ```
+
+### Template Variables
+
+Templates should support these variables:
+- `user_name` - User's name or email
+- `user_email` - User's email address
+- `access_level` - "beta" or "full" (for beta access template)
+
+**Note**: Email notifications are optional. The app functions normally without Mailersend configured.
+
 ## Future Enhancements
 
 When you're ready to add these features:
-
-### Email Notifications
-
-1. Add email service (SendGrid, Mailgun, etc.)
-2. Update `userService.updateUserStatus()` to send emails
-3. Create email templates for approval, welcome, etc.
 
 ### Web Admin Interface
 
