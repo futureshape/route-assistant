@@ -22,15 +22,34 @@ const args = process.argv.slice(2);
 const command = args[0];
 
 if (!command) {
+  console.log('Route Assistant Admin CLI');
+  console.log('========================\n');
   console.log('Usage:');
+  console.log('  node admin-cli.js list                                    - List all users');
+  console.log('  node admin-cli.js approve <rwgps_user_id>                 - Approve user (set status to \'beta\')');
+  console.log('  node admin-cli.js set-status <rwgps_user_id> <status>     - Set user status');
+  console.log('  node admin-cli.js set-role <rwgps_user_id> <role>         - Set user role');
+  console.log('  node admin-cli.js verify-email <rwgps_user_id>            - Mark user email as verified');
+  console.log('  node admin-cli.js reset-verification <rwgps_user_id>      - Reset email verification');
+  console.log('  node admin-cli.js find-email <email>                      - Find user by email address');
+  console.log('  node admin-cli.js stats                                   - Show user statistics');
+  console.log('');
+  console.log('Valid Status Values:');
+  console.log('  waitlist  - User has signed up but not approved yet');
+  console.log('  beta      - Beta tester with full access');
+  console.log('  active    - Regular active user (for future use)');
+  console.log('  inactive  - User account disabled');
+  console.log('');
+  console.log('Valid Role Values:');
+  console.log('  user      - Regular user');
+  console.log('  admin     - Administrator with access to admin features');
+  console.log('');
+  console.log('Examples:');
   console.log('  node admin-cli.js list');
-  console.log('  node admin-cli.js approve <rwgps_user_id>');
-  console.log('  node admin-cli.js set-status <rwgps_user_id> <status>');
-  console.log('  node admin-cli.js set-role <rwgps_user_id> <role>');
-  console.log('  node admin-cli.js verify-email <rwgps_user_id>');
-  console.log('  node admin-cli.js reset-verification <rwgps_user_id>');
-  console.log('  node admin-cli.js find-email <email>');
-  console.log('  node admin-cli.js stats');
+  console.log('  node admin-cli.js approve 1625496');
+  console.log('  node admin-cli.js set-status 1625496 beta');
+  console.log('  node admin-cli.js set-role 1625496 admin');
+  console.log('  node admin-cli.js find-email user@example.com');
   process.exit(1);
 }
 
@@ -81,13 +100,15 @@ switch (command) {
 
     if (!rwgpsUserId || !status) {
       console.error('Error: RWGPS user ID and status required');
-      console.error('Valid statuses: waitlist, beta, active, inactive');
+      console.error('Run "node admin-cli.js" without arguments to see valid statuses');
       process.exit(1);
     }
 
     const validStatuses = ['waitlist', 'beta', 'active', 'inactive'];
     if (!validStatuses.includes(status)) {
-      console.error(`Error: Invalid status. Must be one of: ${validStatuses.join(', ')}`);
+      console.error(`Error: Invalid status '${status}'`);
+      console.error('Valid statuses: waitlist, beta, active, inactive');
+      console.error('Run "node admin-cli.js" without arguments for more details');
       process.exit(1);
     }
 
@@ -111,13 +132,15 @@ switch (command) {
 
     if (!rwgpsUserId || !role) {
       console.error('Error: RWGPS user ID and role required');
-      console.error('Valid roles: user, admin');
+      console.error('Run "node admin-cli.js" without arguments to see valid roles');
       process.exit(1);
     }
 
     const validRoles = ['user', 'admin'];
     if (!validRoles.includes(role)) {
-      console.error(`Error: Invalid role. Must be one of: ${validRoles.join(', ')}`);
+      console.error(`Error: Invalid role '${role}'`);
+      console.error('Valid roles: user, admin');
+      console.error('Run "node admin-cli.js" without arguments for more details');
       process.exit(1);
     }
 
