@@ -10,6 +10,7 @@ import {
 import { LogOut, User as UserIcon } from 'lucide-react'
 import { fetchWithCSRFRetry } from '@/lib/csrf'
 import { SessionUser } from '@/types/user'
+import { useUnsavedChanges } from '@/hooks/use-unsaved-changes'
 
 interface AuthHeaderProps {
   authenticated: boolean
@@ -18,12 +19,18 @@ interface AuthHeaderProps {
 }
 
 export function AuthHeader({ authenticated, user, onAuthChange }: AuthHeaderProps) {
+  const { confirmAction } = useUnsavedChanges()
 
   const handleLogin = () => {
     window.location.href = '/auth/ridewithgps'
   }
 
   const handleLogout = async () => {
+    // Check for unsaved changes before logging out
+    if (!confirmAction('sign out')) {
+      return
+    }
+    
     try {
       const response = await fetchWithCSRFRetry('/api/logout', { method: 'POST' })
       if (response.ok) {

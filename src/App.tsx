@@ -26,6 +26,7 @@ import { MapContainer } from '@/features/map'
 import { ElevationChart } from '@/features/elevation'
 import { POISearch, POISummary } from '@/features/poi'
 import { useAuth, useRoutes, usePOI, useMap, useElevation, useUI, useResetStore } from '@/store/selectors'
+import { useUnsavedChanges } from '@/hooks/use-unsaved-changes'
 import type { Route, POI, RouteCoordinate } from '@/store/types'
 import type { 
   SessionResponse, 
@@ -90,6 +91,9 @@ export default function App(){
   // Get state and actions from Zustand store - using combined selectors
   const { authenticated, setAuthenticated, user, setUser } = useAuth()
   const resetStore = useResetStore()
+  
+  // Initialize unsaved changes protection
+  useUnsavedChanges()
   
   // Local state for UI control
   const [showEmailDialog, setShowEmailDialog] = useState(false)
