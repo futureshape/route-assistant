@@ -8,11 +8,14 @@ import type {
   RouteSwitchDialogState,
   POIProvider,
 } from './types'
+import type { SessionUser } from '@/types/user'
 
 // Auth state slice
 interface AuthState {
   authenticated: boolean
+  user: SessionUser | null
   setAuthenticated: (authenticated: boolean) => void
+  setUser: (user: SessionUser | null) => void
 }
 
 // Routes state slice
@@ -100,7 +103,9 @@ type AppStore = AuthState & RoutesState & POIState & MapState & ElevationState &
 export const useAppStore = create<AppStore>((set, get) => ({
   // Auth state
   authenticated: false,
+  user: null,
   setAuthenticated: (authenticated) => set({ authenticated }),
+  setUser: (user) => set({ user }),
 
   // Routes state
   routes: [],

@@ -6,6 +6,8 @@ const polyline = require('@mapbox/polyline');
 const qs = require('qs');
 const path = require('path');
 const { getRideWithGPSTypeId, mapGoogleTypeToRideWithGPS, mapOSMAmenityToRideWithGPS } = require('./poi-type-mapping');
+const { getDatabase } = require('./db');
+const userService = require('./user-service');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -135,8 +137,39 @@ app.get('/auth/ridewithgps/callback', async (req, res) => {
       console.log(`[OAuth] Token expires in: ${tokenRes.data.expires_in} seconds`);
     }
 
-    // store tokens in session (do not log token values)
+    // Fetch user info from RideWithGPS
+    const userInfoRes = await axios.get('https://ridewithgps.com/api/v1/users/current.json', {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
+    });
+    
+    const rwgpsUser = userInfoRes.data.user;
+    const rwgpsUserId = rwgpsUser.id;
+    
+    console.log(`[OAuth] RideWithGPS user ID: ${rwgpsUserId}, name: ${rwgpsUser.name}`);
+    
+    // Check if user exists in our database
+    let dbUser = userService.findUserByRwgpsId(rwgpsUserId);
+    
+    if (!dbUser) {
+      // Create new user in waitlist status
+      console.log(`[OAuth] Creating new user record for RWGPS ID: ${rwgpsUserId}`);
+      dbUser = userService.createUser(rwgpsUserId, null, 'waitlist', 'user');
+    }
+    
+    console.log(`[OAuth] User status: ${dbUser.status}, role: ${dbUser.role}, has email: ${!!dbUser.email}`);
+
+    // Store tokens and user info in session
     req.session.rwgps = tokenRes.data;
+    req.session.user = {
+      dbId: dbUser.id,
+      rwgpsUserId: dbUser.rwgps_user_id,
+      name: rwgpsUser.name,
+      email: dbUser.email,
+      status: dbUser.status,
+      role: dbUser.role,
+      needsEmail: !dbUser.email
+    };
+    
     res.redirect('/');
   } catch (err) {
     // Better error logging: show status and a small sanitized snippet
@@ -159,10 +192,7 @@ app.get('/auth/ridewithgps/callback', async (req, res) => {
 });
 
 // Proxy to list routes
-app.get('/api/routes', async (req, res) => {
-  // Safe session debug: log whether session exists and whether access_token present (do not log token values)
-  console.log('Session rwgps present=', !!req.session.rwgps, 'has_access_token=', !!(req.session.rwgps && req.session.rwgps.access_token));
-  if (!req.session.rwgps || !req.session.rwgps.access_token) return res.status(401).send({ error: 'Not authenticated' });
+app.get('/api/routes', requireAuth, requireAccess, async (req, res) => {
   try {
     // Fetch all pages of routes using pagination
     let allRoutes = [];
@@ -201,8 +231,7 @@ app.get('/api/routes', async (req, res) => {
 });
 
 // Proxy to fetch route details (including polyline or track points)
-app.get('/api/route/:id', async (req, res) => {
-  if (!req.session.rwgps || !req.session.rwgps.access_token) return res.status(401).send({ error: 'Not authenticated' });
+app.get('/api/route/:id', requireAuth, requireAccess, async (req, res) => {
   try {
     const id = req.params.id;
     
@@ -275,9 +304,7 @@ app.get('/api/route/:id', async (req, res) => {
 });
 
 // PATCH route with POIs to RideWithGPS
-app.patch('/api/route/:id/pois', async (req, res) => {
-  if (!req.session.rwgps || !req.session.rwgps.access_token) return res.status(401).send({ error: 'Not authenticated' });
-  
+app.patch('/api/route/:id/pois', requireAuth, requireAccess, async (req, res) => {
   const routeId = req.params.id;
   const { pois } = req.body;
   
@@ -390,9 +417,64 @@ app.patch('/api/route/:id/pois', async (req, res) => {
   }
 });
 
+// Authorization middleware
+function requireAuth(req, res, next) {
+  if (!req.session.rwgps || !req.session.rwgps.access_token) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  next();
+}
+
+function requireAccess(req, res, next) {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  const dbUser = userService.findUserByRwgpsId(req.session.user.rwgpsUserId);
+  if (!dbUser || !userService.hasAccess(dbUser)) {
+    return res.status(403).json({ 
+      error: 'Access denied', 
+      status: dbUser?.status || 'unknown',
+      message: dbUser?.status === 'waitlist' 
+        ? 'Your account is on the waitlist. You will be notified when access is granted.'
+        : 'Access to this application is restricted.'
+    });
+  }
+  
+  // Update session with latest user data
+  req.session.user.status = dbUser.status;
+  req.session.user.role = dbUser.role;
+  req.session.user.email = dbUser.email;
+  
+  next();
+}
+
+function requireAdmin(req, res, next) {
+  if (!req.session.user) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  
+  const dbUser = userService.findUserByRwgpsId(req.session.user.rwgpsUserId);
+  if (!dbUser || !userService.isAdmin(dbUser)) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  
+  next();
+}
+
 // Expose session info for debugging
 app.get('/api/session', (req, res) => {
-  res.json({ authenticated: !!(req.session.rwgps && req.session.rwgps.access_token) });
+  const authenticated = !!(req.session.rwgps && req.session.rwgps.access_token);
+  
+  if (!authenticated) {
+    return res.json({ authenticated: false });
+  }
+  
+  // Return user info including status
+  res.json({ 
+    authenticated: true,
+    user: req.session.user || null
+  });
 });
 
 // Provide Google Maps API key to client
@@ -406,16 +488,83 @@ app.get('/api/poi-providers', (req, res) => {
 });
 
 // Get current user details
-app.get('/api/user', async (req, res) => {
-  if (!req.session.rwgps || !req.session.rwgps.access_token) return res.status(401).send({ error: 'Not authenticated' });
+app.get('/api/user', requireAuth, async (req, res) => {
   try {
     const r = await axios.get('https://ridewithgps.com/api/v1/users/current.json', {
       headers: { Authorization: `Bearer ${req.session.rwgps.access_token}`, Accept: 'application/json' }
     });
-    res.json(r.data);
+    
+    // Merge RideWithGPS user data with our database user data
+    const userData = {
+      ...r.data,
+      dbUser: req.session.user
+    };
+    
+    res.json(userData);
   } catch (err) {
     logAxiosError('Failed to fetch user details', err);
     res.status(500).send({ error: 'Failed to fetch user details' });
+  }
+});
+
+// Update user email
+app.post('/api/user/email', requireAuth, async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ error: 'Valid email is required' });
+    }
+    
+    // Basic email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: 'Invalid email format' });
+    }
+    
+    const rwgpsUserId = req.session.user.rwgpsUserId;
+    const updatedUser = userService.updateUserEmail(rwgpsUserId, email);
+    
+    // Update session
+    req.session.user.email = updatedUser.email;
+    req.session.user.needsEmail = false;
+    
+    res.json({ 
+      success: true, 
+      user: {
+        email: updatedUser.email,
+        status: updatedUser.status,
+        role: updatedUser.role
+      }
+    });
+  } catch (err) {
+    console.error('Failed to update email:', err);
+    res.status(500).json({ error: 'Failed to update email' });
+  }
+});
+
+// Admin: Get all users
+app.get('/api/admin/users', requireAdmin, async (req, res) => {
+  try {
+    const users = userService.getAllUsers();
+    res.json({ users });
+  } catch (err) {
+    console.error('Failed to fetch users:', err);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+// Admin: Update user
+app.patch('/api/admin/users/:rwgpsUserId', requireAdmin, async (req, res) => {
+  try {
+    const rwgpsUserId = parseInt(req.params.rwgpsUserId);
+    const updates = req.body;
+    
+    const updatedUser = userService.updateUser(rwgpsUserId, updates);
+    res.json({ success: true, user: updatedUser });
+  } catch (err) {
+    console.error('Failed to update user:', err);
+    res.status(500).json({ error: 'Failed to update user' });
   }
 });
 
@@ -431,7 +580,7 @@ app.post('/api/logout', (req, res) => {
 });
 
 // Google Maps POI Search endpoint (moved to subpath)
-app.post('/api/poi-search/google-maps', async (req, res) => {
+app.post('/api/poi-search/google-maps', requireAuth, requireAccess, async (req, res) => {
   const { textQuery, encodedPolyline, routingOrigin } = req.body || {};
   if (!textQuery || !encodedPolyline) return res.status(400).send({ error: 'textQuery and encodedPolyline required' });
   try {
@@ -476,7 +625,7 @@ app.post('/api/poi-search/google-maps', async (req, res) => {
 });
 
 // OSM POI Provider endpoint - queries Overpass API
-app.post('/api/poi-search/osm', async (req, res) => {
+app.post('/api/poi-search/osm', requireAuth, requireAccess, async (req, res) => {
   const { amenities, encodedPolyline, mapBounds } = req.body || {};
   if (!amenities) return res.status(400).send({ error: 'amenities required' });
   
@@ -631,7 +780,7 @@ out center;
 });
 
 // Mock POI Provider endpoint (moved to subpath)
-app.post('/api/poi-search/mock', async (req, res) => {
+app.post('/api/poi-search/mock', requireAuth, requireAccess, async (req, res) => {
   const { textQuery, mapBounds } = req.body || {};
   if (!textQuery) return res.status(400).send({ error: 'textQuery required' });
   
@@ -672,7 +821,7 @@ app.post('/api/poi-search/mock', async (req, res) => {
 });
 
 // New API endpoint to fetch place details from Google Places using place ID
-app.post('/api/poi-from-place-id', async (req, res) => {
+app.post('/api/poi-from-place-id', requireAuth, requireAccess, async (req, res) => {
   try {
     const { placeId } = req.body;
     
@@ -759,6 +908,10 @@ app.get('/', async (req, res, next) => {
 
 // Start server; in dev attach Vite middleware for a single unified server
 async function start(){
+  // Initialize database on startup
+  console.log('[Server] Initializing database...');
+  getDatabase();
+  
   if (!isProd){
     try{
       const vitePath = require.resolve('vite', { paths: [__dirname] });

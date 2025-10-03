@@ -1,0 +1,163 @@
+const { getDatabase } = require('./db');
+
+/**
+ * User status values:
+ * - 'waitlist': User has signed up but not approved yet
+ * - 'beta': Beta tester with full access
+ * - 'active': Regular active user (for future use)
+ * - 'inactive': User account disabled
+ * 
+ * User roles:
+ * - 'user': Regular user
+ * - 'admin': Administrator with access to admin features
+ */
+
+/**
+ * Find a user by RideWithGPS user ID
+ */
+function findUserByRwgpsId(rwgpsUserId) {
+  const db = getDatabase();
+  const stmt = db.prepare('SELECT * FROM users WHERE rwgps_user_id = ?');
+  return stmt.get(rwgpsUserId);
+}
+
+/**
+ * Find a user by email
+ */
+function findUserByEmail(email) {
+  const db = getDatabase();
+  const stmt = db.prepare('SELECT * FROM users WHERE email = ?');
+  return stmt.get(email);
+}
+
+/**
+ * Create a new user
+ */
+function createUser(rwgpsUserId, email = null, status = 'waitlist', role = 'user') {
+  const db = getDatabase();
+  const stmt = db.prepare(`
+    INSERT INTO users (rwgps_user_id, email, status, role)
+    VALUES (?, ?, ?, ?)
+  `);
+  
+  const result = stmt.run(rwgpsUserId, email, status, role);
+  return findUserByRwgpsId(rwgpsUserId);
+}
+
+/**
+ * Update user email
+ */
+function updateUserEmail(rwgpsUserId, email) {
+  const db = getDatabase();
+  const stmt = db.prepare(`
+    UPDATE users 
+    SET email = ?, updated_at = datetime('now')
+    WHERE rwgps_user_id = ?
+  `);
+  
+  stmt.run(email, rwgpsUserId);
+  return findUserByRwgpsId(rwgpsUserId);
+}
+
+/**
+ * Update user status
+ */
+function updateUserStatus(rwgpsUserId, status) {
+  const db = getDatabase();
+  const stmt = db.prepare(`
+    UPDATE users 
+    SET status = ?, updated_at = datetime('now')
+    WHERE rwgps_user_id = ?
+  `);
+  
+  stmt.run(status, rwgpsUserId);
+  return findUserByRwgpsId(rwgpsUserId);
+}
+
+/**
+ * Update user role
+ */
+function updateUserRole(rwgpsUserId, role) {
+  const db = getDatabase();
+  const stmt = db.prepare(`
+    UPDATE users 
+    SET role = ?, updated_at = datetime('now')
+    WHERE rwgps_user_id = ?
+  `);
+  
+  stmt.run(role, rwgpsUserId);
+  return findUserByRwgpsId(rwgpsUserId);
+}
+
+/**
+ * Get all users (for admin)
+ */
+function getAllUsers() {
+  const db = getDatabase();
+  const stmt = db.prepare('SELECT * FROM users ORDER BY created_at DESC');
+  return stmt.all();
+}
+
+/**
+ * Update user (for admin)
+ */
+function updateUser(rwgpsUserId, updates) {
+  const db = getDatabase();
+  const allowedFields = ['email', 'status', 'role'];
+  const fields = [];
+  const values = [];
+  
+  for (const [key, value] of Object.entries(updates)) {
+    if (allowedFields.includes(key)) {
+      fields.push(`${key} = ?`);
+      values.push(value);
+    }
+  }
+  
+  if (fields.length === 0) {
+    return findUserByRwgpsId(rwgpsUserId);
+  }
+  
+  fields.push('updated_at = datetime(\'now\')');
+  values.push(rwgpsUserId);
+  
+  const stmt = db.prepare(`
+    UPDATE users 
+    SET ${fields.join(', ')}
+    WHERE rwgps_user_id = ?
+  `);
+  
+  stmt.run(...values);
+  return findUserByRwgpsId(rwgpsUserId);
+}
+
+/**
+ * Check if user has access to the app
+ */
+function hasAccess(user) {
+  if (!user) return false;
+  // Users with 'beta', 'active', or 'admin' role have access
+  // 'waitlist' and 'inactive' do not have access
+  return ['beta', 'active'].includes(user.status) || user.role === 'admin';
+}
+
+/**
+ * Check if user is admin
+ */
+function isAdmin(user) {
+  if (!user) return false;
+  return user.role === 'admin';
+}
+
+module.exports = {
+  findUserByRwgpsId,
+  findUserByEmail,
+  createUser,
+  updateUserEmail,
+  updateUserStatus,
+  updateUserRole,
+  getAllUsers,
+  updateUser,
+  hasAccess,
+  isAdmin
+};

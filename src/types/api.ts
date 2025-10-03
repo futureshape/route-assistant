@@ -3,7 +3,7 @@
 
 import { Route, RouteWithDetails } from './route'
 import { POI } from './poi'
-import { User } from './user'
+import { User, SessionUser } from './user'
 
 export interface ApiResponse<T> {
   success: boolean
@@ -13,7 +13,7 @@ export interface ApiResponse<T> {
 
 export interface SessionResponse {
   authenticated: boolean
-  user?: User
+  user?: SessionUser
 }
 
 export interface RoutesResponse {
@@ -42,4 +42,10 @@ export interface GoogleMapsKeyResponse {
 
 export interface POIProvidersResponse {
   providers: string[]
+}
+
+export interface AccessDeniedResponse {
+  error: string
+  status: string
+  message: string
 }
