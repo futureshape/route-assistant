@@ -8,6 +8,7 @@ import {
   DropdownMenuTrigger,
 } from './ui/dropdown-menu'
 import { LogOut, User as UserIcon } from 'lucide-react'
+import { fetchWithCSRFRetry } from '@/lib/csrf'
 import { SessionUser } from '@/types/user'
 
 interface AuthHeaderProps {
@@ -24,7 +25,7 @@ export function AuthHeader({ authenticated, user, onAuthChange }: AuthHeaderProp
 
   const handleLogout = async () => {
     try {
-      const response = await fetch('/api/logout', { method: 'POST' })
+      const response = await fetchWithCSRFRetry('/api/logout', { method: 'POST' })
       if (response.ok) {
         onAuthChange()
       }

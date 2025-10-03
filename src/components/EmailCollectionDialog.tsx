@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { fetchWithCSRFRetry } from '@/lib/csrf'
 import { Label } from '@/components/ui/label'
 import {
   Dialog,
@@ -41,7 +42,7 @@ export function EmailCollectionDialog({ open, onEmailSubmitted }: EmailCollectio
     setLoading(true)
 
     try {
-      const response = await fetch('/api/user/email', {
+      const response = await fetchWithCSRFRetry('/api/user/email', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

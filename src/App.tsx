@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Mountain, HelpCircle } from 'lucide-react'
 import { getCookie } from '@/lib/utils'
+import { fetchWithCSRFRetry, fetchCSRFToken } from '@/lib/csrf'
 import { Button } from '@/components/ui/button'
 import {
   Sidebar,
@@ -187,6 +188,19 @@ export default function App(){
     }
     fetchApiKey()
   }, [setGoogleMapsApiKey, setGoogleMapsApiKeyLoaded])
+
+  // Initialize CSRF token on mount
+  useEffect(() => {
+    const initCSRF = async () => {
+      try {
+        await fetchCSRFToken()
+        console.log('[App] CSRF token initialized')
+      } catch (error) {
+        console.error('Failed to initialize CSRF token:', error)
+      }
+    }
+    initCSRF()
+  }, [])
 
   // Load enabled POI providers
   useEffect(() => {
@@ -375,7 +389,7 @@ export default function App(){
 
   const handleLogout = async () => {
     try {
-      const response = await fetch('/api/logout', { method: 'POST' })
+      const response = await fetchWithCSRFRetry('/api/logout', { method: 'POST' })
       if (response.ok) {
         setUser(null)
         setAuthenticated(false)
@@ -624,7 +638,7 @@ export default function App(){
     }
     
     try {
-      const response = await fetch(`/api/route/${selectedRouteId}/pois`, {
+      const response = await fetchWithCSRFRetry(`/api/route/${selectedRouteId}/pois`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pois: selectedPOIs })

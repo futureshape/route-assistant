@@ -1,6 +1,8 @@
 require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
+const cookieParser = require('cookie-parser');
+const { doubleCsrf } = require('csrf-csrf');
 const axios = require('axios');
 const polyline = require('@mapbox/polyline');
 const qs = require('qs');
@@ -69,11 +71,49 @@ console.log('Enabled POI providers:', ENABLED_POI_PROVIDERS);
 app.use(express.static(clientDist, { index: false }));
 // Note: public static files will be served after Vite middleware in dev mode
 app.use(express.json());
+app.use(cookieParser());
 app.use(session({
   secret: process.env.SESSION_SECRET || 'dev-secret',
   resave: false,
-  saveUninitialized: false,
+  saveUninitialized: true, // Enable session creation for CSRF tokens
 }));
+
+// CSRF Protection Setup
+const csrfSecret = process.env.CSRF_SECRET || process.env.SESSION_SECRET || 'dev-csrf-secret';
+const {
+  invalidCsrfTokenError,
+  generateCsrfToken,
+  validateRequest,
+  doubleCsrfProtection
+} = doubleCsrf({
+  getSecret: () => csrfSecret,
+  getSessionIdentifier: (req) => {
+    // Use session ID as identifier, fallback to a default if no session
+    return req.session?.id || req.sessionID || 'anonymous';
+  },
+  cookieName: isProd ? '__Host-psifi.x-csrf-token' : 'x-csrf-token',
+  cookieOptions: {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: isProd,
+    path: '/'
+  },
+  size: 64,
+  ignoredMethods: ['GET', 'HEAD', 'OPTIONS'],
+  getTokenFromRequest: (req) => {
+    return req.headers['x-csrf-token'];
+  }
+});
+
+// Provide CSRF token endpoint
+app.get('/api/csrf-token', (req, res) => {
+  res.json({ 
+    csrfToken: generateCsrfToken(req, res)
+  });
+});
+
+// Apply CSRF protection to state-changing routes
+const csrfProtection = doubleCsrfProtection;
 
 // RideWithGPS OAuth endpoints
 app.get('/auth/ridewithgps', (req, res) => {
@@ -309,7 +349,7 @@ app.get('/api/route/:id', requireAuth, requireAccess, async (req, res) => {
 });
 
 // PATCH route with POIs to RideWithGPS
-app.patch('/api/route/:id/pois', requireAuth, requireAccess, async (req, res) => {
+app.patch('/api/route/:id/pois', csrfProtection, requireAuth, requireAccess, async (req, res) => {
   const routeId = req.params.id;
   const { pois } = req.body;
   
@@ -524,7 +564,7 @@ app.get('/api/user', requireAuth, async (req, res) => {
 });
 
 // Update user email
-app.post('/api/user/email', requireAuth, async (req, res) => {
+app.post('/api/user/email', csrfProtection, requireAuth, async (req, res) => {
   try {
     const { email } = req.body;
     
@@ -571,7 +611,7 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
 });
 
 // Admin: Update user
-app.patch('/api/admin/users/:rwgpsUserId', requireAdmin, async (req, res) => {
+app.patch('/api/admin/users/:rwgpsUserId', csrfProtection, requireAdmin, async (req, res) => {
   try {
     const rwgpsUserId = parseInt(req.params.rwgpsUserId);
     const updates = req.body;
@@ -585,7 +625,7 @@ app.patch('/api/admin/users/:rwgpsUserId', requireAdmin, async (req, res) => {
 });
 
 // Logout endpoint
-app.post('/api/logout', (req, res) => {
+app.post('/api/logout', csrfProtection, (req, res) => {
   req.session.destroy((err) => {
     if (err) {
       console.error('Session destruction error:', err);
@@ -596,7 +636,7 @@ app.post('/api/logout', (req, res) => {
 });
 
 // Google Maps POI Search endpoint (moved to subpath)
-app.post('/api/poi-search/google-maps', requireAuth, requireAccess, async (req, res) => {
+app.post('/api/poi-search/google-maps', csrfProtection, requireAuth, requireAccess, async (req, res) => {
   const { textQuery, encodedPolyline, routingOrigin } = req.body || {};
   if (!textQuery || !encodedPolyline) return res.status(400).send({ error: 'textQuery and encodedPolyline required' });
   try {
@@ -641,7 +681,7 @@ app.post('/api/poi-search/google-maps', requireAuth, requireAccess, async (req, 
 });
 
 // OSM POI Provider endpoint - queries Overpass API
-app.post('/api/poi-search/osm', requireAuth, requireAccess, async (req, res) => {
+app.post('/api/poi-search/osm', csrfProtection, requireAuth, requireAccess, async (req, res) => {
   const { amenities, encodedPolyline, mapBounds } = req.body || {};
   if (!amenities) return res.status(400).send({ error: 'amenities required' });
   
@@ -796,7 +836,7 @@ out center;
 });
 
 // Mock POI Provider endpoint (moved to subpath)
-app.post('/api/poi-search/mock', requireAuth, requireAccess, async (req, res) => {
+app.post('/api/poi-search/mock', csrfProtection, requireAuth, requireAccess, async (req, res) => {
   const { textQuery, mapBounds } = req.body || {};
   if (!textQuery) return res.status(400).send({ error: 'textQuery required' });
   
@@ -837,7 +877,7 @@ app.post('/api/poi-search/mock', requireAuth, requireAccess, async (req, res) =>
 });
 
 // New API endpoint to fetch place details from Google Places using place ID
-app.post('/api/poi-from-place-id', requireAuth, requireAccess, async (req, res) => {
+app.post('/api/poi-from-place-id', csrfProtection, requireAuth, requireAccess, async (req, res) => {
   try {
     const { placeId } = req.body;
     
