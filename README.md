@@ -19,6 +19,9 @@ A full-stack web application that helps cyclists explore routes and discover Poi
 - **Automatic Type Mapping**: Intelligent conversion from Google Places and OSM types to RideWithGPS POI categories
 
 ### User Experience
+- **User Authentication**: Secure RideWithGPS OAuth with beta access control
+- **Email Collection**: Capture user emails for service updates and communications
+- **Waitlist System**: Queue new users for approval during beta phase
 - **Responsive Design**: Works on desktop and mobile devices
 - **Modern UI**: Built with shadcn/ui components and Tailwind CSS
 - **Real-time Updates**: Live map interactions and instant POI discovery
@@ -73,8 +76,47 @@ This application uses a **single-server architecture** where Express.js serves b
 ### Technology Stack
 - **Frontend**: React, TypeScript, Tailwind CSS, shadcn/ui, Google Maps JavaScript API
 - **Backend**: Node.js, Express.js, session-based authentication
+- **Database**: SQLite (better-sqlite3) for user management
 - **State Management**: Zustand for client-side state
 - **Build Tools**: Vite for frontend bundling and development server
+
+## User Management
+
+### Beta Access Control
+
+During the beta phase, Route Assistant uses a waitlist system:
+
+1. **First Sign-In**: Users authenticate with RideWithGPS and provide their email address
+2. **Waitlist**: New users are placed on a waitlist by default
+3. **Approval**: Admins can approve users to grant beta access
+4. **Access Granted**: Approved users can access all features
+
+### Admin Operations
+
+Admins can manage users using the CLI tool:
+
+```bash
+# List all users
+node admin-cli.js list
+
+# Approve a user for beta access
+node admin-cli.js approve <rwgps_user_id>
+
+# Change user status
+node admin-cli.js set-status <rwgps_user_id> <status>
+
+# Grant admin role
+node admin-cli.js set-role <rwgps_user_id> admin
+```
+
+See [docs/ADMIN_GUIDE.md](docs/ADMIN_GUIDE.md) for detailed admin operations.
+
+### User Statuses
+
+- **`waitlist`**: User signed up but awaiting approval
+- **`beta`**: Beta tester with full access
+- **`active`**: Regular active user (for future use)
+- **`inactive`**: Account disabled
 
 ## Documentation
 
