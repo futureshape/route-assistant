@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
 const cookieParser = require('cookie-parser');
-const { doubleCsrf } = require('csrf-csrf');
+const lusca = require('lusca');
 const axios = require('axios');
 const polyline = require('@mapbox/polyline');
 const qs = require('qs');
@@ -78,42 +78,18 @@ app.use(session({
   saveUninitialized: true, // Enable session creation for CSRF tokens
 }));
 
-// CSRF Protection Setup
-const csrfSecret = process.env.CSRF_SECRET || process.env.SESSION_SECRET || 'dev-csrf-secret';
-const {
-  invalidCsrfTokenError,
-  generateCsrfToken,
-  validateRequest,
-  doubleCsrfProtection
-} = doubleCsrf({
-  getSecret: () => csrfSecret,
-  getSessionIdentifier: (req) => {
-    // Use session ID as identifier, fallback to a default if no session
-    return req.session?.id || req.sessionID || 'anonymous';
-  },
-  cookieName: isProd ? '__Host-psifi.x-csrf-token' : 'x-csrf-token',
-  cookieOptions: {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: isProd,
-    path: '/'
-  },
-  size: 64,
-  ignoredMethods: ['GET', 'HEAD', 'OPTIONS'],
-  getTokenFromRequest: (req) => {
-    return req.headers['x-csrf-token'];
-  }
-});
+// CSRF Protection Setup - Using lusca.csrf() as recommended by security audit
+app.use(lusca.csrf());
 
 // Provide CSRF token endpoint
 app.get('/api/csrf-token', (req, res) => {
   res.json({ 
-    csrfToken: generateCsrfToken(req, res)
+    csrfToken: res.locals._csrf
   });
 });
 
-// Apply CSRF protection to state-changing routes
-const csrfProtection = doubleCsrfProtection;
+// CSRF protection is now applied globally via lusca middleware
+const csrfProtection = (req, res, next) => next(); // No-op since lusca handles it globally
 
 // RideWithGPS OAuth endpoints
 app.get('/auth/ridewithgps', (req, res) => {

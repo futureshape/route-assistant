@@ -54,7 +54,7 @@ export async function fetchWithCSRF(url: string, options: RequestInit = {}): Pro
     try {
       const token = await getCSRFToken();
       
-      // Add CSRF token to headers
+      // Add CSRF token to headers (lusca expects _csrf header or form field)
       const headers = new Headers(options.headers);
       headers.set('X-CSRF-Token', token);
       
