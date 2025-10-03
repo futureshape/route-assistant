@@ -649,7 +649,8 @@ export default function App(){
   }
 
   // Show waitlist screen if user is authenticated but on waitlist
-  if (authenticated && user && user.status === 'waitlist') {
+  // BUT only if they've already provided their email
+  if (authenticated && user && user.status === 'waitlist' && !user.needsEmail) {
     return (
       <>
         <WaitlistScreen email={user.email} onLogout={handleLogout} />
