@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Mountain, HelpCircle } from 'lucide-react'
 import { getCookie } from '@/lib/utils'
-import { fetchWithCSRFRetry, fetchCSRFToken } from '@/lib/csrf'
+import { fetchWithCSRFRetry, fetchCSRFToken, clearCSRFToken } from '@/lib/csrf'
 import { Button } from '@/components/ui/button'
 import {
   Sidebar,
@@ -25,7 +25,7 @@ import { RouteSelector, RouteSwitchDialog } from '@/features/routes'
 import { MapContainer } from '@/features/map'
 import { ElevationChart } from '@/features/elevation'
 import { POISearch, POISummary } from '@/features/poi'
-import { useAuth, useRoutes, usePOI, useMap, useElevation, useUI } from '@/store/selectors'
+import { useAuth, useRoutes, usePOI, useMap, useElevation, useUI, useResetStore } from '@/store/selectors'
 import type { Route, POI, RouteCoordinate } from '@/store/types'
 import type { 
   SessionResponse, 
@@ -89,6 +89,7 @@ const POI_TYPE_NAMES: Record<string, string> = {
 export default function App(){
   // Get state and actions from Zustand store - using combined selectors
   const { authenticated, setAuthenticated, user, setUser } = useAuth()
+  const resetStore = useResetStore()
   
   // Local state for UI control
   const [showEmailDialog, setShowEmailDialog] = useState(false)
@@ -223,6 +224,13 @@ export default function App(){
       setShowIntroScreen(true)
     }
   }, [setShowIntroScreen])
+
+  // Helper: clear all user-specific data (for logout and unauthenticated state)
+  const clearAllUserData = () => {
+    console.log('[clearAllUserData] Resetting store to initial state')
+    resetStore()
+    clearCSRFToken() // Keep CSRF token clearing separate as it's not in store
+  }
 
   // Helper: generate unique key for POI
   function getMarkerKey(poi: POI): string {
@@ -373,8 +381,8 @@ export default function App(){
       }
       setRoutesLoading(false)
     } else {
-      console.log('[fetchAuthState] User not authenticated, clearing routes')
-      setRoutes([])
+      console.log('[fetchAuthState] User not authenticated, clearing all user data')
+      clearAllUserData()
       setRoutesLoading(false)
     }
   }
@@ -391,10 +399,8 @@ export default function App(){
     try {
       const response = await fetchWithCSRFRetry('/api/logout', { method: 'POST' })
       if (response.ok) {
-        setUser(null)
-        setAuthenticated(false)
-        setRoutes([])
-        clearRouteSelection()
+        clearAllUserData()
+        console.log('[handleLogout] All user data cleared on logout')
       }
     } catch (error) {
       console.error('Logout failed:', error)

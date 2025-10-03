@@ -219,3 +219,6 @@ export const useUI = () => {
     setLoadingProviderId,
   }
 }
+
+// Store reset selector
+export const useResetStore = () => useAppStore((state) => state.resetUserData)

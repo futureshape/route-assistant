@@ -96,16 +96,16 @@ interface UIState {
   setLoadingProviderId: (id: string | null) => void
 }
 
-// Combined store type
-type AppStore = AuthState & RoutesState & POIState & MapState & ElevationState & UIState
+// Combined store type with reset functionality
+type AppStore = AuthState & RoutesState & POIState & MapState & ElevationState & UIState & {
+  resetUserData: () => void
+}
 
 // Create the store
 export const useAppStore = create<AppStore>((set, get) => ({
   // Auth state
   authenticated: false,
   user: null,
-  setAuthenticated: (authenticated) => set({ authenticated }),
-  setUser: (user) => set({ user }),
 
   // Routes state
   routes: [],
@@ -114,6 +114,43 @@ export const useAppStore = create<AppStore>((set, get) => ({
   routePath: [],
   routeColor: '#fa6400',
   routeFullyLoaded: false,
+
+  // POI/Markers state
+  markers: [],
+  markerStates: {},
+  selectedMarker: null,
+  poiProviders: [],
+
+  // Map state
+  mapCenter: { lat: 39.5, lng: -98.35 },
+  mapZoom: 4,
+  chartHoverPosition: null,
+  googleMapsApiKey: '',
+  googleMapsApiKeyLoaded: false,
+
+  // Elevation state
+  elevationData: [],
+  hoveredPointIndex: null,
+
+  // UI state
+  open: false,
+  value: '',
+  routeSwitchDialog: {
+    show: false,
+    newRoute: null,
+    currentRouteName: '',
+    selectedCount: 0,
+  },
+  showIntroScreen: false,
+  showElevation: false,
+  activeAccordionItem: '',
+  loadingProviderId: null,
+
+  // Actions
+  setAuthenticated: (authenticated) => set({ authenticated }),
+  setUser: (user) => set({ user }),
+
+  // Routes actions
   setRoutes: (routes) => set({ routes }),
   setRoutesLoading: (routesLoading) => set({ routesLoading }),
   setSelectedRouteId: (selectedRouteId) => set({ selectedRouteId }),
@@ -129,11 +166,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     routeFullyLoaded: false 
   }),
 
-  // POI/Markers state
-  markers: [],
-  markerStates: {},
-  selectedMarker: null,
-  poiProviders: [],
+  // POI/Markers actions
   setMarkers: (markers) =>
     set((state) => ({
       markers: typeof markers === 'function' ? markers(state.markers) : markers,
@@ -229,37 +262,18 @@ export const useAppStore = create<AppStore>((set, get) => ({
     })
   },
 
-  // Map state
-  mapCenter: { lat: 39.5, lng: -98.35 },
-  mapZoom: 4,
-  chartHoverPosition: null,
-  googleMapsApiKey: '',
-  googleMapsApiKeyLoaded: false,
+  // Map actions
   setMapCenter: (mapCenter) => set({ mapCenter }),
   setMapZoom: (mapZoom) => set({ mapZoom }),
   setChartHoverPosition: (chartHoverPosition) => set({ chartHoverPosition }),
   setGoogleMapsApiKey: (googleMapsApiKey) => set({ googleMapsApiKey }),
   setGoogleMapsApiKeyLoaded: (googleMapsApiKeyLoaded) => set({ googleMapsApiKeyLoaded }),
 
-  // Elevation state
-  elevationData: [],
-  hoveredPointIndex: null,
+  // Elevation actions
   setElevationData: (elevationData) => set({ elevationData }),
   setHoveredPointIndex: (hoveredPointIndex) => set({ hoveredPointIndex }),
 
-  // UI state
-  open: false,
-  value: '',
-  routeSwitchDialog: {
-    show: false,
-    newRoute: null,
-    currentRouteName: '',
-    selectedCount: 0,
-  },
-  showIntroScreen: false,
-  showElevation: false,
-  activeAccordionItem: '',
-  loadingProviderId: null,
+  // UI actions
   setOpen: (open) => set({ open }),
   setValue: (value) => set({ value }),
   setRouteSwitchDialog: (routeSwitchDialog) => set({ routeSwitchDialog }),
@@ -267,4 +281,48 @@ export const useAppStore = create<AppStore>((set, get) => ({
   setShowElevation: (showElevation) => set({ showElevation }),
   setActiveAccordionItem: (activeAccordionItem) => set({ activeAccordionItem }),
   setLoadingProviderId: (loadingProviderId) => set({ loadingProviderId }),
+
+  // Reset function to clear only user-specific data (preserve app-level state)
+  resetUserData: () => set({
+    // Clear auth state
+    authenticated: false,
+    user: null,
+    
+    // Clear route data
+    routes: [],
+    routesLoading: false,
+    selectedRouteId: null,
+    routePath: [],
+    routeFullyLoaded: false,
+    
+    // Clear POI data
+    markers: [],
+    markerStates: {},
+    selectedMarker: null,
+    
+    // Clear elevation data
+    elevationData: [],
+    hoveredPointIndex: null,
+    chartHoverPosition: null,
+    
+    // Clear UI state
+    open: false,
+    value: '',
+    routeSwitchDialog: {
+      show: false,
+      newRoute: null,
+      currentRouteName: '',
+      selectedCount: 0,
+    },
+    showElevation: false,
+    activeAccordionItem: '',
+    loadingProviderId: null,
+    
+    // Preserve app-level state:
+    // - googleMapsApiKey & googleMapsApiKeyLoaded (app configuration)
+    // - poiProviders (app configuration)
+    // - mapCenter & mapZoom (user preference)
+    // - routeColor (theme setting)
+    // - showIntroScreen (user preference)
+  }),
 }))
