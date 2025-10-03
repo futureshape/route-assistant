@@ -8,6 +8,10 @@
  *   node admin-cli.js approve <rwgps_user_id>          - Approve user (set status to 'beta')
  *   node admin-cli.js set-status <rwgps_user_id> <status> - Set user status (waitlist|beta|active|inactive)
  *   node admin-cli.js set-role <rwgps_user_id> <role>  - Set user role (user|admin)
+ *   node admin-cli.js verify-email <rwgps_user_id>     - Mark user email as verified
+ *   node admin-cli.js reset-verification <rwgps_user_id> - Reset email verification (mark as unverified)
+ *   node admin-cli.js find-email <email>               - Find user by email address
+ *   node admin-cli.js stats                            - Show user statistics
  */
 
 const { getDatabase } = require('./db');
@@ -23,6 +27,10 @@ if (!command) {
   console.log('  node admin-cli.js approve <rwgps_user_id>');
   console.log('  node admin-cli.js set-status <rwgps_user_id> <status>');
   console.log('  node admin-cli.js set-role <rwgps_user_id> <role>');
+  console.log('  node admin-cli.js verify-email <rwgps_user_id>');
+  console.log('  node admin-cli.js reset-verification <rwgps_user_id>');
+  console.log('  node admin-cli.js find-email <email>');
+  console.log('  node admin-cli.js stats');
   process.exit(1);
 }
 
@@ -37,6 +45,7 @@ switch (command) {
       ID: u.id,
       'RWGPS ID': u.rwgps_user_id,
       Email: u.email || '(not provided)',
+      'Email Verified': u.email_verified ? '✓' : '✗',
       Status: u.status,
       Role: u.role,
       Created: new Date(u.created_at).toLocaleDateString()
@@ -61,6 +70,7 @@ switch (command) {
     const updated = userService.updateUserStatus(rwgpsUserId, 'beta');
     console.log(`✓ User approved (RWGPS ID: ${rwgpsUserId})`);
     console.log(`  Email: ${updated.email || '(not provided)'}`);
+    console.log(`  Email Verified: ${updated.email_verified ? 'Yes' : 'No'}`);
     console.log(`  Status: ${updated.status}`);
     break;
   }
@@ -90,6 +100,7 @@ switch (command) {
     const updated = userService.updateUserStatus(rwgpsUserId, status);
     console.log(`✓ User status updated (RWGPS ID: ${rwgpsUserId})`);
     console.log(`  Email: ${updated.email || '(not provided)'}`);
+    console.log(`  Email Verified: ${updated.email_verified ? 'Yes' : 'No'}`);
     console.log(`  Status: ${updated.status}`);
     break;
   }
@@ -119,7 +130,166 @@ switch (command) {
     const updated = userService.updateUserRole(rwgpsUserId, role);
     console.log(`✓ User role updated (RWGPS ID: ${rwgpsUserId})`);
     console.log(`  Email: ${updated.email || '(not provided)'}`);
+    console.log(`  Email Verified: ${updated.email_verified ? 'Yes' : 'No'}`);
     console.log(`  Role: ${updated.role}`);
+    break;
+  }
+
+  case 'verify-email': {
+    const rwgpsUserId = parseInt(args[1]);
+    if (!rwgpsUserId) {
+      console.error('Error: RWGPS user ID required');
+      process.exit(1);
+    }
+
+    const user = userService.findUserByRwgpsId(rwgpsUserId);
+    if (!user) {
+      console.error(`Error: User with RWGPS ID ${rwgpsUserId} not found`);
+      process.exit(1);
+    }
+
+    if (!user.email) {
+      console.error('Error: User has no email address to verify');
+      process.exit(1);
+    }
+
+    // Manually mark email as verified
+    const { getDatabase } = require('./db');
+    const db = getDatabase();
+    const stmt = db.prepare(`
+      UPDATE users 
+      SET email_verified = 1, email_verification_token = NULL, updated_at = datetime('now')
+      WHERE rwgps_user_id = ?
+    `);
+    stmt.run(rwgpsUserId);
+
+    const updated = userService.findUserByRwgpsId(rwgpsUserId);
+    console.log(`✓ Email verified for user (RWGPS ID: ${rwgpsUserId})`);
+    console.log(`  Email: ${updated.email}`);
+    console.log(`  Email Verified: Yes`);
+    break;
+  }
+
+  case 'reset-verification': {
+    const rwgpsUserId = parseInt(args[1]);
+    if (!rwgpsUserId) {
+      console.error('Error: RWGPS user ID required');
+      process.exit(1);
+    }
+
+    const user = userService.findUserByRwgpsId(rwgpsUserId);
+    if (!user) {
+      console.error(`Error: User with RWGPS ID ${rwgpsUserId} not found`);
+      process.exit(1);
+    }
+
+    if (!user.email) {
+      console.error('Error: User has no email address');
+      process.exit(1);
+    }
+
+    // Reset email verification
+    const { getDatabase } = require('./db');
+    const db = getDatabase();
+    const stmt = db.prepare(`
+      UPDATE users 
+      SET email_verified = 0, email_verification_token = NULL, updated_at = datetime('now')
+      WHERE rwgps_user_id = ?
+    `);
+    stmt.run(rwgpsUserId);
+
+    const updated = userService.findUserByRwgpsId(rwgpsUserId);
+    console.log(`✓ Email verification reset for user (RWGPS ID: ${rwgpsUserId})`);
+    console.log(`  Email: ${updated.email}`);
+    console.log(`  Email Verified: No`);
+    break;
+  }
+
+  case 'find-email': {
+    const email = args[1];
+    if (!email) {
+      console.error('Error: Email address required');
+      process.exit(1);
+    }
+
+    const user = userService.findUserByEmail(email);
+    if (!user) {
+      console.log(`No user found with email: ${email}`);
+      process.exit(0);
+    }
+
+    console.log(`\n=== User Found ===\n`);
+    console.table([{
+      ID: user.id,
+      'RWGPS ID': user.rwgps_user_id,
+      Email: user.email,
+      'Email Verified': user.email_verified ? 'Yes' : 'No',
+      Status: user.status,
+      Role: user.role,
+      Created: new Date(user.created_at).toLocaleDateString(),
+      Updated: new Date(user.updated_at).toLocaleDateString()
+    }]);
+    break;
+  }
+
+  case 'stats': {
+    const users = userService.getAllUsers();
+    const stats = {
+      total: users.length,
+      byStatus: {},
+      byRole: {},
+      emailStats: {
+        withEmail: 0,
+        verified: 0,
+        unverified: 0,
+        noEmail: 0
+      }
+    };
+
+    users.forEach(user => {
+      // Status stats
+      stats.byStatus[user.status] = (stats.byStatus[user.status] || 0) + 1;
+      
+      // Role stats
+      stats.byRole[user.role] = (stats.byRole[user.role] || 0) + 1;
+      
+      // Email stats
+      if (user.email) {
+        stats.emailStats.withEmail++;
+        if (user.email_verified) {
+          stats.emailStats.verified++;
+        } else {
+          stats.emailStats.unverified++;
+        }
+      } else {
+        stats.emailStats.noEmail++;
+      }
+    });
+
+    console.log('\n=== User Statistics ===\n');
+    console.log(`Total Users: ${stats.total}\n`);
+    
+    console.log('By Status:');
+    Object.entries(stats.byStatus).forEach(([status, count]) => {
+      console.log(`  ${status}: ${count}`);
+    });
+    
+    console.log('\nBy Role:');
+    Object.entries(stats.byRole).forEach(([role, count]) => {
+      console.log(`  ${role}: ${count}`);
+    });
+    
+    console.log('\nEmail Statistics:');
+    console.log(`  Users with email: ${stats.emailStats.withEmail}`);
+    console.log(`  Email verified: ${stats.emailStats.verified}`);
+    console.log(`  Email unverified: ${stats.emailStats.unverified}`);
+    console.log(`  No email: ${stats.emailStats.noEmail}`);
+    
+    if (stats.emailStats.withEmail > 0) {
+      const verificationRate = ((stats.emailStats.verified / stats.emailStats.withEmail) * 100).toFixed(1);
+      console.log(`  Verification rate: ${verificationRate}%`);
+    }
+    console.log('');
     break;
   }
 
