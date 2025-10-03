@@ -548,9 +548,21 @@ app.post('/api/user/email', csrfProtection, requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Valid email is required' });
     }
     
-    // Basic email format validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    // Email validation using URL constructor (more robust than regex)
+    try {
+      // Create a mailto URL - if email is invalid, this will throw
+      new URL(`mailto:${email}`);
+      
+      // Additional basic checks
+      if (!email.includes('@') || email.startsWith('@') || email.endsWith('@')) {
+        throw new Error('Invalid email format');
+      }
+      
+      const [localPart, domain] = email.split('@');
+      if (!localPart || !domain || domain.split('.').length < 2) {
+        throw new Error('Invalid email format');
+      }
+    } catch (error) {
       return res.status(400).json({ error: 'Invalid email format' });
     }
     
