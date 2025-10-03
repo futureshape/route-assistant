@@ -475,6 +475,17 @@ app.get('/api/session', (req, res) => {
     return res.json({ authenticated: false });
   }
   
+  // Refresh user data from database to ensure latest status/role
+  if (req.session.user && req.session.user.rwgpsUserId) {
+    const dbUser = userService.findUserByRwgpsId(req.session.user.rwgpsUserId);
+    if (dbUser) {
+      // Update session with latest user data
+      req.session.user.status = dbUser.status;
+      req.session.user.role = dbUser.role;
+      req.session.user.email = dbUser.email;
+    }
+  }
+  
   // Return user info including status
   res.json({ 
     authenticated: true,
