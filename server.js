@@ -10,6 +10,7 @@ const path = require('path');
 const { getRideWithGPSTypeId, mapGoogleTypeToRideWithGPS, mapOSMAmenityToRideWithGPS } = require('./poi-type-mapping');
 const { getDatabase } = require('./db');
 const userService = require('./user-service');
+const emailService = require('./email-service');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -568,6 +569,14 @@ app.post('/api/user/email', csrfProtection, requireAuth, async (req, res) => {
     
     const rwgpsUserId = req.session.user.rwgpsUserId;
     const updatedUser = userService.updateUserEmail(rwgpsUserId, email);
+    
+    // Send email verification
+    try {
+      await emailService.sendEmailVerification(email);
+    } catch (err) {
+      console.error('Failed to send verification email:', err);
+      // Continue anyway - don't fail the request
+    }
     
     // Update session
     req.session.user.email = updatedUser.email;

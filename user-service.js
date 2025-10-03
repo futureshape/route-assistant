@@ -1,4 +1,5 @@
 const { getDatabase } = require('./db');
+const emailService = require('./email-service');
 
 /**
  * User Service - Database operations for user management
@@ -90,6 +91,10 @@ function updateUserEmail(rwgpsUserId, email) {
 function updateUserStatus(rwgpsUserId, status) {
   const userId = validateUserId(rwgpsUserId);
   
+  // Get current user to check old status
+  const currentUser = findUserByRwgpsId(userId);
+  const oldStatus = currentUser?.status;
+  
   const db = getDatabase();
   const stmt = db.prepare(`
     UPDATE users 
@@ -98,7 +103,17 @@ function updateUserStatus(rwgpsUserId, status) {
   `);
   
   stmt.run(status, userId);
-  return findUserByRwgpsId(userId);
+  const updatedUser = findUserByRwgpsId(userId);
+  
+  // Send notification email if status changed from 'waitlist' to 'beta' or 'active'
+  if (oldStatus === 'waitlist' && (status === 'beta' || status === 'active')) {
+    if (updatedUser.email) {
+      emailService.sendBetaAccessNotification(updatedUser.email, '', status)
+        .catch(err => console.error('Failed to send beta access notification:', err));
+    }
+  }
+  
+  return updatedUser;
 }
 
 /**
@@ -133,6 +148,10 @@ function getAllUsers() {
 function updateUser(rwgpsUserId, updates) {
   const userId = validateUserId(rwgpsUserId);
   
+  // Get current user to check old status
+  const currentUser = findUserByRwgpsId(userId);
+  const oldStatus = currentUser?.status;
+  
   const db = getDatabase();
   const allowedFields = ['email', 'status', 'role'];
   const fields = [];
@@ -159,7 +178,17 @@ function updateUser(rwgpsUserId, updates) {
   `);
   
   stmt.run(...values);
-  return findUserByRwgpsId(userId);
+  const updatedUser = findUserByRwgpsId(userId);
+  
+  // Send notification email if status changed from 'waitlist' to 'beta' or 'active'
+  if (updates.status && oldStatus === 'waitlist' && (updates.status === 'beta' || updates.status === 'active')) {
+    if (updatedUser.email) {
+      emailService.sendBetaAccessNotification(updatedUser.email, '', updates.status)
+        .catch(err => console.error('Failed to send beta access notification:', err));
+    }
+  }
+  
+  return updatedUser;
 }
 
 /**
