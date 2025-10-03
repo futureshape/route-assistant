@@ -60,3 +60,4 @@ research/
 # Test scripts
 test-email-service.js
 test-email-workflow.js
+test-verification.js

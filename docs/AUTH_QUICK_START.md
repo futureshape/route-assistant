@@ -340,9 +340,17 @@ Route Assistant includes automated email notifications via Mailersend:
 
 ### Email Verification
 When users provide their email:
-- Verification email is sent automatically
-- Confirms the email address is valid
-- Provides welcome information
+- Verification email is sent automatically with a unique verification link
+- User clicks the link to verify ownership of the email address
+- Verification status is tracked in the database (`email_verified` field)
+- Unverified emails can still be used for notifications, but verified status proves ownership
+
+**Verification Flow**:
+1. User enters email in email collection dialog
+2. Email saved to database with `email_verified = 0` and unique token
+3. Verification email sent with link: `https://yourdomain.com/verify-email?token=<token>`
+4. User clicks link and is shown verification confirmation
+5. Database updated with `email_verified = 1` and token cleared
 
 ### Beta Access Notification
 When users are approved (waitlist → beta/active):
@@ -354,10 +362,11 @@ When users are approved (waitlist → beta/active):
 
 1. **Sign up for Mailersend** at [mailersend.com](https://www.mailersend.com)
 2. **Create email templates** in Mailersend dashboard:
-   - Email verification template
+   - Email verification template (must include verification link button/URL)
    - Beta access notification template
 3. **Configure environment variables** in `.env`:
    ```bash
+   BASE_URL=https://yourdomain.com  # Used for verification links
    MAILERSEND_API_KEY=your_api_key
    MAILERSEND_FROM_EMAIL=noreply@yourdomain.com
    MAILERSEND_FROM_NAME=Route Assistant
@@ -368,9 +377,14 @@ When users are approved (waitlist → beta/active):
 ### Template Variables
 
 Templates should support these variables:
-- `user_name` - User's name or email
-- `user_email` - User's email address
-- `access_level` - "beta" or "full" (for beta access template)
+- **Verification email**:
+  - `user_name` - User's name or email
+  - `user_email` - User's email address
+  - `verification_url` - Complete URL for email verification
+- **Beta access email**:
+  - `user_name` - User's name or email
+  - `user_email` - User's email address
+  - `access_level` - "beta" or "full"
 
 **Note**: Email notifications are optional. The app functions normally without Mailersend configured.
 

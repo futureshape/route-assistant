@@ -20,6 +20,7 @@ import { getEnabledProviders } from '@/lib/provider-registry'
 import { AuthHeader } from '@/components/AuthHeader'
 import { IntroScreen } from '@/components/IntroScreen'
 import { EmailCollectionDialog } from '@/components/EmailCollectionDialog'
+import { EmailVerification } from '@/components/EmailVerification'
 import { WaitlistScreen } from '@/components/WaitlistScreen'
 import { RouteSelector, RouteSwitchDialog } from '@/features/routes'
 import { MapContainer } from '@/features/map'
@@ -97,6 +98,16 @@ export default function App(){
   
   // Local state for UI control
   const [showEmailDialog, setShowEmailDialog] = useState(false)
+  const [emailVerificationToken, setEmailVerificationToken] = useState<string | null>(null)
+  
+  // Check for email verification token on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const token = params.get('token')
+    if (token && window.location.pathname === '/verify-email') {
+      setEmailVerificationToken(token)
+    }
+  }, [])
   
   const {
     routes,
@@ -670,6 +681,20 @@ export default function App(){
       console.error('Error sending POIs:', error)
       alert('An error occurred while sending POIs to RideWithGPS')
     }
+  }
+
+  // Show email verification screen if token is present
+  if (emailVerificationToken) {
+    return (
+      <EmailVerification 
+        token={emailVerificationToken} 
+        onClose={() => {
+          setEmailVerificationToken(null)
+          // Clear the query parameters from URL
+          window.history.replaceState({}, '', '/')
+        }} 
+      />
+    )
   }
 
   // Show waitlist screen if user is authenticated but on waitlist

@@ -24,10 +24,11 @@ function isConfigured() {
 /**
  * Send email verification to user
  * @param {string} email - User's email address
+ * @param {string} verificationUrl - URL for email verification
  * @param {string} userName - User's name (optional)
  * @returns {Promise<void>}
  */
-async function sendEmailVerification(email, userName = '') {
+async function sendEmailVerification(email, verificationUrl, userName = '') {
   if (!isConfigured()) {
     console.warn('Email service not configured. Skipping email verification send.');
     return;
@@ -61,6 +62,10 @@ async function sendEmailVerification(email, userName = '') {
             {
               var: 'user_email',
               value: email,
+            },
+            {
+              var: 'verification_url',
+              value: verificationUrl,
             },
           ],
         },

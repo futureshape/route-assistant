@@ -71,18 +71,49 @@ function createUser(rwgpsUserId, email = null, status = 'waitlist', role = 'user
 /**
  * Update user email
  */
-function updateUserEmail(rwgpsUserId, email) {
+function updateUserEmail(rwgpsUserId, email, verificationToken = null) {
   const userId = validateUserId(rwgpsUserId);
   
   const db = getDatabase();
   const stmt = db.prepare(`
     UPDATE users 
-    SET email = ?, updated_at = datetime('now')
+    SET email = ?, email_verified = 0, email_verification_token = ?, updated_at = datetime('now')
     WHERE rwgps_user_id = ?
   `);
   
-  stmt.run(email, userId);
+  stmt.run(email, verificationToken, userId);
   return findUserByRwgpsId(userId);
+}
+
+/**
+ * Verify user email with token
+ */
+function verifyEmail(token) {
+  const db = getDatabase();
+  const stmt = db.prepare(`
+    UPDATE users 
+    SET email_verified = 1, email_verification_token = NULL, updated_at = datetime('now')
+    WHERE email_verification_token = ?
+  `);
+  
+  const result = stmt.run(token);
+  
+  if (result.changes === 0) {
+    return null; // Token not found or already verified
+  }
+  
+  // Return the updated user
+  const user = db.prepare('SELECT * FROM users WHERE email_verified = 1 AND email_verification_token IS NULL ORDER BY updated_at DESC LIMIT 1').get();
+  return user;
+}
+
+/**
+ * Find user by verification token
+ */
+function findUserByVerificationToken(token) {
+  const db = getDatabase();
+  const stmt = db.prepare('SELECT * FROM users WHERE email_verification_token = ?');
+  return stmt.get(token);
 }
 
 /**
@@ -212,8 +243,10 @@ function isAdmin(user) {
 module.exports = {
   findUserByRwgpsId,
   findUserByEmail,
+  findUserByVerificationToken,
   createUser,
   updateUserEmail,
+  verifyEmail,
   updateUserStatus,
   updateUserRole,
   getAllUsers,

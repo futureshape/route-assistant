@@ -25,6 +25,8 @@ function initializeSchema() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       rwgps_user_id INTEGER NOT NULL UNIQUE,
       email TEXT,
+      email_verified INTEGER NOT NULL DEFAULT 0,
+      email_verification_token TEXT,
       status TEXT NOT NULL DEFAULT 'waitlist',
       role TEXT NOT NULL DEFAULT 'user',
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -49,6 +51,25 @@ function initializeSchema() {
     CREATE INDEX IF NOT EXISTS idx_users_status 
     ON users(status);
   `);
+
+  // Migration: Add email verification columns if they don't exist
+  try {
+    db.exec(`
+      ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0;
+    `);
+    console.log('[DB] Added email_verified column');
+  } catch (e) {
+    // Column already exists, ignore
+  }
+
+  try {
+    db.exec(`
+      ALTER TABLE users ADD COLUMN email_verification_token TEXT;
+    `);
+    console.log('[DB] Added email_verification_token column');
+  } catch (e) {
+    // Column already exists, ignore
+  }
 
   console.log('[DB] Database schema initialized');
 }

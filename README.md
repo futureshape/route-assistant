@@ -76,10 +76,15 @@ Create an OAuth application in your RideWithGPS account with:
 - **Scopes**: Route read/write permissions
 
 ### Mailersend (Optional)
-For email notifications:
-- **Email Verification**: Sent when users provide their email address
+For email notifications and verification:
+- **Email Verification**: Sent when users provide their email address with a verification link
+  - Users click the link to verify email ownership
+  - Verification status tracked in database
 - **Beta Access Notifications**: Sent when users are approved from waitlist to beta/active status
 - **Setup**: Create email templates in Mailersend dashboard and configure template IDs in environment variables
+- **Template Variables**:
+  - Verification email: `user_name`, `user_email`, `verification_url`
+  - Beta access email: `user_name`, `user_email`, `access_level`
 - **Note**: Email notifications are optional - the app will function normally without Mailersend configured
 
 ## Architecture

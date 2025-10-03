@@ -7,6 +7,7 @@ const axios = require('axios');
 const polyline = require('@mapbox/polyline');
 const qs = require('qs');
 const path = require('path');
+const crypto = require('crypto');
 const { getRideWithGPSTypeId, mapGoogleTypeToRideWithGPS, mapOSMAmenityToRideWithGPS } = require('./poi-type-mapping');
 const { getDatabase } = require('./db');
 const userService = require('./user-service');
@@ -187,6 +188,7 @@ app.get('/auth/ridewithgps/callback', async (req, res) => {
       rwgpsUserId: dbUser.rwgps_user_id,
       name: rwgpsUser.name,
       email: dbUser.email,
+      emailVerified: dbUser.email_verified ? true : false,
       status: dbUser.status,
       role: dbUser.role,
       needsEmail: !dbUser.email
@@ -568,11 +570,20 @@ app.post('/api/user/email', csrfProtection, requireAuth, async (req, res) => {
     }
     
     const rwgpsUserId = req.session.user.rwgpsUserId;
-    const updatedUser = userService.updateUserEmail(rwgpsUserId, email);
+    
+    // Generate verification token
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    
+    // Update user email with verification token
+    const updatedUser = userService.updateUserEmail(rwgpsUserId, email, verificationToken);
+    
+    // Build verification URL
+    const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
+    const verificationUrl = `${baseUrl}/verify-email?token=${verificationToken}`;
     
     // Send email verification
     try {
-      await emailService.sendEmailVerification(email);
+      await emailService.sendEmailVerification(email, verificationUrl);
     } catch (err) {
       console.error('Failed to send verification email:', err);
       // Continue anyway - don't fail the request
@@ -580,12 +591,14 @@ app.post('/api/user/email', csrfProtection, requireAuth, async (req, res) => {
     
     // Update session
     req.session.user.email = updatedUser.email;
+    req.session.user.emailVerified = updatedUser.email_verified;
     req.session.user.needsEmail = false;
     
     res.json({ 
       success: true, 
       user: {
         email: updatedUser.email,
+        emailVerified: updatedUser.email_verified ? true : false,
         status: updatedUser.status,
         role: updatedUser.role
       }
@@ -593,6 +606,56 @@ app.post('/api/user/email', csrfProtection, requireAuth, async (req, res) => {
   } catch (err) {
     console.error('Failed to update email:', err);
     res.status(500).json({ error: 'Failed to update email' });
+  }
+});
+
+// Verify email endpoint
+app.get('/api/verify-email', async (req, res) => {
+  try {
+    const { token } = req.query;
+    
+    if (!token) {
+      return res.status(400).json({ error: 'Verification token is required' });
+    }
+    
+    // Find user with this token
+    const user = userService.findUserByVerificationToken(token);
+    
+    if (!user) {
+      return res.status(400).json({ error: 'Invalid or expired verification token' });
+    }
+    
+    if (user.email_verified) {
+      return res.json({ 
+        success: true, 
+        message: 'Email already verified',
+        alreadyVerified: true
+      });
+    }
+    
+    // Verify the email
+    const verifiedUser = userService.verifyEmail(token);
+    
+    if (!verifiedUser) {
+      return res.status(400).json({ error: 'Failed to verify email' });
+    }
+    
+    // Update session if user is logged in
+    if (req.session.user && req.session.user.rwgpsUserId === verifiedUser.rwgps_user_id) {
+      req.session.user.emailVerified = true;
+    }
+    
+    res.json({ 
+      success: true, 
+      message: 'Email verified successfully',
+      user: {
+        email: verifiedUser.email,
+        emailVerified: verifiedUser.email_verified
+      }
+    });
+  } catch (err) {
+    console.error('Failed to verify email:', err);
+    res.status(500).json({ error: 'Failed to verify email' });
   }
 });
 
