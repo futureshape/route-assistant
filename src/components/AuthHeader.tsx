@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react'
 import { Button } from './ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar'
 import {
@@ -9,40 +8,15 @@ import {
   DropdownMenuTrigger,
 } from './ui/dropdown-menu'
 import { LogOut, User as UserIcon } from 'lucide-react'
-import { User } from '@/types/user'
+import { SessionUser } from '@/types/user'
 
 interface AuthHeaderProps {
   authenticated: boolean
+  user: SessionUser | null
   onAuthChange: () => void
 }
 
-export function AuthHeader({ authenticated, onAuthChange }: AuthHeaderProps) {
-  const [user, setUser] = useState<User | null>(null)
-  const [loading, setLoading] = useState(false)
-
-  // Fetch user details when authenticated
-  useEffect(() => {
-    if (authenticated) {
-      fetchUserDetails()
-    } else {
-      setUser(null)
-    }
-  }, [authenticated])
-
-  const fetchUserDetails = async () => {
-    try {
-      setLoading(true)
-      const response = await fetch('/api/user')
-      if (response.ok) {
-        const data = await response.json()
-        setUser(data.user)
-      }
-    } catch (error) {
-      console.error('Failed to fetch user details:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
+export function AuthHeader({ authenticated, user, onAuthChange }: AuthHeaderProps) {
 
   const handleLogin = () => {
     window.location.href = '/auth/ridewithgps'
@@ -52,7 +26,6 @@ export function AuthHeader({ authenticated, onAuthChange }: AuthHeaderProps) {
     try {
       const response = await fetch('/api/logout', { method: 'POST' })
       if (response.ok) {
-        setUser(null)
         onAuthChange()
       }
     } catch (error) {
@@ -60,7 +33,7 @@ export function AuthHeader({ authenticated, onAuthChange }: AuthHeaderProps) {
     }
   }
 
-  if (!authenticated) {
+  if (!authenticated || !user) {
     return (
       <div className="p-4 border-b border-sidebar-border">
         <Button 
@@ -71,20 +44,6 @@ export function AuthHeader({ authenticated, onAuthChange }: AuthHeaderProps) {
         >
           Sign in with RideWithGPS
         </Button>
-      </div>
-    )
-  }
-
-  if (loading || !user) {
-    return (
-      <div className="p-4 border-b border-sidebar-border">
-        <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 bg-sidebar-accent rounded-full animate-pulse" />
-          <div className="flex-1">
-            <div className="h-4 bg-sidebar-accent rounded animate-pulse mb-1" />
-            <div className="h-3 bg-sidebar-accent rounded animate-pulse w-2/3" />
-          </div>
-        </div>
       </div>
     )
   }
@@ -116,6 +75,11 @@ export function AuthHeader({ authenticated, onAuthChange }: AuthHeaderProps) {
                 <div className="text-sm font-medium text-sidebar-foreground">
                   {user.name}
                 </div>
+                {user.email && (
+                  <div className="text-xs text-sidebar-muted-foreground">
+                    {user.email}
+                  </div>
+                )}
               </div>
             </div>
           </Button>
@@ -127,11 +91,16 @@ export function AuthHeader({ authenticated, onAuthChange }: AuthHeaderProps) {
         >
           <DropdownMenuItem 
             className="flex items-center space-x-2 cursor-pointer"
-            onClick={() => window.open(`https://ridewithgps.com/users/${user.id}`, '_blank')}
+            onClick={() => window.open(`https://ridewithgps.com/users/${user.rwgpsUserId}`, '_blank')}
           >
             <UserIcon className="h-4 w-4" />
             <span>Profile</span>
           </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <div className="px-2 py-1.5 text-xs text-muted-foreground">
+            <div className="capitalize font-medium">{user.role}</div>
+            <div className="capitalize">{user.status} access</div>
+          </div>
           <DropdownMenuSeparator />
           <DropdownMenuItem 
             onClick={handleLogout}

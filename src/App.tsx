@@ -678,6 +678,7 @@ export default function App(){
           <SidebarHeader>
             <AuthHeader 
               authenticated={authenticated} 
+              user={user}
               onAuthChange={handleAuthChange} 
             />
           </SidebarHeader>
