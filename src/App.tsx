@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Mountain, HelpCircle } from 'lucide-react'
 import { getCookie } from '@/lib/utils'
+import { fetchWithCSRFRetry, fetchCSRFToken, clearCSRFToken } from '@/lib/csrf'
 import { Button } from '@/components/ui/button'
 import {
   Sidebar,
@@ -18,18 +19,21 @@ import { POIProvider, POISearchParams } from '@/lib/poi-providers'
 import { getEnabledProviders } from '@/lib/provider-registry'
 import { AuthHeader } from '@/components/AuthHeader'
 import { IntroScreen } from '@/components/IntroScreen'
+import { EmailCollectionDialog } from '@/components/EmailCollectionDialog'
+import { WaitlistScreen } from '@/components/WaitlistScreen'
 import { RouteSelector, RouteSwitchDialog } from '@/features/routes'
 import { MapContainer } from '@/features/map'
 import { ElevationChart } from '@/features/elevation'
 import { POISearch, POISummary } from '@/features/poi'
-import { useAuth, useRoutes, usePOI, useMap, useElevation, useUI } from '@/store/selectors'
+import { useAuth, useRoutes, usePOI, useMap, useElevation, useUI, useResetStore } from '@/store/selectors'
 import type { Route, POI, RouteCoordinate } from '@/store/types'
 import type { 
   SessionResponse, 
   RoutesResponse, 
   RouteDetailsResponse, 
   GoogleMapsKeyResponse,
-  ElevationPoint
+  ElevationPoint,
+  AccessDeniedResponse
 } from '@/types/api'
 
 // Extend window interface for TypeScript
@@ -84,7 +88,11 @@ const POI_TYPE_NAMES: Record<string, string> = {
 
 export default function App(){
   // Get state and actions from Zustand store - using combined selectors
-  const { authenticated, setAuthenticated } = useAuth()
+  const { authenticated, setAuthenticated, user, setUser } = useAuth()
+  const resetStore = useResetStore()
+  
+  // Local state for UI control
+  const [showEmailDialog, setShowEmailDialog] = useState(false)
   
   const {
     routes,
@@ -182,6 +190,19 @@ export default function App(){
     fetchApiKey()
   }, [setGoogleMapsApiKey, setGoogleMapsApiKeyLoaded])
 
+  // Initialize CSRF token on mount
+  useEffect(() => {
+    const initCSRF = async () => {
+      try {
+        await fetchCSRFToken()
+        console.log('[App] CSRF token initialized')
+      } catch (error) {
+        console.error('Failed to initialize CSRF token:', error)
+      }
+    }
+    initCSRF()
+  }, [])
+
   // Load enabled POI providers
   useEffect(() => {
     const loadProviders = async () => {
@@ -203,6 +224,13 @@ export default function App(){
       setShowIntroScreen(true)
     }
   }, [setShowIntroScreen])
+
+  // Helper: clear all user-specific data (for logout and unauthenticated state)
+  const clearAllUserData = () => {
+    console.log('[clearAllUserData] Resetting store to initial state')
+    resetStore()
+    clearCSRFToken() // Keep CSRF token clearing separate as it's not in store
+  }
 
   // Helper: generate unique key for POI
   function getMarkerKey(poi: POI): string {
@@ -310,28 +338,72 @@ export default function App(){
     const j: SessionResponse = await r.json()
     console.log('[fetchAuthState] Session data:', j)
     setAuthenticated(j.authenticated)
+    setUser(j.user || null)
     
-    if (j.authenticated) {
-      console.log('[fetchAuthState] User is authenticated, fetching routes')
+    if (j.authenticated && j.user) {
+      // Check if user needs to provide email
+      if (j.user.needsEmail) {
+        setShowEmailDialog(true)
+        setRoutesLoading(false)
+        return
+      }
+      
+      // Check if user has access (not on waitlist)
+      if (j.user.status === 'waitlist' || j.user.status === 'inactive') {
+        // User is on waitlist or inactive, don't fetch routes
+        setRoutesLoading(false)
+        return
+      }
+      
+      console.log('[fetchAuthState] User is authenticated and has access, fetching routes')
       setRoutesLoading(true)
-      const rr = await fetch('/api/routes')
-      console.log('[fetchAuthState] Routes response status:', rr.status, rr.ok)
-      if (rr.ok) {
-        const jj: RoutesResponse = await rr.json()
-        console.log('[fetchAuthState] Routes data received:', jj)
-        const routesArray = jj.routes || []
-        console.log('[fetchAuthState] Setting routes array:', routesArray.length, 'routes')
-        setRoutes(routesArray)
-      } else {
-        console.error('[fetchAuthState] Failed to fetch routes')
-        const routesErrorText = await rr.text()
-        console.error('[fetchAuthState] Routes error response:', routesErrorText)
+      try {
+        const rr = await fetch('/api/routes')
+        console.log('[fetchAuthState] Routes response status:', rr.status, rr.ok)
+        if (rr.ok) {
+          const jj: RoutesResponse = await rr.json()
+          console.log('[fetchAuthState] Routes data received:', jj)
+          const routesArray = jj.routes || []
+          console.log('[fetchAuthState] Setting routes array:', routesArray.length, 'routes')
+          setRoutes(routesArray)
+        } else if (rr.status === 403) {
+          // Access denied
+          const errorData: AccessDeniedResponse = await rr.json()
+          console.log('[fetchAuthState] Access denied:', errorData)
+          // The user state should already reflect waitlist status
+        } else {
+          console.error('[fetchAuthState] Failed to fetch routes')
+          const routesErrorText = await rr.text()
+          console.error('[fetchAuthState] Routes error response:', routesErrorText)
+        }
+      } catch (error) {
+        console.error('[fetchAuthState] Error fetching routes:', error)
       }
       setRoutesLoading(false)
     } else {
-      console.log('[fetchAuthState] User not authenticated, clearing routes')
-      setRoutes([])
+      console.log('[fetchAuthState] User not authenticated, clearing all user data')
+      clearAllUserData()
       setRoutesLoading(false)
+    }
+  }
+
+  const handleEmailSubmitted = async (email: string) => {
+    console.log('[handleEmailSubmitted] Email submitted:', email)
+    setShowEmailDialog(false)
+    
+    // Refresh auth state to get updated user info
+    await fetchAuthState()
+  }
+
+  const handleLogout = async () => {
+    try {
+      const response = await fetchWithCSRFRetry('/api/logout', { method: 'POST' })
+      if (response.ok) {
+        clearAllUserData()
+        console.log('[handleLogout] All user data cleared on logout')
+      }
+    } catch (error) {
+      console.error('Logout failed:', error)
     }
   }
 
@@ -572,7 +644,7 @@ export default function App(){
     }
     
     try {
-      const response = await fetch(`/api/route/${selectedRouteId}/pois`, {
+      const response = await fetchWithCSRFRetry(`/api/route/${selectedRouteId}/pois`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pois: selectedPOIs })
@@ -596,16 +668,41 @@ export default function App(){
     }
   }
 
+  // Show waitlist screen if user is authenticated but on waitlist
+  // BUT only if they've already provided their email
+  if (authenticated && user && user.status === 'waitlist' && !user.needsEmail) {
+    return (
+      <>
+        <WaitlistScreen email={user.email} onLogout={handleLogout} />
+        <IntroScreen 
+          open={showIntroScreen} 
+          onOpenChange={setShowIntroScreen} 
+        />
+      </>
+    )
+  }
+
+  // Show email collection dialog if needed
+  const emailDialog = (
+    <EmailCollectionDialog
+      open={showEmailDialog}
+      onEmailSubmitted={handleEmailSubmitted}
+    />
+  )
+
   return (
-    <SidebarProvider>
-      <Sidebar>
-        <SidebarHeader>
-          <AuthHeader 
-            authenticated={authenticated} 
-            onAuthChange={handleAuthChange} 
-          />
-        </SidebarHeader>
-        <SidebarContent>
+    <>
+      {emailDialog}
+      <SidebarProvider>
+        <Sidebar>
+          <SidebarHeader>
+            <AuthHeader 
+              authenticated={authenticated} 
+              user={user}
+              onAuthChange={handleAuthChange} 
+            />
+          </SidebarHeader>
+          <SidebarContent>
           {authenticated && (
             <SidebarGroup>
               <SidebarGroupLabel>Your Routes</SidebarGroupLabel>
@@ -747,5 +844,6 @@ export default function App(){
         onAction={handleRouteSwitchAction}
       />
     </SidebarProvider>
+    </>
   )
 }

@@ -35,6 +35,11 @@ tmp/
 .env.*
 !.env.example
 
+# Database
+*.db
+*.db-shm
+*.db-wal
+
 # OS / Editor junk
 .DS_Store
 Thumbs.db

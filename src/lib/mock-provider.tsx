@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { fetchWithCSRFRetry } from '@/lib/csrf';
 import { Loader2 } from 'lucide-react';
 import { POIProvider, POISearchParams, POIResult, POISearchFormProps } from '@/lib/poi-providers';
 
@@ -60,7 +61,7 @@ export class MockProvider implements POIProvider {
     const { textQuery, mapBounds } = params;
     
     const payload = { textQuery, mapBounds };
-    const response = await fetch('/api/poi-search/mock', { 
+    const response = await fetchWithCSRFRetry('/api/poi-search/mock', { 
       method: 'POST', 
       headers: { 'Content-Type': 'application/json' }, 
       body: JSON.stringify(payload) 

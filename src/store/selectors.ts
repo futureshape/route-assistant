@@ -6,15 +6,19 @@ import { useAppStore } from './index'
 // Individual selectors (most efficient - no object recreation)
 export const useAuthenticated = () => useAppStore((state) => state.authenticated)
 export const useSetAuthenticated = () => useAppStore((state) => state.setAuthenticated)
+export const useUser = () => useAppStore((state) => state.user)
+export const useSetUser = () => useAppStore((state) => state.setUser)
 
 // Combined selectors using custom equality check to prevent object recreation issues
 export const useAuth = () => {
   // Use individual selectors to avoid object recreation
   const authenticated = useAuthenticated()
   const setAuthenticated = useSetAuthenticated()
+  const user = useUser()
+  const setUser = useSetUser()
   
   // Return stable object - React will handle the equality check
-  return { authenticated, setAuthenticated }
+  return { authenticated, setAuthenticated, user, setUser }
 }
 
 // Individual route selectors
@@ -215,3 +219,6 @@ export const useUI = () => {
     setLoadingProviderId,
   }
 }
+
+// Store reset selector
+export const useResetStore = () => useAppStore((state) => state.resetUserData)

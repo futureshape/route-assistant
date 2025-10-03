@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { fetchWithCSRFRetry } from '@/lib/csrf';
 import { Loader2 } from 'lucide-react';
 import { POIProvider, POISearchParams, POIResult, POISearchFormProps, RideWithGPSPOIType } from '@/lib/poi-providers';
 
@@ -150,7 +151,7 @@ export function setupGoogleMapsPOIClickListener(
       
       try {
         // Fetch place details using our API
-        const response = await fetch('/api/poi-from-place-id', {
+        const response = await fetchWithCSRFRetry('/api/poi-from-place-id', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ placeId: event.placeId })
@@ -193,7 +194,7 @@ export class GoogleMapsProvider implements POIProvider {
     }
 
     const payload = { textQuery, encodedPolyline, routingOrigin };
-    const response = await fetch('/api/poi-search/google-maps', { 
+    const response = await fetchWithCSRFRetry('/api/poi-search/google-maps', { 
       method: 'POST', 
       headers: { 'Content-Type': 'application/json' }, 
       body: JSON.stringify(payload) 

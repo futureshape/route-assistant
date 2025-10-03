@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { fetchWithCSRFRetry } from '@/lib/csrf';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -165,7 +166,7 @@ export class OSMProvider implements POIProvider {
     }
 
     const payload = { amenities: textQuery, encodedPolyline, mapBounds };
-    const response = await fetch('/api/poi-search/osm', { 
+    const response = await fetchWithCSRFRetry('/api/poi-search/osm', { 
       method: 'POST', 
       headers: { 'Content-Type': 'application/json' }, 
       body: JSON.stringify(payload) 
