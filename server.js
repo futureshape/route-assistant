@@ -143,7 +143,12 @@ app.get('/auth/ridewithgps/callback', async (req, res) => {
     });
     
     const rwgpsUser = userInfoRes.data.user;
-    const rwgpsUserId = rwgpsUser.id;
+    const rwgpsUserId = parseInt(rwgpsUser.id, 10);
+    
+    if (!Number.isInteger(rwgpsUserId) || rwgpsUserId <= 0) {
+      console.error(`[OAuth] Invalid RideWithGPS user ID: ${rwgpsUser.id}`);
+      return res.status(400).send('Invalid user ID from RideWithGPS');
+    }
     
     console.log(`[OAuth] RideWithGPS user ID: ${rwgpsUserId}, name: ${rwgpsUser.name}`);
     
