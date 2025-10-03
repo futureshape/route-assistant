@@ -11,6 +11,7 @@
  *   node admin-cli.js verify-email <rwgps_user_id>     - Mark user email as verified
  *   node admin-cli.js reset-verification <rwgps_user_id> - Reset email verification (mark as unverified)
  *   node admin-cli.js find-email <email>               - Find user by email address
+ *   node admin-cli.js remove-user <rwgps_user_id>      - Remove user from database (for testing)
  *   node admin-cli.js stats                            - Show user statistics
  */
 
@@ -32,6 +33,7 @@ if (!command) {
   console.log('  node admin-cli.js verify-email <rwgps_user_id>            - Mark user email as verified');
   console.log('  node admin-cli.js reset-verification <rwgps_user_id>      - Reset email verification');
   console.log('  node admin-cli.js find-email <email>                      - Find user by email address');
+  console.log('  node admin-cli.js remove-user <rwgps_user_id>             - Remove user from database (for testing)');
   console.log('  node admin-cli.js stats                                   - Show user statistics');
   console.log('');
   console.log('Valid Status Values:');
@@ -50,6 +52,7 @@ if (!command) {
   console.log('  node admin-cli.js set-status 1625496 beta');
   console.log('  node admin-cli.js set-role 1625496 admin');
   console.log('  node admin-cli.js find-email user@example.com');
+  console.log('  node admin-cli.js remove-user 1625496');
   process.exit(1);
 }
 
@@ -314,6 +317,53 @@ switch (command) {
     }
     console.log('');
     break;
+  }
+
+  case 'remove-user': {
+    const rwgpsUserId = parseInt(args[1]);
+    if (!rwgpsUserId) {
+      console.error('Error: RWGPS user ID required');
+      process.exit(1);
+    }
+
+    const user = userService.findUserByRwgpsId(rwgpsUserId);
+    if (!user) {
+      console.error(`Error: User with RWGPS ID ${rwgpsUserId} not found`);
+      process.exit(1);
+    }
+
+    // Show user details before deletion
+    console.log(`\n⚠️  WARNING: About to delete user:`);
+    console.log(`  RWGPS ID: ${user.rwgps_user_id}`);
+    console.log(`  Email: ${user.email || '(not provided)'}`);
+    console.log(`  Status: ${user.status}`);
+    console.log(`  Role: ${user.role}`);
+    console.log(`  Created: ${new Date(user.created_at).toLocaleDateString()}`);
+
+    // Confirmation prompt
+    const readline = require('readline');
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout
+    });
+
+    rl.question('\nAre you sure you want to delete this user? This cannot be undone. (yes/no): ', (answer) => {
+      if (answer.toLowerCase() === 'yes' || answer.toLowerCase() === 'y') {
+        // Delete the user using the service
+        const deleted = userService.deleteUser(rwgpsUserId);
+
+        if (deleted) {
+          console.log(`✓ User deleted successfully (RWGPS ID: ${rwgpsUserId})`);
+          console.log('  User can now sign up again from scratch');
+        } else {
+          console.error('Error: Failed to delete user');
+        }
+      } else {
+        console.log('User deletion cancelled');
+      }
+      rl.close();
+    });
+    return; // Don't break here since we're handling async readline
   }
 
   default:

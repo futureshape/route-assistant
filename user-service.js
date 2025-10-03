@@ -223,6 +223,19 @@ function updateUser(rwgpsUserId, updates) {
 }
 
 /**
+ * Delete a user (for testing purposes)
+ */
+function deleteUser(rwgpsUserId) {
+  const userId = validateUserId(rwgpsUserId);
+  
+  const db = getDatabase();
+  const stmt = db.prepare('DELETE FROM users WHERE rwgps_user_id = ?');
+  const result = stmt.run(userId);
+  
+  return result.changes > 0;
+}
+
+/**
  * Check if user has access to the app
  */
 function hasAccess(user) {
@@ -251,6 +264,7 @@ module.exports = {
   updateUserRole,
   getAllUsers,
   updateUser,
+  deleteUser,
   hasAccess,
   isAdmin
 };
