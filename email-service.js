@@ -46,7 +46,7 @@ async function sendEmailVerification(email, verificationUrl, userName = '') {
 
     const emailParams = new EmailParams()
       .setFrom(new Sender(
-        process.env.MAILERSEND_FROM_EMAIL || 'noreply@routeassistant.app',
+        process.env.MAILERSEND_FROM_EMAIL || 'hello@route-assistant.com',
         process.env.MAILERSEND_FROM_NAME || 'Route Assistant'
       ))
       .setTo([new Recipient(email, userName)])
@@ -108,7 +108,7 @@ async function sendBetaAccessNotification(email, userName = '', status = 'beta')
 
     const emailParams = new EmailParams()
       .setFrom(new Sender(
-        process.env.MAILERSEND_FROM_EMAIL || 'noreply@routeassistant.app',
+        process.env.MAILERSEND_FROM_EMAIL || 'hello@route-assistant.com',
         process.env.MAILERSEND_FROM_NAME || 'Route Assistant'
       ))
       .setTo([new Recipient(email, userName)])
