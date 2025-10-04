@@ -625,7 +625,12 @@ app.get('/api/verify-email', async (req, res) => {
     const user = userService.findUserByVerificationToken(token);
     
     if (!user) {
-      return res.status(400).json({ error: 'Invalid or expired verification token' });
+      // Token not found - could be invalid or already used
+      // Since we can't distinguish, provide a helpful message
+      return res.status(400).json({ 
+        error: 'Invalid or expired verification token',
+        message: 'This verification link may have already been used or has expired. If your email was recently verified, you can safely ignore this message.'
+      });
     }
     
     if (user.email_verified) {
@@ -997,34 +1002,6 @@ app.post('/api/poi-from-place-id', csrfProtection, requireAuth, requireAccess, a
 
 
 
-// Serve index.html with injected Google API key so frontend gets the correct key at runtime
-app.get('/', async (req, res, next) => {
-  try{
-    const key = process.env.GOOGLE_API_KEY || '';
-    // Dev: use Vite to transform index.html for HMR and plugins
-    if (!isProd && viteServer){
-      const indexPath = path.join(__dirname, 'index.html');
-      let html = fs.readFileSync(indexPath, 'utf8');
-      // Let Vite perform its transforms first (it may rewrite or inject scripts).
-      html = await viteServer.transformIndexHtml(req.originalUrl || '/', html);
-  // Inject the Google API key last so transforms won't undo the replacement.
-  // Use a global replacement so any Vite-inserted content that contains the
-  // placeholder doesn't consume the first match and leave others intact.
-  html = html.replace(/__GOOGLE_API_KEY__/g, key);
-      return res.status(200).set({ 'Content-Type': 'text/html' }).end(html);
-    }
-    // Prod: serve prebuilt client or fallback to public
-    let p = path.join(__dirname, 'dist', 'index.html');
-    if (!fs.existsSync(p)) {
-      p = path.join(__dirname, 'index.html');
-    }
-    let html = fs.readFileSync(p, 'utf8');
-  // Replace all occurrences in production build as well.
-  html = html.replace(/__GOOGLE_API_KEY__/g, key);
-    return res.send(html);
-  }catch(e){ next(e); }
-});
-
 // Start server; in dev attach Vite middleware for a single unified server
 async function start(){
   // Initialize database on startup
@@ -1049,6 +1026,37 @@ async function start(){
   
   // Serve public static files AFTER Vite middleware to ensure they take precedence
   app.use(express.static(path.join(__dirname, 'public'), { index: false }));
+  
+  // Catch-all handler for SPA routing (must be after Vite middleware in dev)
+  app.get('*', async (req, res, next) => {
+    // Skip API routes and let them 404 naturally if not found
+    if (req.path.startsWith('/api/') || req.path.startsWith('/auth/')) {
+      return next();
+    }
+    
+    try {
+      // In development: Vite middleware should have already handled this request
+      // If we reach here in dev mode, fallback to serving index.html
+      if (!isProd && viteServer) {
+        const indexPath = path.join(__dirname, 'index.html');
+        let html = fs.readFileSync(indexPath, 'utf8');
+        html = await viteServer.transformIndexHtml(req.originalUrl || '/', html);
+        return res.status(200).set({ 'Content-Type': 'text/html' }).end(html);
+      }
+      
+      // In production: serve built index.html
+      let indexPath = path.join(__dirname, 'dist', 'index.html');
+      if (!fs.existsSync(indexPath)) {
+        indexPath = path.join(__dirname, 'index.html'); // Fallback
+      }
+      
+      const html = fs.readFileSync(indexPath, 'utf8');
+      return res.send(html);
+    } catch (e) { 
+      console.error('Error serving React app:', e);
+      next(e); 
+    }
+  });
   
   app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT} (${isProd ? 'prod' : 'dev'})`));
 }

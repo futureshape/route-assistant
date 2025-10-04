@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -17,8 +17,15 @@ interface EmailVerificationProps {
 export function EmailVerification({ token, onClose }: EmailVerificationProps) {
   const [status, setStatus] = useState<'verifying' | 'success' | 'error' | 'already-verified'>('verifying')
   const [message, setMessage] = useState('')
+  const hasVerified = useRef(false)
 
   useEffect(() => {
+    // Prevent double verification in StrictMode
+    if (hasVerified.current) {
+      return
+    }
+    hasVerified.current = true
+
     const verifyEmail = async () => {
       try {
         const response = await fetch(`/api/verify-email?token=${encodeURIComponent(token)}`)
@@ -34,7 +41,7 @@ export function EmailVerification({ token, onClose }: EmailVerificationProps) {
           }
         } else {
           setStatus('error')
-          setMessage(data.error || 'Failed to verify email. The link may be invalid or expired.')
+          setMessage(data.message || data.error || 'Failed to verify email. The link may be invalid or expired.')
         }
       } catch (err) {
         setStatus('error')
