@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 /**
  * Admin CLI tool for managing Route Assistant users
  * 
@@ -14,6 +12,9 @@
  *   node admin-cli.js remove-user <rwgps_user_id>      - Remove user from database (for testing)
  *   node admin-cli.js stats                            - Show user statistics
  */
+
+// Load environment variables from .env file (for CLI usage)
+require('dotenv').config();
 
 const { getDatabase } = require('./db');
 const userService = require('./user-service');
