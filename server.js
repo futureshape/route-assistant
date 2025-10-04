@@ -15,21 +15,91 @@ const userService = require('./user-service');
 const emailService = require('./email-service');
 
 const app = express();
+
+// Optional trust proxy configuration (needed when running behind load balancers or CDNs)
+const trustProxyEnv = process.env.TRUST_PROXY;
+if (typeof trustProxyEnv !== 'undefined') {
+  let trustProxyValue;
+  if (trustProxyEnv === 'true' || trustProxyEnv === '1') {
+    trustProxyValue = true;
+  } else if (trustProxyEnv === 'false' || trustProxyEnv === '0') {
+    trustProxyValue = false;
+  } else if (!Number.isNaN(Number(trustProxyEnv))) {
+    trustProxyValue = Number(trustProxyEnv);
+  } else {
+    // Express accepts strings like 'loopback', '127.0.0.1', etc.
+    trustProxyValue = trustProxyEnv;
+  }
+  app.set('trust proxy', trustProxyValue);
+  console.log(`[Server] trust proxy set to ${trustProxyValue}`);
+}
+
+// Environment detection
+const isProd = process.env.NODE_ENV === 'production';
 // Rate limiting to mitigate DoS attacks (CodeQL recommendation)
 // Configurable via env vars: RATE_LIMIT_WINDOW_MINUTES and RATE_LIMIT_MAX
 const rateLimitWindowMinutes = parseInt(process.env.RATE_LIMIT_WINDOW_MINUTES, 10) || 15;
-const rateLimitMax = parseInt(process.env.RATE_LIMIT_MAX, 10) || 100;
-const limiter = rateLimit({
+// Use a higher default in development to avoid blocking local workflows
+const defaultRateLimitMax = isProd ? 100 : 1000;
+const rateLimitMax = parseInt(process.env.RATE_LIMIT_MAX, 10) || defaultRateLimitMax;
+// Create a shared key generator for rate limiting (used in options and handler)
+function getRateLimitKey(req) {
+  // Prefer Express's ip (respects trust proxy settings when configured)
+  if (req.ip) {
+    return req.ip;
+  }
+
+  // Fallback to forwarded headers manually
+  const xff = req.headers['x-forwarded-for'];
+  if (xff && typeof xff === 'string') {
+    const first = xff.split(',')[0]?.trim();
+    if (first) {
+      return first;
+    }
+  }
+
+  // Final fallback to socket information
+  return req.connection?.remoteAddress || req.socket?.remoteAddress || 'unknown';
+}
+
+const rateLimitOptions = {
   windowMs: rateLimitWindowMinutes * 60 * 1000,
   max: rateLimitMax,
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-});
+  keyGenerator: getRateLimitKey,
+};
+
+// Optional verbose logging controlled by env var
+if (process.env.RATE_LIMIT_DEBUG === '1') {
+  rateLimitOptions.handler = (req, res) => {
+    const ip = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+    console.warn('[RateLimit] limit exceeded', {
+      ip,
+      key: getRateLimitKey(req),
+      method: req.method,
+      url: req.originalUrl || req.url,
+      x_forwarded_for: req.headers['x-forwarded-for'] || null,
+    });
+    res.status(429).json({ error: 'Too many requests, please try again later' });
+  };
+
+  rateLimitOptions.onLimitReached = (req) => {
+    const ip = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+    console.warn('[RateLimit] onLimitReached', {
+      ip,
+      key: getRateLimitKey(req),
+      url: req.originalUrl || req.url,
+    });
+  };
+}
+
+// Create limiter with optional debugging hooks
+const limiter = rateLimit(rateLimitOptions);
 
 // Apply rate limiter to all requests
 app.use(limiter);
 const PORT = process.env.PORT || 3001;
-const isProd = process.env.NODE_ENV === 'production';
 const fs = require('fs');
 const clientRoot = __dirname;
 const clientDist = path.join(__dirname, 'dist');

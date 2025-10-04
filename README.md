@@ -48,6 +48,14 @@ A full-stack web application that helps cyclists explore routes and discover Poi
    MAILERSEND_API_KEY=your_mailersend_api_key
    MAILERSEND_VERIFICATION_TEMPLATE_ID=your_verification_template_id
    MAILERSEND_BETA_ACCESS_TEMPLATE_ID=your_beta_access_template_id
+
+  # Optional: Tune rate limiting (defaults are 15 minutes / 100 requests in production)
+  RATE_LIMIT_WINDOW_MINUTES=15
+  RATE_LIMIT_MAX=100
+  RATE_LIMIT_DEBUG=0
+
+  # Optional: Configure Express trust proxy when behind load balancers/CDNs
+  TRUST_PROXY=true
    ```
 3. Install dependencies: `npm install`
 4. Start development server: `npm run dev`

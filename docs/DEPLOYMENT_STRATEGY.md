@@ -172,7 +172,13 @@ RIDEWITHGPS_CLIENT_SECRET=your_client_secret
 GOOGLE_MAPS_API_KEY=your_google_maps_key
 SESSION_SECRET=random_secure_string
 NODE_ENV=production
+RATE_LIMIT_WINDOW_MINUTES=15   # Optional override; default 15-minute window
+RATE_LIMIT_MAX=100             # Optional override; default 100 reqs/window (prod)
+TRUST_PROXY=true               # Enable if running behind a load balancer/CDN
 ```
+
+- `RATE_LIMIT_WINDOW_MINUTES` and `RATE_LIMIT_MAX` let you tune throttling limits without code changes (production defaults are 15 minutes / 100 requests; development uses a higher max automatically). Set `RATE_LIMIT_DEBUG=1` temporarily if you need verbose logging when diagnosing limit events.
+- `TRUST_PROXY` should be enabled (e.g., `true`, `1`, or a hop count) when Express is running behind a proxy or CDN so client IP addresses are detected correctly for rate limiting and logging.
 
 ## Testing Your Deployment Setup
 
