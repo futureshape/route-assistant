@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const session = require('express-session');
 const cookieParser = require('cookie-parser');
 const lusca = require('lusca');
@@ -14,6 +15,19 @@ const userService = require('./user-service');
 const emailService = require('./email-service');
 
 const app = express();
+// Rate limiting to mitigate DoS attacks (CodeQL recommendation)
+// Configurable via env vars: RATE_LIMIT_WINDOW_MINUTES and RATE_LIMIT_MAX
+const rateLimitWindowMinutes = parseInt(process.env.RATE_LIMIT_WINDOW_MINUTES, 10) || 15;
+const rateLimitMax = parseInt(process.env.RATE_LIMIT_MAX, 10) || 100;
+const limiter = rateLimit({
+  windowMs: rateLimitWindowMinutes * 60 * 1000,
+  max: rateLimitMax,
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+});
+
+// Apply rate limiter to all requests
+app.use(limiter);
 const PORT = process.env.PORT || 3001;
 const isProd = process.env.NODE_ENV === 'production';
 const fs = require('fs');
