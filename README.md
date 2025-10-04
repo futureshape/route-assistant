@@ -21,6 +21,7 @@ A full-stack web application that helps cyclists explore routes and discover Poi
 ### User Experience
 - **User Authentication**: Secure RideWithGPS OAuth with beta access control
 - **Email Collection**: Capture user emails for service updates and communications
+- **Email Notifications**: Automated email verification and beta access notifications via Mailersend
 - **Waitlist System**: Queue new users for approval during beta phase
 - **Responsive Design**: Works on desktop and mobile devices
 - **Modern UI**: Built with shadcn/ui components and Tailwind CSS
@@ -42,6 +43,19 @@ A full-stack web application that helps cyclists explore routes and discover Poi
    RWGPS_CLIENT_SECRET=your_ridewithgps_client_secret
    GOOGLE_API_KEY=your_google_maps_api_key
    SESSION_SECRET=your_session_secret
+   
+   # Optional: Configure Mailersend for email notifications
+   MAILERSEND_API_KEY=your_mailersend_api_key
+   MAILERSEND_VERIFICATION_TEMPLATE_ID=your_verification_template_id
+   MAILERSEND_BETA_ACCESS_TEMPLATE_ID=your_beta_access_template_id
+
+  # Optional: Tune rate limiting (defaults are 15 minutes / 100 requests in production)
+  RATE_LIMIT_WINDOW_MINUTES=15
+  RATE_LIMIT_MAX=100
+  RATE_LIMIT_DEBUG=0
+
+  # Optional: Configure Express trust proxy when behind load balancers/CDNs
+  TRUST_PROXY=true
    ```
 3. Install dependencies: `npm install`
 4. Start development server: `npm run dev`
@@ -68,6 +82,18 @@ The OSM POI provider uses the public Overpass API at `https://overpass-api.de/ap
 Create an OAuth application in your RideWithGPS account with:
 - **Redirect URI**: `https://yourdomain.com/auth/ridewithgps/callback` (or `http://localhost:3001/auth/ridewithgps/callback` for development)
 - **Scopes**: Route read/write permissions
+
+### Mailersend (Optional)
+For email notifications and verification:
+- **Email Verification**: Sent when users provide their email address with a verification link
+  - Users click the link to verify email ownership
+  - Verification status tracked in database
+- **Beta Access Notifications**: Sent when users are approved from waitlist to beta/active status
+- **Setup**: Create email templates in Mailersend dashboard and configure template IDs in environment variables
+- **Template Variables**:
+  - Verification email: `user_name`, `user_email`, `verification_url`
+  - Beta access email: `user_name`, `user_email`, `access_level`
+- **Note**: Email notifications are optional - the app will function normally without Mailersend configured
 
 ## Architecture
 

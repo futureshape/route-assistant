@@ -1,4 +1,5 @@
 const { getDatabase } = require('./db');
+const emailService = require('./email-service');
 
 /**
  * User Service - Database operations for user management
@@ -70,18 +71,49 @@ function createUser(rwgpsUserId, email = null, status = 'waitlist', role = 'user
 /**
  * Update user email
  */
-function updateUserEmail(rwgpsUserId, email) {
+function updateUserEmail(rwgpsUserId, email, verificationToken = null) {
   const userId = validateUserId(rwgpsUserId);
   
   const db = getDatabase();
   const stmt = db.prepare(`
     UPDATE users 
-    SET email = ?, updated_at = datetime('now')
+    SET email = ?, email_verified = 0, email_verification_token = ?, updated_at = datetime('now')
     WHERE rwgps_user_id = ?
   `);
   
-  stmt.run(email, userId);
+  stmt.run(email, verificationToken, userId);
   return findUserByRwgpsId(userId);
+}
+
+/**
+ * Verify user email with token
+ */
+function verifyEmail(token) {
+  const db = getDatabase();
+  const stmt = db.prepare(`
+    UPDATE users 
+    SET email_verified = 1, email_verification_token = NULL, updated_at = datetime('now')
+    WHERE email_verification_token = ?
+  `);
+  
+  const result = stmt.run(token);
+  
+  if (result.changes === 0) {
+    return null; // Token not found or already verified
+  }
+  
+  // Return the updated user
+  const user = db.prepare('SELECT * FROM users WHERE email_verified = 1 AND email_verification_token IS NULL ORDER BY updated_at DESC LIMIT 1').get();
+  return user;
+}
+
+/**
+ * Find user by verification token
+ */
+function findUserByVerificationToken(token) {
+  const db = getDatabase();
+  const stmt = db.prepare('SELECT * FROM users WHERE email_verification_token = ?');
+  return stmt.get(token);
 }
 
 /**
@@ -89,6 +121,10 @@ function updateUserEmail(rwgpsUserId, email) {
  */
 function updateUserStatus(rwgpsUserId, status) {
   const userId = validateUserId(rwgpsUserId);
+  
+  // Get current user to check old status
+  const currentUser = findUserByRwgpsId(userId);
+  const oldStatus = currentUser?.status;
   
   const db = getDatabase();
   const stmt = db.prepare(`
@@ -98,7 +134,17 @@ function updateUserStatus(rwgpsUserId, status) {
   `);
   
   stmt.run(status, userId);
-  return findUserByRwgpsId(userId);
+  const updatedUser = findUserByRwgpsId(userId);
+  
+  // Send notification email if status changed from 'waitlist' to 'beta' or 'active'
+  if (oldStatus === 'waitlist' && (status === 'beta' || status === 'active')) {
+    if (updatedUser.email) {
+      emailService.sendBetaAccessNotification(updatedUser.email, '', status)
+        .catch(err => console.error('Failed to send beta access notification:', err));
+    }
+  }
+  
+  return updatedUser;
 }
 
 /**
@@ -133,6 +179,10 @@ function getAllUsers() {
 function updateUser(rwgpsUserId, updates) {
   const userId = validateUserId(rwgpsUserId);
   
+  // Get current user to check old status
+  const currentUser = findUserByRwgpsId(userId);
+  const oldStatus = currentUser?.status;
+  
   const db = getDatabase();
   const allowedFields = ['email', 'status', 'role'];
   const fields = [];
@@ -159,7 +209,30 @@ function updateUser(rwgpsUserId, updates) {
   `);
   
   stmt.run(...values);
-  return findUserByRwgpsId(userId);
+  const updatedUser = findUserByRwgpsId(userId);
+  
+  // Send notification email if status changed from 'waitlist' to 'beta' or 'active'
+  if (updates.status && oldStatus === 'waitlist' && (updates.status === 'beta' || updates.status === 'active')) {
+    if (updatedUser.email) {
+      emailService.sendBetaAccessNotification(updatedUser.email, '', updates.status)
+        .catch(err => console.error('Failed to send beta access notification:', err));
+    }
+  }
+  
+  return updatedUser;
+}
+
+/**
+ * Delete a user (for testing purposes)
+ */
+function deleteUser(rwgpsUserId) {
+  const userId = validateUserId(rwgpsUserId);
+  
+  const db = getDatabase();
+  const stmt = db.prepare('DELETE FROM users WHERE rwgps_user_id = ?');
+  const result = stmt.run(userId);
+  
+  return result.changes > 0;
 }
 
 /**
@@ -183,12 +256,15 @@ function isAdmin(user) {
 module.exports = {
   findUserByRwgpsId,
   findUserByEmail,
+  findUserByVerificationToken,
   createUser,
   updateUserEmail,
+  verifyEmail,
   updateUserStatus,
   updateUserRole,
   getAllUsers,
   updateUser,
+  deleteUser,
   hasAccess,
   isAdmin
 };

@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const session = require('express-session');
 const cookieParser = require('cookie-parser');
 const lusca = require('lusca');
@@ -7,13 +8,98 @@ const axios = require('axios');
 const polyline = require('@mapbox/polyline');
 const qs = require('qs');
 const path = require('path');
+const crypto = require('crypto');
 const { getRideWithGPSTypeId, mapGoogleTypeToRideWithGPS, mapOSMAmenityToRideWithGPS } = require('./poi-type-mapping');
 const { getDatabase } = require('./db');
 const userService = require('./user-service');
+const emailService = require('./email-service');
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+
+// Optional trust proxy configuration (needed when running behind load balancers or CDNs)
+const trustProxyEnv = process.env.TRUST_PROXY;
+if (typeof trustProxyEnv !== 'undefined') {
+  let trustProxyValue;
+  if (trustProxyEnv === 'true' || trustProxyEnv === '1') {
+    trustProxyValue = true;
+  } else if (trustProxyEnv === 'false' || trustProxyEnv === '0') {
+    trustProxyValue = false;
+  } else if (!Number.isNaN(Number(trustProxyEnv))) {
+    trustProxyValue = Number(trustProxyEnv);
+  } else {
+    // Express accepts strings like 'loopback', '127.0.0.1', etc.
+    trustProxyValue = trustProxyEnv;
+  }
+  app.set('trust proxy', trustProxyValue);
+  console.log(`[Server] trust proxy set to ${trustProxyValue}`);
+}
+
+// Environment detection
 const isProd = process.env.NODE_ENV === 'production';
+// Rate limiting to mitigate DoS attacks (CodeQL recommendation)
+// Configurable via env vars: RATE_LIMIT_WINDOW_MINUTES and RATE_LIMIT_MAX
+const rateLimitWindowMinutes = parseInt(process.env.RATE_LIMIT_WINDOW_MINUTES, 10) || 15;
+// Use a higher default in development to avoid blocking local workflows
+const defaultRateLimitMax = isProd ? 100 : 1000;
+const rateLimitMax = parseInt(process.env.RATE_LIMIT_MAX, 10) || defaultRateLimitMax;
+// Create a shared key generator for rate limiting (used in options and handler)
+function getRateLimitKey(req) {
+  // Prefer Express's ip (respects trust proxy settings when configured)
+  if (req.ip) {
+    return req.ip;
+  }
+
+  // Fallback to forwarded headers manually
+  const xff = req.headers['x-forwarded-for'];
+  if (xff && typeof xff === 'string') {
+    const first = xff.split(',')[0]?.trim();
+    if (first) {
+      return first;
+    }
+  }
+
+  // Final fallback to socket information
+  return req.connection?.remoteAddress || req.socket?.remoteAddress || 'unknown';
+}
+
+const rateLimitOptions = {
+  windowMs: rateLimitWindowMinutes * 60 * 1000,
+  max: rateLimitMax,
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  keyGenerator: getRateLimitKey,
+};
+
+// Optional verbose logging controlled by env var
+if (process.env.RATE_LIMIT_DEBUG === '1') {
+  rateLimitOptions.handler = (req, res) => {
+    const ip = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+    console.warn('[RateLimit] limit exceeded', {
+      ip,
+      key: getRateLimitKey(req),
+      method: req.method,
+      url: req.originalUrl || req.url,
+      x_forwarded_for: req.headers['x-forwarded-for'] || null,
+    });
+    res.status(429).json({ error: 'Too many requests, please try again later' });
+  };
+
+  rateLimitOptions.onLimitReached = (req) => {
+    const ip = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+    console.warn('[RateLimit] onLimitReached', {
+      ip,
+      key: getRateLimitKey(req),
+      url: req.originalUrl || req.url,
+    });
+  };
+}
+
+// Create limiter with optional debugging hooks
+const limiter = rateLimit(rateLimitOptions);
+
+// Apply rate limiter to all requests
+app.use(limiter);
+const PORT = process.env.PORT || 3001;
 const fs = require('fs');
 const clientRoot = __dirname;
 const clientDist = path.join(__dirname, 'dist');
@@ -186,6 +272,7 @@ app.get('/auth/ridewithgps/callback', async (req, res) => {
       rwgpsUserId: dbUser.rwgps_user_id,
       name: rwgpsUser.name,
       email: dbUser.email,
+      emailVerified: dbUser.email_verified ? true : false,
       status: dbUser.status,
       role: dbUser.role,
       needsEmail: !dbUser.email
@@ -567,16 +654,38 @@ app.post('/api/user/email', csrfProtection, requireAuth, async (req, res) => {
     }
     
     const rwgpsUserId = req.session.user.rwgpsUserId;
-    const updatedUser = userService.updateUserEmail(rwgpsUserId, email);
+    
+    // Generate verification token
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    
+    // Update user email with verification token
+    const updatedUser = userService.updateUserEmail(rwgpsUserId, email, verificationToken);
+    
+    // Build verification URL
+    const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
+    const verificationUrl = `${baseUrl}/verify-email?token=${verificationToken}`;
+    
+    // Send email verification
+    try {
+      const emailSent = await emailService.sendEmailVerification(email, verificationUrl);
+      if (!emailSent) {
+        console.warn('Failed to send verification email - email service returned false');
+      }
+    } catch (err) {
+      console.error('Failed to send verification email:', err);
+      // Continue anyway - don't fail the request
+    }
     
     // Update session
     req.session.user.email = updatedUser.email;
+    req.session.user.emailVerified = updatedUser.email_verified;
     req.session.user.needsEmail = false;
     
     res.json({ 
       success: true, 
       user: {
         email: updatedUser.email,
+        emailVerified: updatedUser.email_verified ? true : false,
         status: updatedUser.status,
         role: updatedUser.role
       }
@@ -584,6 +693,61 @@ app.post('/api/user/email', csrfProtection, requireAuth, async (req, res) => {
   } catch (err) {
     console.error('Failed to update email:', err);
     res.status(500).json({ error: 'Failed to update email' });
+  }
+});
+
+// Verify email endpoint
+app.get('/api/verify-email', async (req, res) => {
+  try {
+    const { token } = req.query;
+    
+    if (!token) {
+      return res.status(400).json({ error: 'Verification token is required' });
+    }
+    
+    // Find user with this token
+    const user = userService.findUserByVerificationToken(token);
+    
+    if (!user) {
+      // Token not found - could be invalid or already used
+      // Since we can't distinguish, provide a helpful message
+      return res.status(400).json({ 
+        error: 'Invalid or expired verification token',
+        message: 'This verification link may have already been used or has expired. If your email was recently verified, you can safely ignore this message.'
+      });
+    }
+    
+    if (user.email_verified) {
+      return res.json({ 
+        success: true, 
+        message: 'Email already verified',
+        alreadyVerified: true
+      });
+    }
+    
+    // Verify the email
+    const verifiedUser = userService.verifyEmail(token);
+    
+    if (!verifiedUser) {
+      return res.status(400).json({ error: 'Failed to verify email' });
+    }
+    
+    // Update session if user is logged in
+    if (req.session.user && req.session.user.rwgpsUserId === verifiedUser.rwgps_user_id) {
+      req.session.user.emailVerified = true;
+    }
+    
+    res.json({ 
+      success: true, 
+      message: 'Email verified successfully',
+      user: {
+        email: verifiedUser.email,
+        emailVerified: verifiedUser.email_verified
+      }
+    });
+  } catch (err) {
+    console.error('Failed to verify email:', err);
+    res.status(500).json({ error: 'Failed to verify email' });
   }
 });
 
@@ -922,34 +1086,6 @@ app.post('/api/poi-from-place-id', csrfProtection, requireAuth, requireAccess, a
 
 
 
-// Serve index.html with injected Google API key so frontend gets the correct key at runtime
-app.get('/', async (req, res, next) => {
-  try{
-    const key = process.env.GOOGLE_API_KEY || '';
-    // Dev: use Vite to transform index.html for HMR and plugins
-    if (!isProd && viteServer){
-      const indexPath = path.join(__dirname, 'index.html');
-      let html = fs.readFileSync(indexPath, 'utf8');
-      // Let Vite perform its transforms first (it may rewrite or inject scripts).
-      html = await viteServer.transformIndexHtml(req.originalUrl || '/', html);
-  // Inject the Google API key last so transforms won't undo the replacement.
-  // Use a global replacement so any Vite-inserted content that contains the
-  // placeholder doesn't consume the first match and leave others intact.
-  html = html.replace(/__GOOGLE_API_KEY__/g, key);
-      return res.status(200).set({ 'Content-Type': 'text/html' }).end(html);
-    }
-    // Prod: serve prebuilt client or fallback to public
-    let p = path.join(__dirname, 'dist', 'index.html');
-    if (!fs.existsSync(p)) {
-      p = path.join(__dirname, 'index.html');
-    }
-    let html = fs.readFileSync(p, 'utf8');
-  // Replace all occurrences in production build as well.
-  html = html.replace(/__GOOGLE_API_KEY__/g, key);
-    return res.send(html);
-  }catch(e){ next(e); }
-});
-
 // Start server; in dev attach Vite middleware for a single unified server
 async function start(){
   // Initialize database on startup
@@ -974,6 +1110,37 @@ async function start(){
   
   // Serve public static files AFTER Vite middleware to ensure they take precedence
   app.use(express.static(path.join(__dirname, 'public'), { index: false }));
+  
+  // Catch-all handler for SPA routing (must be after Vite middleware in dev)
+  app.get('*', async (req, res, next) => {
+    // Skip API routes and let them 404 naturally if not found
+    if (req.path.startsWith('/api/') || req.path.startsWith('/auth/')) {
+      return next();
+    }
+    
+    try {
+      // In development: Vite middleware should have already handled this request
+      // If we reach here in dev mode, fallback to serving index.html
+      if (!isProd && viteServer) {
+        const indexPath = path.join(__dirname, 'index.html');
+        let html = fs.readFileSync(indexPath, 'utf8');
+        html = await viteServer.transformIndexHtml(req.originalUrl || '/', html);
+        return res.status(200).set({ 'Content-Type': 'text/html' }).end(html);
+      }
+      
+      // In production: serve built index.html
+      let indexPath = path.join(__dirname, 'dist', 'index.html');
+      if (!fs.existsSync(indexPath)) {
+        indexPath = path.join(__dirname, 'index.html'); // Fallback
+      }
+      
+      const html = fs.readFileSync(indexPath, 'utf8');
+      return res.send(html);
+    } catch (e) { 
+      console.error('Error serving React app:', e);
+      next(e); 
+    }
+  });
   
   app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT} (${isProd ? 'prod' : 'dev'})`));
 }
