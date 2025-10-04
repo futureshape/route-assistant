@@ -44,38 +44,53 @@ async function sendEmailVerification(email, verificationUrl, userName = '') {
       return;
     }
 
+    console.log(`Sending email verification to ${email} with template ${templateId}`);
+
+    const personalization = [
+      {
+        email: email,
+        data: {
+          user_name: userName || email,
+          user_email: email,
+          verification_url: verificationUrl,
+        },
+      },
+    ];
+
     const emailParams = new EmailParams()
       .setFrom(new Sender(
         process.env.MAILERSEND_FROM_EMAIL || 'hello@route-assistant.com',
         process.env.MAILERSEND_FROM_NAME || 'Route Assistant'
       ))
       .setTo([new Recipient(email, userName)])
+      .setSubject('Please verify your email address for Route Assistant')
       .setTemplateId(templateId)
-      .setVariables([
-        {
-          email: email,
-          substitutions: [
-            {
-              var: 'user_name',
-              value: userName || email,
-            },
-            {
-              var: 'user_email',
-              value: email,
-            },
-            {
-              var: 'verification_url',
-              value: verificationUrl,
-            },
-          ],
-        },
-      ]);
+      .setPersonalization(personalization);
 
-    await mailerSend.email.send(emailParams);
-    console.log(`Email verification sent to ${email}`);
+    const result = await mailerSend.email.send(emailParams);
+    console.log(`✓ Email verification sent successfully to ${email}`);
+    return result;
   } catch (error) {
-    console.error('Failed to send email verification:', error.message);
+    console.error('Failed to send email verification:');
+    console.error('Error type:', typeof error);
+    console.error('Error object:', error);
+    
+    if (error && error.message) {
+      console.error('Error message:', error.message);
+    }
+    
+    if (error && error.response) {
+      console.error('MailerSend API response status:', error.response.status);
+      console.error('MailerSend API response data:', error.response.data || error.response);
+    }
+    
+    if (error && error.stack) {
+      console.error('Stack trace:', error.stack);
+    }
+    
     // Don't throw - email failures shouldn't block the user flow
+    // Return false to indicate failure
+    return false;
   }
 }
 
@@ -106,37 +121,47 @@ async function sendBetaAccessNotification(email, userName = '', status = 'beta')
       return;
     }
 
+    console.log(`Sending beta access notification to ${email} with template ${templateId}`);
+
     const emailParams = new EmailParams()
       .setFrom(new Sender(
         process.env.MAILERSEND_FROM_EMAIL || 'hello@route-assistant.com',
         process.env.MAILERSEND_FROM_NAME || 'Route Assistant'
       ))
       .setTo([new Recipient(email, userName)])
+      .setSubject('Your access to Route Assistant has been approved')
       .setTemplateId(templateId)
-      .setVariables([
+      .setPersonalization([
         {
           email: email,
-          substitutions: [
-            {
-              var: 'user_name',
-              value: userName || email,
-            },
-            {
-              var: 'user_email',
-              value: email,
-            },
-            {
-              var: 'access_level',
-              value: status === 'active' ? 'full' : 'beta',
-            },
-          ],
+          data: {
+            user_name: userName || email,
+            user_email: email,
+            access_level: status === 'active' ? 'full' : 'beta',
+          },
         },
       ]);
 
     await mailerSend.email.send(emailParams);
-    console.log(`Beta access notification sent to ${email} (status: ${status})`);
+    console.log(`✓ Beta access notification sent successfully to ${email} (status: ${status})`);
   } catch (error) {
-    console.error('Failed to send beta access notification:', error.message);
+    console.error('Failed to send beta access notification:');
+    console.error('Error type:', typeof error);
+    console.error('Error object:', error);
+    
+    if (error && error.message) {
+      console.error('Error message:', error.message);
+    }
+    
+    if (error && error.response) {
+      console.error('MailerSend API response status:', error.response.status);
+      console.error('MailerSend API response data:', error.response.data || error.response);
+    }
+    
+    if (error && error.stack) {
+      console.error('Stack trace:', error.stack);
+    }
+    
     // Don't throw - email failures shouldn't block the user flow
   }
 }

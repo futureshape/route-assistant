@@ -583,7 +583,10 @@ app.post('/api/user/email', csrfProtection, requireAuth, async (req, res) => {
     
     // Send email verification
     try {
-      await emailService.sendEmailVerification(email, verificationUrl);
+      const emailSent = await emailService.sendEmailVerification(email, verificationUrl);
+      if (!emailSent) {
+        console.warn('Failed to send verification email - email service returned false');
+      }
     } catch (err) {
       console.error('Failed to send verification email:', err);
       // Continue anyway - don't fail the request
