@@ -8,6 +8,7 @@
  *   node admin-cli.js set-role <rwgps_user_id> <role>  - Set user role (user|admin)
  *   node admin-cli.js verify-email <rwgps_user_id>     - Mark user email as verified
  *   node admin-cli.js reset-verification <rwgps_user_id> - Reset email verification (mark as unverified)
+ *   node admin-cli.js resend-verification <rwgps_user_id> - Resend verification email to user
  *   node admin-cli.js find-email <email>               - Find user by email address
  *   node admin-cli.js remove-user <rwgps_user_id>      - Remove user from database (for testing)
  *   node admin-cli.js stats                            - Show user statistics
@@ -18,6 +19,7 @@ require('dotenv').config();
 
 const { getDatabase } = require('./db');
 const userService = require('./user-service');
+const emailService = require('./email-service');
 
 // Parse command line arguments
 const args = process.argv.slice(2);
@@ -33,6 +35,7 @@ if (!command) {
   console.log('  node admin-cli.js set-role <rwgps_user_id> <role>         - Set user role');
   console.log('  node admin-cli.js verify-email <rwgps_user_id>            - Mark user email as verified');
   console.log('  node admin-cli.js reset-verification <rwgps_user_id>      - Reset email verification');
+  console.log('  node admin-cli.js resend-verification <rwgps_user_id>     - Resend verification email to user');
   console.log('  node admin-cli.js find-email <email>                      - Find user by email address');
   console.log('  node admin-cli.js remove-user <rwgps_user_id>             - Remove user from database (for testing)');
   console.log('  node admin-cli.js stats                                   - Show user statistics');
@@ -230,6 +233,53 @@ switch (command) {
     console.log(`  Email: ${updated.email}`);
     console.log(`  Email Verified: No`);
     break;
+  }
+
+  case 'resend-verification': {
+    const rwgpsUserId = parseInt(args[1]);
+    if (!rwgpsUserId) {
+      console.error('Error: RWGPS user ID required');
+      process.exit(1);
+    }
+
+    const user = userService.findUserByRwgpsId(rwgpsUserId);
+    if (!user) {
+      console.error(`Error: User with RWGPS ID ${rwgpsUserId} not found`);
+      process.exit(1);
+    }
+
+    if (!user.email) {
+      console.error('Error: User has no email address');
+      process.exit(1);
+    }
+
+    if (user.email_verified) {
+      console.log(`ℹ User's email is already verified (RWGPS ID: ${rwgpsUserId})`);
+      console.log(`  Email: ${user.email}`);
+      process.exit(0);
+    }
+
+    if (!user.email_verification_token) {
+      console.error('Error: User has no verification token. Use reset-verification to generate a new one first.');
+      process.exit(1);
+    }
+
+    // Send verification email
+    (async () => {
+      try {
+        const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+        const verificationUrl = `${baseUrl}/verify-email?token=${user.email_verification_token}`;
+        await emailService.sendEmailVerification(user.email, verificationUrl);
+        console.log(`✓ Verification email sent (RWGPS ID: ${rwgpsUserId})`);
+        console.log(`  Email: ${user.email}`);
+        console.log(`  Status: ${user.status}`);
+      } catch (err) {
+        console.error('Error: Failed to send verification email');
+        console.error(err.message);
+        process.exit(1);
+      }
+    })();
+    return; // Don't break here since we're handling async email sending
   }
 
   case 'find-email': {

@@ -20,6 +20,8 @@ CREATE TABLE users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   rwgps_user_id INTEGER NOT NULL UNIQUE,
   email TEXT,
+  email_verified INTEGER NOT NULL DEFAULT 0,
+  email_verification_token TEXT,
   status TEXT NOT NULL DEFAULT 'waitlist',
   role TEXT NOT NULL DEFAULT 'user',
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -39,13 +41,15 @@ CREATE TABLE users (
 **Functions**:
 - `findUserByRwgpsId(rwgpsUserId)` - Find user by RideWithGPS ID
 - `findUserByEmail(email)` - Find user by email
+- `findUserByVerificationToken(token)` - Find user by email verification token
 - `createUser(rwgpsUserId, email, status, role)` - Create new user
-- `updateUserEmail(rwgpsUserId, email)` - Update user email
+- `updateUserEmail(rwgpsUserId, email)` - Update user email (generates verification token)
 - `updateUserStatus(rwgpsUserId, status)` - Update user status
 - `updateUserRole(rwgpsUserId, role)` - Update user role
+- `verifyEmail(token)` - Verify user email using token
 - `getAllUsers()` - Get all users (admin)
 - `updateUser(rwgpsUserId, updates)` - Update user fields (admin)
-- `hasAccess(user)` - Check if user has access to app
+- `hasAccess(user)` - Check if user has access to app (requires verified email for non-admins)
 - `isAdmin(user)` - Check if user is admin
 
 **User Statuses**:
@@ -74,7 +78,7 @@ CREATE TABLE users (
 
 **Authorization Middleware**:
 - `requireAuth` - Requires valid RideWithGPS authentication
-- `requireAccess` - Requires authentication AND approved status (beta/active) or admin role
+- `requireAccess` - Requires authentication AND approved status (beta/active) AND verified email (admins exempt from email verification)
 - `requireAdmin` - Requires admin role
 
 **Protected Endpoints** (now use authorization middleware):
@@ -86,6 +90,8 @@ CREATE TABLE users (
 
 **New Endpoints**:
 - `POST /api/user/email` - Submit email address (requireAuth)
+- `GET /api/verify-email?token=<token>` - Verify email address
+- `POST /api/resend-verification` - Resend verification email (requireAuth, CSRF protected)
 - `GET /api/admin/users` - List all users (requireAdmin)
 - `PATCH /api/admin/users/:rwgpsUserId` - Update user (requireAdmin)
 
@@ -93,7 +99,7 @@ CREATE TABLE users (
 
 **Type Definitions** (`src/types/user.ts`):
 - `DbUser` - Database user record type
-- `SessionUser` - Session user info type
+- `SessionUser` - Session user info type (includes `emailVerified` field)
 
 **API Response Types** (`src/types/api.ts`):
 - Updated `SessionResponse` to include user info
@@ -118,15 +124,22 @@ CREATE TABLE users (
    - Explains waitlist status
    - Provides logout button
 
+3. **EmailVerification** (`src/components/EmailVerification.tsx`)
+   - Two modes: 'verify' (for token-based verification) and 'waiting' (for unverified users)
+   - Verify mode: Automatically verifies email using token from URL
+   - Waiting mode: Shows "Email Verification Required" screen with "Check Again" button
+   - Success/error/already-verified states with appropriate messaging
+
 **App.tsx Updates**:
 - Added `user` and `setUser` from auth store
 - Added `showEmailDialog` state
-- Enhanced `fetchAuthState` to handle email collection and waitlist
+- Enhanced `fetchAuthState` to handle email collection, verification, and waitlist
 - Added `handleEmailSubmitted` callback
 - Added `handleLogout` function
 - Shows EmailCollectionDialog when user needs email
+- Shows EmailVerification (waiting mode) for users with unverified email
 - Shows WaitlistScreen for waitlist/inactive users
-- Prevents route loading for unapproved users
+- Prevents route loading for unapproved or unverified users
 
 ### Admin Tools
 
@@ -137,6 +150,12 @@ CREATE TABLE users (
 - `node admin-cli.js approve <rwgps_user_id>` - Approve user (set status to beta)
 - `node admin-cli.js set-status <rwgps_user_id> <status>` - Set user status
 - `node admin-cli.js set-role <rwgps_user_id> <role>` - Set user role
+- `node admin-cli.js verify-email <rwgps_user_id>` - Mark user email as verified
+- `node admin-cli.js reset-verification <rwgps_user_id>` - Reset email verification
+- `node admin-cli.js resend-verification <rwgps_user_id>` - Resend verification email to user
+- `node admin-cli.js find-email <email>` - Find user by email address
+- `node admin-cli.js remove-user <rwgps_user_id>` - Remove user from database
+- `node admin-cli.js stats` - Show user statistics
 
 **Features**:
 - Colorful table output for user listing
@@ -164,23 +183,29 @@ CREATE TABLE users (
 6. Backend fetches user info from RideWithGPS
 7. Backend checks if user exists in database
 8. If new user:
-   - Creates user record with status=waitlist
+   - Creates user record with status=waitlist, email_verified=0
+   - Generates email verification token
    - Sets needsEmail=true in session
 9. Frontend shows EmailCollectionDialog
 10. User provides email
-11. Email saved to database
-12. Frontend shows WaitlistScreen
-13. User must wait for admin approval
+11. Email saved to database, verification email sent
+12. Frontend shows EmailVerification screen (waiting mode)
+13. User checks email and clicks verification link
+14. Email marked as verified in database
+15. User clicks "Check Again" and sees WaitlistScreen
+16. User must wait for admin approval
 
 ### Approved User Flow
 
 1. Admin approves user: `node admin-cli.js approve <rwgps_user_id>`
-2. User signs in again
-3. OAuth flow completes
-4. Backend finds user with status=beta
-5. Frontend detects approved status
+2. User signs in again (or clicks "Check Again")
+3. OAuth flow completes (or session refreshed)
+4. Backend finds user with status=beta and email_verified=1
+5. Frontend detects approved AND verified status
 6. Full application access granted
 7. Routes are fetched and displayed
+
+**Note**: Admins bypass the email verification requirement but still need approved status.
 
 ### Admin User Flow
 

@@ -240,9 +240,10 @@ function deleteUser(rwgpsUserId) {
  */
 function hasAccess(user) {
   if (!user) return false;
-  // Users with 'beta', 'active', or 'admin' role have access
-  // 'waitlist' and 'inactive' do not have access
-  return ['beta', 'active'].includes(user.status) || user.role === 'admin';
+  // Admins always have access regardless of email verification
+  if (user.role === 'admin') return true;
+  // Regular users need approved status (beta/active) AND verified email
+  return ['beta', 'active'].includes(user.status) && user.email_verified === 1;
 }
 
 /**

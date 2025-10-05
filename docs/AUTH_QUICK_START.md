@@ -29,18 +29,19 @@ When you first deploy the app:
 
 1. **Sign in with your RideWithGPS account** via the web interface
 2. **Provide your email** when prompted
-3. **Check your user ID**:
+3. **Verify your email** by clicking the link sent to your inbox (admins bypass access requirement but verification is still recommended)
+4. **Check your user ID**:
    ```bash
    node admin-cli.js list
    ```
 
-4. **Grant yourself admin access**:
+5. **Grant yourself admin access**:
    ```bash
    node admin-cli.js set-status <your_rwgps_id> beta
    node admin-cli.js set-role <your_rwgps_id> admin
    ```
 
-5. **Refresh the page** - you now have full admin access!
+6. **Refresh the page** - you now have full admin access!
 
 ## For Admins
 
@@ -96,6 +97,18 @@ node admin-cli.js set-role <rwgps_user_id> admin
 node admin-cli.js set-role <rwgps_user_id> user
 ```
 
+**Manage email verification**:
+```bash
+# Mark user's email as verified (bypass email verification)
+node admin-cli.js verify-email <rwgps_user_id>
+
+# Reset email verification (user must verify again)
+node admin-cli.js reset-verification <rwgps_user_id>
+
+# Resend verification email to user
+node admin-cli.js resend-verification <rwgps_user_id>
+```
+
 ### Batch Operations
 
 Approve multiple users at once:
@@ -113,9 +126,13 @@ done
 1. **Sign In**: User clicks "Sign in with RideWithGPS"
 2. **OAuth**: Redirected to RideWithGPS for authorization
 3. **Email Collection**: Prompted to provide email address (required)
-4. **Waitlist Screen**: Sees friendly waitlist message
-5. **Wait for Approval**: Admin approves user
-6. **Access Granted**: On next sign-in, full access to app
+4. **Email Verification**: Verification email sent automatically with unique link
+5. **Verification Required**: User must verify email to access app (sees "Email Verification Required" screen)
+6. **Waitlist Screen**: If status is 'waitlist', sees waitlist message after verification
+7. **Wait for Approval**: Admin approves user (sets status to 'beta' or 'active')
+8. **Access Granted**: User has full access to app once both verified and approved
+
+**Note**: Admins bypass the email verification requirement for access, but verification is still recommended.
 
 ### Waitlist User Experience
 
@@ -127,12 +144,14 @@ Users on the waitlist see:
 
 ### Approved User Experience
 
-Once approved (status = `beta`):
+Once approved (status = `beta` or `active`) AND email verified:
 - Full access to all features
 - Can browse and select routes
 - Can search for POIs
 - Can add POIs to routes
 - No restrictions
+
+**Note**: Users need both approved status AND verified email for access (admins exempt from verification requirement).
 
 ### Admin User Experience
 
@@ -195,8 +214,13 @@ If you see this error:
 
 1. Verify status: `node admin-cli.js list`
 2. Ensure status is `beta` or `active`
-3. Ask user to log out and log back in
-4. Check server logs for errors
+3. **Check email verification**: Ensure `Email Verified` column shows ✓
+4. If unverified, either:
+   - Ask user to check their email for verification link
+   - Use `node admin-cli.js resend-verification <rwgps_user_id>` to resend
+   - Use `node admin-cli.js verify-email <rwgps_user_id>` to manually verify
+5. Ask user to log out and log back in
+6. Check server logs for errors
 
 ### Admin CLI shows wrong data
 
@@ -250,16 +274,20 @@ if (user?.needsEmail) {
   // Show email collection dialog
 }
 
+if (!user?.emailVerified && user?.email && ['beta', 'active'].includes(user?.status)) {
+  // Show email verification screen
+}
+
 if (user?.status === 'waitlist') {
   // Show waitlist screen
 }
 
 if (user?.status === 'beta' || user?.status === 'active') {
-  // User has access - show full app
+  // User has access - show full app (requires verified email unless admin)
 }
 
 if (user?.role === 'admin') {
-  // User is admin - show admin features
+  // User is admin - bypasses email verification requirement
 }
 ```
 

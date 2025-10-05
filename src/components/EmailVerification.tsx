@@ -10,16 +10,28 @@ import {
 import { CheckCircle2, XCircle, Loader2 } from 'lucide-react'
 
 interface EmailVerificationProps {
-  token: string
+  token?: string
   onClose: () => void
+  mode?: 'verify' | 'waiting'
 }
 
-export function EmailVerification({ token, onClose }: EmailVerificationProps) {
-  const [status, setStatus] = useState<'verifying' | 'success' | 'error' | 'already-verified'>('verifying')
-  const [message, setMessage] = useState('')
+export function EmailVerification({ token, onClose, mode = 'verify' }: EmailVerificationProps) {
+  const [status, setStatus] = useState<'verifying' | 'success' | 'error' | 'already-verified' | 'waiting-verification'>(
+    mode === 'waiting' ? 'waiting-verification' : 'verifying'
+  )
+  const [message, setMessage] = useState(
+    mode === 'waiting' 
+      ? 'Please check your email inbox for the verification link we sent you. If you need a new verification email, please contact support.'
+      : ''
+  )
   const hasVerified = useRef(false)
 
   useEffect(() => {
+    // Skip verification if in waiting mode
+    if (mode === 'waiting') {
+      return
+    }
+    
     // Prevent double verification in StrictMode
     if (hasVerified.current) {
       return
@@ -27,6 +39,12 @@ export function EmailVerification({ token, onClose }: EmailVerificationProps) {
     hasVerified.current = true
 
     const verifyEmail = async () => {
+      if (!token) {
+        setStatus('error')
+        setMessage('No verification token provided.')
+        return
+      }
+      
       try {
         const response = await fetch(`/api/verify-email?token=${encodeURIComponent(token)}`)
         const data = await response.json()
@@ -51,7 +69,7 @@ export function EmailVerification({ token, onClose }: EmailVerificationProps) {
     }
 
     verifyEmail()
-  }, [token])
+  }, [token, mode])
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -67,6 +85,9 @@ export function EmailVerification({ token, onClose }: EmailVerificationProps) {
             {status === 'already-verified' && (
               <CheckCircle2 className="h-6 w-6 text-blue-600" />
             )}
+            {status === 'waiting-verification' && (
+              <Loader2 className="h-6 w-6 text-amber-600" />
+            )}
             {status === 'error' && (
               <XCircle className="h-6 w-6 text-destructive" />
             )}
@@ -75,6 +96,7 @@ export function EmailVerification({ token, onClose }: EmailVerificationProps) {
             {status === 'verifying' && 'Verifying Email'}
             {status === 'success' && 'Email Verified!'}
             {status === 'already-verified' && 'Already Verified'}
+            {status === 'waiting-verification' && 'Email Verification Required'}
             {status === 'error' && 'Verification Failed'}
           </CardTitle>
           <CardDescription>
@@ -82,7 +104,15 @@ export function EmailVerification({ token, onClose }: EmailVerificationProps) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {status !== 'verifying' && (
+          {status === 'waiting-verification' && (
+            <Button 
+              onClick={onClose}
+              className="w-full"
+            >
+              Check Again
+            </Button>
+          )}
+          {status !== 'verifying' && status !== 'waiting-verification' && (
             <Button 
               onClick={onClose} 
               className="w-full"

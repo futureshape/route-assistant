@@ -27,4 +27,5 @@ export interface SessionUser {
   status: 'waitlist' | 'beta' | 'active' | 'inactive'
   role: 'user' | 'admin'
   needsEmail: boolean
+  emailVerified: boolean
 }

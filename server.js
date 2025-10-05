@@ -540,12 +540,19 @@ function requireAccess(req, res, next) {
   
   const dbUser = userService.findUserByRwgpsId(req.session.user.rwgpsUserId);
   if (!dbUser || !userService.hasAccess(dbUser)) {
+    let message = 'Access to this application is restricted.';
+    
+    if (dbUser?.status === 'waitlist') {
+      message = 'Your account is on the waitlist. You will be notified when access is granted.';
+    } else if (dbUser?.email && !dbUser?.email_verified && ['beta', 'active'].includes(dbUser.status)) {
+      message = 'Please verify your email address to access the application. Check your inbox for the verification link.';
+    }
+    
     return res.status(403).json({ 
       error: 'Access denied', 
       status: dbUser?.status || 'unknown',
-      message: dbUser?.status === 'waitlist' 
-        ? 'Your account is on the waitlist. You will be notified when access is granted.'
-        : 'Access to this application is restricted.'
+      emailVerified: dbUser?.email_verified || false,
+      message
     });
   }
   
@@ -553,6 +560,7 @@ function requireAccess(req, res, next) {
   req.session.user.status = dbUser.status;
   req.session.user.role = dbUser.role;
   req.session.user.email = dbUser.email;
+  req.session.user.emailVerified = dbUser.email_verified ? true : false;
   
   next();
 }
@@ -586,6 +594,7 @@ app.get('/api/session', (req, res) => {
       req.session.user.status = dbUser.status;
       req.session.user.role = dbUser.role;
       req.session.user.email = dbUser.email;
+      req.session.user.emailVerified = dbUser.email_verified ? true : false;
     }
   }
   
@@ -748,6 +757,51 @@ app.get('/api/verify-email', async (req, res) => {
   } catch (err) {
     console.error('Failed to verify email:', err);
     res.status(500).json({ error: 'Failed to verify email' });
+  }
+});
+
+// Resend verification email endpoint
+app.post('/api/resend-verification', csrfProtection, async (req, res) => {
+  try {
+    if (!req.session.user) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+    
+    const dbUser = userService.findUserByRwgpsId(req.session.user.rwgpsUserId);
+    
+    if (!dbUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    if (dbUser.email_verified) {
+      return res.json({ 
+        success: true, 
+        message: 'Email already verified' 
+      });
+    }
+    
+    if (!dbUser.email) {
+      return res.status(400).json({ error: 'No email address on file' });
+    }
+    
+    // Build verification URL
+    const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
+    const verificationUrl = `${baseUrl}/verify-email?token=${dbUser.email_verification_token}`;
+    
+    // Send verification email
+    try {
+      await emailService.sendEmailVerification(dbUser.email, verificationUrl);
+      res.json({ 
+        success: true, 
+        message: 'Verification email sent' 
+      });
+    } catch (emailErr) {
+      console.error('Failed to send verification email:', emailErr);
+      res.status(500).json({ error: 'Failed to send verification email' });
+    }
+  } catch (err) {
+    console.error('Failed to resend verification:', err);
+    res.status(500).json({ error: 'Failed to resend verification email' });
   }
 });
 

@@ -119,7 +119,12 @@ This is a full-stack web application that helps cyclists explore routes and find
 2. Redirects to RideWithGPS OAuth
 3. Backend exchanges code for access token
 4. Frontend checks `/api/session` for auth status
-5. Authenticated users can access routes via `/api/routes`
+5. New users provide email address (if not already set)
+6. Email verification email sent automatically
+7. Users must verify email before accessing routes
+8. Authenticated and verified users can access routes via `/api/routes`
+
+**Access Control**: Users need both approved status (`beta` or `active`) AND verified email to access the app. Admins always have access regardless of email verification.
 
 ## Feature Architecture
 

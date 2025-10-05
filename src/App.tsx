@@ -20,6 +20,7 @@ import { getEnabledProviders } from '@/lib/provider-registry'
 import { AuthHeader } from '@/components/AuthHeader'
 import { IntroScreen } from '@/components/IntroScreen'
 import { EmailCollectionDialog } from '@/components/EmailCollectionDialog'
+import { EmailVerification } from '@/components/EmailVerification'
 import { WaitlistScreen } from '@/components/WaitlistScreen'
 import { RouteSelector, RouteSwitchDialog } from '@/features/routes'
 import { MapContainer } from '@/features/map'
@@ -361,6 +362,13 @@ export default function App(){
         return
       }
       
+      // Check if user needs to verify email (has approved status but unverified email)
+      if (!j.user.emailVerified && j.user.email && ['beta', 'active'].includes(j.user.status)) {
+        // User needs to verify their email
+        setRoutesLoading(false)
+        return
+      }
+      
       console.log('[fetchAuthState] User is authenticated and has access, fetching routes')
       setRoutesLoading(true)
       try {
@@ -678,6 +686,22 @@ export default function App(){
   }
 
 
+
+  // Show email verification screen if user needs to verify email
+  if (authenticated && user && !user.emailVerified && user.email && ['beta', 'active'].includes(user.status)) {
+    return (
+      <>
+        <EmailVerification 
+          mode="waiting" 
+          onClose={() => fetchAuthState()} 
+        />
+        <IntroScreen 
+          open={showIntroScreen} 
+          onOpenChange={setShowIntroScreen} 
+        />
+      </>
+    )
+  }
 
   // Show waitlist screen if user is authenticated but on waitlist
   // BUT only if they've already provided their email
