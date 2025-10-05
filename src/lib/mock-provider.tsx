@@ -34,7 +34,7 @@ const MockSearchForm: React.FC<POISearchFormProps> = ({ onSearch, disabled, load
               Searching...
             </>
           ) : (
-            'Mock Search'
+            'Search'
           )}
         </Button>
       </div>

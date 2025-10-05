@@ -157,7 +157,7 @@ export function MapContainer({
             <ListTodo className="h-12 w-12 mx-auto text-muted-foreground" />
             <p className="text-muted-foreground">
               {!selectedRouteId 
-                ? "To get started, log in to RideWithGPS and select a route"
+                ? "To get started, sign in with RideWithGPS and pick a route"
                 : "Loading route..."
               }
             </p>

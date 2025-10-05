@@ -42,12 +42,11 @@ export function WaitlistScreen({ email, onLogout }: WaitlistScreenProps) {
               We're currently in beta testing with a limited number of users. You'll receive an email notification when your access is approved.
             </p>
             <p>
-              In the meantime, you can:
+              Please make sure you verify your email address if you haven't already done so, by clicking the link in the verification email we sent you.
             </p>
-            <ul className="list-disc list-inside space-y-1 ml-2">
-              <li>Follow us for updates</li>
-              <li>Tell your cycling friends about Route Assistant</li>
-            </ul>
+            <p>
+              If you haven't received any email or have any other questions, please <a href='mailto:hello@routeassistant.com'>contact us</a>.
+            </p>
           </div>
 
           <div className="pt-4 border-t">

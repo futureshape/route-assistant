@@ -6,6 +6,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion"
 import { POIProvider, POISearchParams } from '@/lib/poi-providers'
+import { useMarkerStates, useMarkers } from '@/store/selectors'
 
 interface MapBounds {
   north: number
@@ -35,6 +36,16 @@ export function POISearch({
   onPOISearch,
   onClearMarkers
 }: POISearchProps) {
+  const markerStates = useMarkerStates()
+  const markers = useMarkers()
+  // A POI is considered "suggested" if its stored state is not 'existing' or 'selected'.
+  // Some suggested POIs may not have an explicit entry in markerStates (undefined),
+  // but they should still be treated as suggested (the map rendering treats missing as suggested).
+  const hasSuggestedPOIs = markers.some((poi) => {
+    const key = `${poi.name}_${poi.lat}_${poi.lng}`
+    const state = markerStates[key]
+    return state !== 'existing' && state !== 'selected'
+  })
   return (
     <div className="p-2 space-y-2">
       {poiProviders.length > 0 ? (
@@ -73,9 +84,9 @@ export function POISearch({
             })}
           </Accordion>
           <div className="pt-2">
-            <Button onClick={onClearMarkers} variant="outline" size="sm" className="w-full">
-              Clear Suggested POIs
-            </Button>
+              <Button onClick={onClearMarkers} variant="destructive" size="sm" className="w-full" disabled={!hasSuggestedPOIs}>
+                Clear all suggested POIs
+              </Button>
           </div>
         </>
       ) : (

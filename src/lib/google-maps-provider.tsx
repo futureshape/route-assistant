@@ -21,7 +21,7 @@ const GOOGLE_TO_RIDEWITHGPS_MAPPING: Record<string, RideWithGPSPOIType> = {
   'coffee_shop': 'coffee',
   'winery': 'winery',
   'brewery': 'bar',
-  
+
   // Lodging & Camping
   'lodging': 'lodging',
   'hotel': 'lodging',
@@ -31,7 +31,7 @@ const GOOGLE_TO_RIDEWITHGPS_MAPPING: Record<string, RideWithGPSPOIType> = {
   'bed_and_breakfast': 'lodging',
   'campground': 'camping',
   'rv_park': 'camping',
-  
+
   // Transportation & Parking
   'parking': 'parking',
   'gas_station': 'gas',
@@ -43,14 +43,14 @@ const GOOGLE_TO_RIDEWITHGPS_MAPPING: Record<string, RideWithGPSPOIType> = {
   'bus_station': 'transit',
   'transit_station': 'transit',
   'taxi_stand': 'transit',
-  
+
   // Healthcare & Safety
   'hospital': 'hospital',
   'pharmacy': 'first_aid',
   'doctor': 'first_aid',
   'dentist': 'first_aid',
   'veterinary_care': 'first_aid',
-  
+
   // Shopping & Services
   'convenience_store': 'convenience_store',
   'supermarket': 'convenience_store',
@@ -62,7 +62,7 @@ const GOOGLE_TO_RIDEWITHGPS_MAPPING: Record<string, RideWithGPSPOIType> = {
   'atm': 'atm',
   'bank': 'atm',
   'library': 'library',
-  
+
   // Recreation & Tourism
   'tourist_attraction': 'viewpoint',
   'amusement_park': 'viewpoint',
@@ -76,16 +76,16 @@ const GOOGLE_TO_RIDEWITHGPS_MAPPING: Record<string, RideWithGPSPOIType> = {
   'mountain_peak': 'summit',
   'natural_feature': 'viewpoint',
   'scenic_lookout': 'viewpoint',
-  
+
   // Bike-specific
   'bicycle_store': 'bike_shop',
-  
+
   // Sports & Recreation
   'gym': 'rest_stop',
   'spa': 'shower',
   'swimming_pool': 'swimming',
   'water_park': 'swimming',
-  
+
   // Public facilities
   'restroom': 'restroom',
   'public_restroom': 'restroom',
@@ -111,22 +111,22 @@ const GoogleMapsSearchForm: React.FC<POISearchFormProps> = ({ onSearch, disabled
 
   return (
     <div className="space-y-2">
-      <Input 
-        value={query} 
-        onChange={(e) => setQuery(e.target.value)} 
+      <Input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSearch(); } }}
-        placeholder="e.g., coffee, restroom, bike shop"
+        placeholder="e.g. coffee, 24hr petrol station"
         disabled={disabled || loading}
       />
       <div className="flex gap-2">
-        <Button onClick={handleSearch} size="sm" disabled={disabled || loading}>
+        <Button onClick={handleSearch} size="sm" disabled={disabled || loading || !query.trim()}>
           {loading ? (
             <>
               <Loader2 className="animate-spin mr-2 h-4 w-4" />
               Searching...
             </>
           ) : (
-            'Search POIs'
+            'Search'
           )}
         </Button>
       </div>
@@ -145,10 +145,10 @@ export function setupGoogleMapsPOIClickListener(
     // Check if this is a POI click (has placeId)
     if ('placeId' in event && event.placeId) {
       console.log('[Google Maps POI] Clicked on native POI with place ID:', event.placeId);
-      
+
       // Prevent the default info window from showing
       event.stop();
-      
+
       try {
         // Fetch place details using our API
         const response = await fetchWithCSRFRetry('/api/poi-from-place-id', {
@@ -163,7 +163,7 @@ export function setupGoogleMapsPOIClickListener(
 
         const poi: POIResult = await response.json();
         console.log('[Google Maps POI] Fetched POI details:', poi);
-        
+
         // Call the callback with the POI
         onPOIClick(poi);
       } catch (error) {
@@ -179,7 +179,7 @@ export function setupGoogleMapsPOIClickListener(
 export class GoogleMapsProvider implements POIProvider {
   id = 'google';
   name = 'Google Maps';
-  description = 'Search for Points of Interest using Google Places API';
+  description = 'Search for anything you can find on Google Maps';
 
   isEnabled(context?: { routePath?: unknown[] }): boolean {
     // Google Maps provider requires a route to be loaded
@@ -188,16 +188,16 @@ export class GoogleMapsProvider implements POIProvider {
 
   async searchPOIs(params: POISearchParams): Promise<POIResult[]> {
     const { textQuery, encodedPolyline, routingOrigin } = params;
-    
+
     if (!encodedPolyline) {
       throw new Error('Google Maps provider requires a route (encoded polyline)');
     }
 
     const payload = { textQuery, encodedPolyline, routingOrigin };
-    const response = await fetchWithCSRFRetry('/api/poi-search/google-maps', { 
-      method: 'POST', 
-      headers: { 'Content-Type': 'application/json' }, 
-      body: JSON.stringify(payload) 
+    const response = await fetchWithCSRFRetry('/api/poi-search/google-maps', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
     });
 
     if (!response.ok) {
@@ -221,17 +221,17 @@ export class GoogleMapsProvider implements POIProvider {
 
     const data = await response.json();
     const places: GooglePlace[] = data.places || [];
-    
+
     return places.map((p) => {
       const loc = p.location || {};
       const lat = loc.latitude;
       const lng = loc.longitude;
-      
+
       const primaryType = p.primaryType || 'establishment';
-      
-      return { 
-        name: p.displayName?.text || p.name || '', 
-        lat: parseFloat(String(lat)), 
+
+      return {
+        name: p.displayName?.text || p.name || '',
+        lat: parseFloat(String(lat)),
         lng: parseFloat(String(lng)),
         poi_type_name: mapGoogleTypeToRideWithGPS(primaryType),
         description: p.editorialSummary?.text || '',

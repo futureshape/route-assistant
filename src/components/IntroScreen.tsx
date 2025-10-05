@@ -43,33 +43,27 @@ export function IntroScreen({ open, onOpenChange }: IntroScreenProps) {
         <DialogHeader>
           <DialogTitle>Welcome to Route Assistant</DialogTitle>
           <DialogDescription>
-            Learn how this app works and important information before you start.
+            A few things to know before you get started
           </DialogDescription>
         </DialogHeader>
         <div className="py-4 space-y-4">
-          <p className="text-sm text-muted-foreground">
-            This app helps you quickly add "points of interest" (POIs, e.g. resupply points, landmarks, bailout options) to your RideWithGPS routes. You can search for POIs around your route (e.g. find supermarkets near your route) and quickly select a few and add them to your route.
-          </p>
-          <div className="space-y-2">
-            <ul className="text-sm text-muted-foreground space-y-2 ml-4">
-              <li className="flex items-start">
-                <span className="inline-block w-2 h-2 bg-current rounded-full mt-2 mr-3 flex-shrink-0"></span>
-                You need a RideWithGPS account (this app does not work with other route planning platforms)
-              </li>
-              <li className="flex items-start">
-                <span className="inline-block w-2 h-2 bg-current rounded-full mt-2 mr-3 flex-shrink-0"></span>
-                We don't keep copies of any of your routes or use any data for any other purposes
-              </li>
-              <li className="flex items-start">
-                <span className="inline-block w-2 h-2 bg-current rounded-full mt-2 mr-3 flex-shrink-0"></span>
-                This app is experimental so we recommend keeping a backup copy of your route
-              </li>
-              <li className="flex items-start">
-                <span className="inline-block w-2 h-2 bg-current rounded-full mt-2 mr-3 flex-shrink-0"></span>
-                This app is not supported or endorsed in any way by RideWithGPS, if you have any issues then please contact us, not them
-              </li>
-            </ul>
-          </div>
+            <p className="text-sm text-muted-foreground">
+              Use this app to quickly find points of interest (e.g. resupply points, accommodation or landmarks) and bulk-add them to your RideWithGPS routes.
+            </p>
+          <ul className="text-sm text-muted-foreground list-disc ml-6">
+            <li>
+              You need a RideWithGPS account (this app does not work with other route planning platforms)
+            </li>
+            <li>
+              We don't keep copies of any of your routes or the points you add, everything is sent directly to RideWithGPS
+            </li>
+            <li>
+              We won't make any changes to your routes apart from adding your selected points of interest. However, this app is experimental so we do recommend <b>making a backup copy of your route</b> before using it, just in case
+            </li>
+            <li>
+              This app is not supported or endorsed in any way by RideWithGPS, if you have any issues then please <a href="mailto:hello@route-assistant.com" className="underline">contact us</a>, not them
+            </li>
+          </ul>
         </div>
         <DialogFooter className="flex-col sm:flex-row gap-3">
           <div className="flex items-center space-x-2">

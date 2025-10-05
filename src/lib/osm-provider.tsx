@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { fetchWithCSRFRetry } from '@/lib/csrf';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2 } from 'lucide-react';
+import { Loader2, X, Check, ChevronsUpDown } from 'lucide-react';
 import { POIProvider, POISearchParams, POIResult, POISearchFormProps } from '@/lib/poi-providers';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Badge } from '@/components/ui/badge';
 
 // Preset OSM amenity tags relevant for cycling
 // Based on https://wiki.openstreetmap.org/wiki/Key:amenity
@@ -36,11 +36,8 @@ const PRESET_AMENITIES = [
 
 // OSM POI Search Form Component
 const OSMSearchForm: React.FC<POISearchFormProps> = ({ onSearch, disabled, loading }) => {
-  const [selectedAmenities, setSelectedAmenities] = useState<string[]>([
-    'drinking_water',
-    'toilets',
-    'cafe',
-  ]);
+  const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
+  const [open, setOpen] = useState(false);
 
   const handleToggleAmenity = (amenity: string) => {
     setSelectedAmenities(prev => 
@@ -50,8 +47,11 @@ const OSMSearchForm: React.FC<POISearchFormProps> = ({ onSearch, disabled, loadi
     );
   };
 
+  const handleRemoveAmenity = (amenity: string) => {
+    setSelectedAmenities(prev => prev.filter(a => a !== amenity));
+  };
+
   const handleSearch = () => {
-    // Pass the selected amenities as a comma-separated textQuery
     onSearch({ textQuery: selectedAmenities.join(',') });
   };
 
@@ -63,67 +63,83 @@ const OSMSearchForm: React.FC<POISearchFormProps> = ({ onSearch, disabled, loadi
     setSelectedAmenities([]);
   };
 
+  const selectedAmenityObjects = selectedAmenities.map(value => 
+    PRESET_AMENITIES.find(amenity => amenity.value === value)
+  ).filter(Boolean);
+
+  const unselectedAmenities = PRESET_AMENITIES.filter(amenity => 
+    !selectedAmenities.includes(amenity.value)
+  );
+
   return (
     <div className="space-y-3">
-      <div className="flex justify-between items-center">
-        <div className="text-sm font-medium">Select Amenity Types:</div>
-        <div className="flex gap-2">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={handleSelectAll}
-            disabled={disabled || loading}
-            className="h-7 text-xs"
-          >
-            Select All
-          </Button>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={handleClearAll}
-            disabled={disabled || loading}
-            className="h-7 text-xs"
-          >
-            Clear
-          </Button>
-        </div>
-      </div>
       
-      <ScrollArea className="h-[300px] rounded-md border p-3">
-        <div className="space-y-3">
-          {PRESET_AMENITIES.map((amenity) => (
-            <div key={amenity.value} className="flex items-start space-x-2">
-              <Checkbox
-                id={amenity.value}
-                checked={selectedAmenities.includes(amenity.value)}
-                onCheckedChange={() => handleToggleAmenity(amenity.value)}
-                disabled={disabled || loading}
+      {/* Combobox for adding amenities */}
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            className="w-full justify-between"
+            disabled={disabled || loading}
+          >
+            Add amenity types...
+            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+          <Command>
+            <CommandInput placeholder="Search amenity types..." />
+            <CommandList>
+              <CommandEmpty>No amenity types found.</CommandEmpty>
+              <CommandGroup>
+                {unselectedAmenities.map((amenity) => (
+                  <CommandItem
+                    key={amenity.value}
+                    value={amenity.value}
+                    onSelect={() => {
+                      handleToggleAmenity(amenity.value);
+                      setOpen(false);
+                    }}
+                  >
+                    <div className="flex flex-col">
+                      <span className="font-medium">{amenity.label}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {amenity.description}
+                      </span>
+                    </div>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+
+      {/* Selected amenities as tokens/badges */}
+      {selectedAmenities.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {selectedAmenityObjects.map((amenity) => (
+            <Badge
+              key={amenity?.value}
+              variant="default"
+              className="flex items-center gap-1 text-xs"
+            >
+              {amenity?.label}
+              <X
+                className="h-3 w-3 cursor-pointer hover:text-destructive"
+                onClick={() => handleRemoveAmenity(amenity?.value || '')}
               />
-              <div className="grid gap-1 leading-none">
-                <Label
-                  htmlFor={amenity.value}
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                >
-                  {amenity.label}
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  {amenity.description}
-                </p>
-              </div>
-            </div>
+            </Badge>
           ))}
         </div>
-      </ScrollArea>
-
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>{selectedAmenities.length} amenity type{selectedAmenities.length !== 1 ? 's' : ''} selected</span>
-      </div>
+      )}
 
       <Button 
         onClick={handleSearch} 
         size="sm" 
         disabled={disabled || loading || selectedAmenities.length === 0} 
-        className="w-full"
       >
         {loading ? (
           <>
@@ -131,13 +147,9 @@ const OSMSearchForm: React.FC<POISearchFormProps> = ({ onSearch, disabled, loadi
             Searching...
           </>
         ) : (
-          'Search OSM POIs'
+          'Search'
         )}
       </Button>
-      
-      <div className="text-xs text-muted-foreground">
-        Searches OpenStreetMap data via Overpass API along your route for selected amenity types.
-      </div>
     </div>
   );
 };

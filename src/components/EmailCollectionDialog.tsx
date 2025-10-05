@@ -73,7 +73,7 @@ export function EmailCollectionDialog({ open, onEmailSubmitted }: EmailCollectio
         <DialogHeader>
           <DialogTitle>Welcome to Route Assistant!</DialogTitle>
           <DialogDescription>
-            Please provide your email address. We need this for service updates and important communications.
+            Please provide your email address. We'll only use it to send you important updates about this application.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
@@ -94,7 +94,7 @@ export function EmailCollectionDialog({ open, onEmailSubmitted }: EmailCollectio
               )}
             </div>
             <p className="text-sm text-muted-foreground">
-              Your email will be kept private and will only be used for essential service communications.
+              Your email will not be shared with anyone else.
             </p>
           </div>
           <DialogFooter>
