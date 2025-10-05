@@ -1,12 +1,14 @@
 import { Button } from '@/components/ui/button'
+import { Loader2 } from 'lucide-react'
 
 interface POISummaryProps {
   selectedCount: number
   selectedRouteId: number | null
   onSendPOIs: () => void
+  sending: boolean
 }
 
-export function POISummary({ selectedCount, selectedRouteId, onSendPOIs }: POISummaryProps) {
+export function POISummary({ selectedCount, selectedRouteId, onSendPOIs, sending }: POISummaryProps) {
   if (selectedCount === 0) return null
 
   return (
@@ -19,9 +21,16 @@ export function POISummary({ selectedCount, selectedRouteId, onSendPOIs }: POISu
         onClick={onSendPOIs} 
         size="sm" 
         className="ml-2"
-        disabled={!selectedRouteId}
+        disabled={!selectedRouteId || sending}
       >
-        Send to RideWithGPS
+        {sending ? (
+          <>
+            <Loader2 className="animate-spin mr-2 h-4 w-4" />
+            Sending...
+          </>
+        ) : (
+          'Send to RideWithGPS'
+        )}
       </Button>
     </div>
   )
