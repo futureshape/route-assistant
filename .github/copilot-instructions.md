@@ -108,6 +108,7 @@ This is a full-stack web application that helps cyclists explore routes and find
 - **Avoid inline SVGs** - check Lucide library first before creating custom icons
 - **Loading indicators**: Use `<Loader2 className="animate-spin" />` pattern for spinners
 - **Button states**: Follow shadcn/ui button patterns for loading, disabled, and variant states
+- **API call buttons**: All buttons that trigger API calls with potential delays MUST show a loading indicator (spinner) and disable the button during the operation
 - **Form components**: Use shadcn/ui form components (Input, Select, Checkbox, etc.)
 - **Consistent spacing**: Use Tailwind spacing utilities consistently with shadcn/ui
 - **Color system**: Use CSS variables and shadcn/ui color tokens

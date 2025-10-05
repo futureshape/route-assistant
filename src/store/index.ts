@@ -87,6 +87,7 @@ interface UIState {
   showElevation: boolean
   activeAccordionItem: string
   loadingProviderId: string | null // Track which POI provider is currently searching
+  sendingPOIs: boolean // Track if POIs are being sent to RideWithGPS
   setOpen: (open: boolean) => void
   setValue: (value: string) => void
   setRouteSwitchDialog: (dialog: RouteSwitchDialogState) => void
@@ -94,6 +95,7 @@ interface UIState {
   setShowElevation: (show: boolean) => void
   setActiveAccordionItem: (item: string) => void
   setLoadingProviderId: (id: string | null) => void
+  setSendingPOIs: (sending: boolean) => void
 }
 
 // Combined store type with reset functionality
@@ -145,6 +147,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   showElevation: false,
   activeAccordionItem: '',
   loadingProviderId: null,
+  sendingPOIs: false,
 
   // Actions
   setAuthenticated: (authenticated) => set({ authenticated }),
@@ -281,6 +284,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   setShowElevation: (showElevation) => set({ showElevation }),
   setActiveAccordionItem: (activeAccordionItem) => set({ activeAccordionItem }),
   setLoadingProviderId: (loadingProviderId) => set({ loadingProviderId }),
+  setSendingPOIs: (sendingPOIs) => set({ sendingPOIs }),
 
   // Reset function to clear only user-specific data (preserve app-level state)
   resetUserData: () => set({
@@ -317,6 +321,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     showElevation: false,
     activeAccordionItem: '',
     loadingProviderId: null,
+    sendingPOIs: false,
     
     // Preserve app-level state:
     // - googleMapsApiKey & googleMapsApiKeyLoaded (app configuration)

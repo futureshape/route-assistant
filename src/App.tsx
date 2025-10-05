@@ -157,12 +157,14 @@ export default function App(){
     showIntroScreen,
     activeAccordionItem,
     loadingProviderId,
+    sendingPOIs,
     setOpen,
     setValue,
     setRouteSwitchDialog,
     setShowIntroScreen,
     setActiveAccordionItem,
     setLoadingProviderId,
+    setSendingPOIs,
   } = useUI()
 
   // Read route color from CSS variable so it can be themed via CSS
@@ -647,6 +649,7 @@ export default function App(){
       return
     }
     
+    setSendingPOIs(true)
     try {
       const response = await fetchWithCSRFRetry(`/api/route/${selectedRouteId}/pois`, {
         method: 'PATCH',
@@ -669,6 +672,8 @@ export default function App(){
     } catch (error) {
       console.error('Error sending POIs:', error)
       alert('An error occurred while sending POIs to RideWithGPS')
+    } finally {
+      setSendingPOIs(false)
     }
   }
 
@@ -764,6 +769,7 @@ export default function App(){
             selectedCount={Object.values(markerStates).filter(state => state === 'selected').length}
             selectedRouteId={selectedRouteId}
             onSendPOIs={sendPOIsToRideWithGPS}
+            sending={sendingPOIs}
           />
           {selectedRouteId && elevationData.length > 0 && (
             <Button

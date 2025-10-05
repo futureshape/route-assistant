@@ -183,12 +183,14 @@ export const useRouteSwitchDialog = () => useAppStore((state) => state.routeSwit
 export const useShowIntroScreen = () => useAppStore((state) => state.showIntroScreen)
 export const useActiveAccordionItem = () => useAppStore((state) => state.activeAccordionItem)
 export const useLoadingProviderId = () => useAppStore((state) => state.loadingProviderId)
+export const useSendingPOIs = () => useAppStore((state) => state.sendingPOIs)
 export const useSetOpen = () => useAppStore((state) => state.setOpen)
 export const useSetValue = () => useAppStore((state) => state.setValue)
 export const useSetRouteSwitchDialog = () => useAppStore((state) => state.setRouteSwitchDialog)
 export const useSetShowIntroScreen = () => useAppStore((state) => state.setShowIntroScreen)
 export const useSetActiveAccordionItem = () => useAppStore((state) => state.setActiveAccordionItem)
 export const useSetLoadingProviderId = () => useAppStore((state) => state.setLoadingProviderId)
+export const useSetSendingPOIs = () => useAppStore((state) => state.setSendingPOIs)
 
 export const useUI = () => {
   const open = useOpen()
@@ -197,12 +199,14 @@ export const useUI = () => {
   const showIntroScreen = useShowIntroScreen()
   const activeAccordionItem = useActiveAccordionItem()
   const loadingProviderId = useLoadingProviderId()
+  const sendingPOIs = useSendingPOIs()
   const setOpen = useSetOpen()
   const setValue = useSetValue()
   const setRouteSwitchDialog = useSetRouteSwitchDialog()
   const setShowIntroScreen = useSetShowIntroScreen()
   const setActiveAccordionItem = useSetActiveAccordionItem()
   const setLoadingProviderId = useSetLoadingProviderId()
+  const setSendingPOIs = useSetSendingPOIs()
   
   return {
     open,
@@ -211,12 +215,14 @@ export const useUI = () => {
     showIntroScreen,
     activeAccordionItem,
     loadingProviderId,
+    sendingPOIs,
     setOpen,
     setValue,
     setRouteSwitchDialog,
     setShowIntroScreen,
     setActiveAccordionItem,
     setLoadingProviderId,
+    setSendingPOIs,
   }
 }
 
