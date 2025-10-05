@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { fetchWithCSRFRetry } from '@/lib/csrf';
-import { Loader2, X, Check, ChevronsUpDown } from 'lucide-react';
+import { Loader2, X, ChevronsUpDown } from 'lucide-react';
 import { POIProvider, POISearchParams, POIResult, POISearchFormProps } from '@/lib/poi-providers';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -53,14 +53,6 @@ const OSMSearchForm: React.FC<POISearchFormProps> = ({ onSearch, disabled, loadi
 
   const handleSearch = () => {
     onSearch({ textQuery: selectedAmenities.join(',') });
-  };
-
-  const handleSelectAll = () => {
-    setSelectedAmenities(PRESET_AMENITIES.map(a => a.value));
-  };
-
-  const handleClearAll = () => {
-    setSelectedAmenities([]);
   };
 
   const selectedAmenityObjects = selectedAmenities.map(value => 
