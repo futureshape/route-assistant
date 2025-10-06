@@ -1,8 +1,10 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 
-// Database file path - stored in the project root
-const DB_PATH = path.join(__dirname, 'route-assistant.db');
+// Database file path - configurable via environment variable
+// Default: project root for development
+// Production: set DB_PATH env var to point to mounted persistent storage
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'route-assistant.db');
 
 // Initialize database connection
 let db = null;

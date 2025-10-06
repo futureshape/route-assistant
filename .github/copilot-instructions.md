@@ -179,6 +179,7 @@ This is a full-stack web application that helps cyclists explore routes and find
 - `RIDEWITHGPS_CLIENT_SECRET`: RideWithGPS OAuth client secret
 - `GOOGLE_MAPS_API_KEY`: Google Maps JavaScript API key
 - `SESSION_SECRET`: Express session secret
+- `DB_PATH`: Database file path (optional - defaults to project root, set for production mounted storage)
 
 ## Development Commands
 - `npm run dev`: Start development server (Vite + Express)
