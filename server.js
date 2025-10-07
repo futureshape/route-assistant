@@ -109,7 +109,7 @@ let viteServer = null; // in dev, populated with Vite middleware
 // API reference: https://developers.google.com/maps/documentation/places/web-service/nearby-search
 // Include coordinates so the frontend can render markers
 // Include editorialSummary for description field
-const GOOGLE_PLACES_FIELDMASK = 'places.displayName,places.googleMapsUri,places.location,places.primaryType,places.editorialSummary,places.regularOpeningHours.weekdayDescriptions,places.currentOpeningHours.weekdayDescriptions,places.currentOpeningHours.openNow';
+const GOOGLE_PLACES_FIELDMASK = 'places.displayName,places.googleMapsUri,places.location,places.primaryType,places.editorialSummary,places.regularOpeningHours.weekdayDescriptions,places.currentOpeningHours.weekdayDescriptions';
 
 // Strict helper: convert route.track_points -> [[lat,lng],...]
 // Per user instruction, do NOT use heuristics. Only consider `route.track_points` if present.
@@ -146,23 +146,18 @@ function logAxiosError(label, err){
 }
 
 function getOpeningHoursSummaryFromPlace(place = {}) {
-  const summaryParts = [];
   const currentOpeningHours = place.currentOpeningHours || {};
   const regularOpeningHours = place.regularOpeningHours || {};
-
-  if (typeof currentOpeningHours.openNow === 'boolean') {
-    summaryParts.push(currentOpeningHours.openNow ? 'Open now' : 'Closed now');
-  }
 
   const descriptions = Array.isArray(currentOpeningHours.weekdayDescriptions) && currentOpeningHours.weekdayDescriptions.length > 0
     ? currentOpeningHours.weekdayDescriptions
     : regularOpeningHours.weekdayDescriptions;
 
   if (Array.isArray(descriptions) && descriptions.length > 0) {
-    summaryParts.push(`Hours: ${descriptions.join('; ')}`);
+    return `Hours:\n${descriptions.join('\n')}`;
   }
 
-  return summaryParts.join('. ');
+  return '';
 }
 
 if (!process.env.RWGPS_CLIENT_ID || !process.env.RWGPS_CLIENT_SECRET || !process.env.GOOGLE_API_KEY) {
@@ -890,7 +885,35 @@ app.post('/api/poi-search/google-maps', csrfProtection, requireAuth, requireAcce
     // Log response status and small snippet for debugging
     const respSnippet = r && r.data ? JSON.stringify(r.data).slice(0,2000) : `(no body)`;
     console.info('[Google Maps POI] Google response status=', r.status, 'snippet=', respSnippet.substring(0,1000));
-    res.json(r.data);
+    
+    // Transform Google Places response to our POI format
+    const places = r.data.places || [];
+    const transformedPlaces = places.map(place => {
+      const location = place.location || {};
+      const primaryType = place.primaryType || 'establishment';
+      
+      // Build description using the shared helper
+      const openingHoursSummary = getOpeningHoursSummaryFromPlace(place);
+      const descriptionParts = [];
+      if (openingHoursSummary) descriptionParts.push(openingHoursSummary);
+      if (place.editorialSummary?.text) descriptionParts.push(place.editorialSummary.text);
+      
+      return {
+        displayName: place.displayName,
+        name: place.displayName?.text || '',
+        location: location,
+        lat: location.latitude,
+        lng: location.longitude,
+        primaryType: primaryType,
+        poi_type_name: mapGoogleTypeToRideWithGPS(primaryType),
+        description: descriptionParts.join('\n\n'),
+        googleMapsUri: place.googleMapsUri || '',
+        url: place.googleMapsUri || '',
+        provider: 'google'
+      };
+    });
+    
+    res.json({ places: transformedPlaces });
   } catch (err) {
   logAxiosError('Google Maps POI search error', err);
   // Return error details to client for debugging (sanitized)
@@ -1124,7 +1147,7 @@ app.post('/api/poi-from-place-id', csrfProtection, requireAuth, requireAccess, a
     const response = await axios.get(url, {
       headers: {
         'X-Goog-Api-Key': googleApiKey,
-        'X-Goog-FieldMask': 'displayName,location,types,formattedAddress,websiteUri,editorialSummary,regularOpeningHours.weekdayDescriptions,currentOpeningHours.weekdayDescriptions,currentOpeningHours.openNow'
+        'X-Goog-FieldMask': 'displayName,location,types,formattedAddress,websiteUri,editorialSummary,regularOpeningHours.weekdayDescriptions,currentOpeningHours.weekdayDescriptions'
       }
     });
 
