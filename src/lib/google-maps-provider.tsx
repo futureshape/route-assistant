@@ -241,9 +241,7 @@ export class GoogleMapsProvider implements POIProvider {
         parts.push(place.editorialSummary.text);
       }
 
-      if (parts.length === 0 && place.description) {
-        parts.push(place.description);
-      }
+      // Removed fallback to place.description, as this property is not provided by the API.
 
       return parts.join('\n\n');
     };
