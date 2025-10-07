@@ -109,7 +109,7 @@ let viteServer = null; // in dev, populated with Vite middleware
 // API reference: https://developers.google.com/maps/documentation/places/web-service/nearby-search
 // Include coordinates so the frontend can render markers
 // Include editorialSummary for description field
-const GOOGLE_PLACES_FIELDMASK = 'places.displayName,places.googleMapsUri,places.location,places.primaryType,places.editorialSummary';
+const GOOGLE_PLACES_FIELDMASK = 'places.displayName,places.googleMapsUri,places.location,places.primaryType,places.editorialSummary,places.regularOpeningHours.weekdayDescriptions,places.currentOpeningHours.weekdayDescriptions,places.currentOpeningHours.openNow';
 
 // Strict helper: convert route.track_points -> [[lat,lng],...]
 // Per user instruction, do NOT use heuristics. Only consider `route.track_points` if present.
@@ -143,6 +143,26 @@ function logAxiosError(label, err){
   } else {
     console.error(label, err && err.message ? err.message : err);
   }
+}
+
+function getOpeningHoursSummaryFromPlace(place = {}) {
+  const summaryParts = [];
+  const currentOpeningHours = place.currentOpeningHours || {};
+  const regularOpeningHours = place.regularOpeningHours || {};
+
+  if (typeof currentOpeningHours.openNow === 'boolean') {
+    summaryParts.push(currentOpeningHours.openNow ? 'Open now' : 'Closed now');
+  }
+
+  const descriptions = Array.isArray(currentOpeningHours.weekdayDescriptions) && currentOpeningHours.weekdayDescriptions.length > 0
+    ? currentOpeningHours.weekdayDescriptions
+    : regularOpeningHours.weekdayDescriptions;
+
+  if (Array.isArray(descriptions) && descriptions.length > 0) {
+    summaryParts.push(`Hours: ${descriptions.join('; ')}`);
+  }
+
+  return summaryParts.join('. ');
 }
 
 if (!process.env.RWGPS_CLIENT_ID || !process.env.RWGPS_CLIENT_SECRET || !process.env.GOOGLE_API_KEY) {
@@ -1104,7 +1124,7 @@ app.post('/api/poi-from-place-id', csrfProtection, requireAuth, requireAccess, a
     const response = await axios.get(url, {
       headers: {
         'X-Goog-Api-Key': googleApiKey,
-        'X-Goog-FieldMask': 'displayName,location,types,formattedAddress,websiteUri,editorialSummary'
+        'X-Goog-FieldMask': 'displayName,location,types,formattedAddress,websiteUri,editorialSummary,regularOpeningHours.weekdayDescriptions,currentOpeningHours.weekdayDescriptions,currentOpeningHours.openNow'
       }
     });
 
@@ -1119,12 +1139,18 @@ app.post('/api/poi-from-place-id', csrfProtection, requireAuth, requireAccess, a
     const primaryType = place.types?.[0] || 'establishment';
     
     // Use the existing mapping function
+    const openingHoursSummary = getOpeningHoursSummaryFromPlace(place);
+    const descriptionParts = [];
+    if (openingHoursSummary) descriptionParts.push(openingHoursSummary);
+    if (place.editorialSummary?.text) descriptionParts.push(place.editorialSummary.text);
+    else if (place.formattedAddress) descriptionParts.push(place.formattedAddress);
+
     const poi = {
       name: place.displayName?.text || 'Unknown Place',
       lat: place.location.latitude,
       lng: place.location.longitude,
       poi_type_name: mapGoogleTypeToRideWithGPS(primaryType),
-      description: place.editorialSummary?.text || place.formattedAddress || '',
+      description: descriptionParts.join('\n\n'),
       url: place.websiteUri || '',
       provider: 'google'
     };

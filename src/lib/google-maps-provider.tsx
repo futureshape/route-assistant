@@ -217,7 +217,36 @@ export class GoogleMapsProvider implements POIProvider {
       websiteUri?: string
       editorialSummary?: { text?: string }
       googleMapsUri?: string
+      regularOpeningHours?: { weekdayDescriptions?: string[] }
+      currentOpeningHours?: { weekdayDescriptions?: string[]; openNow?: boolean }
     }
+
+    const buildDescription = (place: GooglePlace): string => {
+      const parts: string[] = [];
+
+      const openNow = place.currentOpeningHours?.openNow;
+      if (typeof openNow === 'boolean') {
+        parts.push(openNow ? 'Open now' : 'Closed now');
+      }
+
+      const descriptions = place.currentOpeningHours?.weekdayDescriptions?.length
+        ? place.currentOpeningHours.weekdayDescriptions
+        : place.regularOpeningHours?.weekdayDescriptions;
+
+      if (descriptions && descriptions.length > 0) {
+        parts.push(`Hours: ${descriptions.join('; ')}`);
+      }
+
+      if (place.editorialSummary?.text) {
+        parts.push(place.editorialSummary.text);
+      }
+
+      if (parts.length === 0 && place.description) {
+        parts.push(place.description);
+      }
+
+      return parts.join('\n\n');
+    };
 
     const data = await response.json();
     const places: GooglePlace[] = data.places || [];
@@ -234,7 +263,7 @@ export class GoogleMapsProvider implements POIProvider {
         lat: parseFloat(String(lat)),
         lng: parseFloat(String(lng)),
         poi_type_name: mapGoogleTypeToRideWithGPS(primaryType),
-        description: p.editorialSummary?.text || '',
+        description: buildDescription(p),
         url: p.googleMapsUri || '',
         provider: this.id
       };
