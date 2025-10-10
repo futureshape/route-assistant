@@ -109,7 +109,8 @@ let viteServer = null; // in dev, populated with Vite middleware
 // API reference: https://developers.google.com/maps/documentation/places/web-service/nearby-search
 // Include coordinates so the frontend can render markers
 // Include editorialSummary for description field
-const GOOGLE_PLACES_FIELDMASK = 'places.displayName,places.googleMapsUri,places.location,places.primaryType,places.editorialSummary';
+// Per planning-oriented UX, we only use "regular" hours and do not request/consider "current" hours
+const GOOGLE_PLACES_FIELDMASK = 'places.displayName,places.googleMapsUri,places.location,places.primaryType,places.editorialSummary,places.regularOpeningHours.weekdayDescriptions';
 
 // Strict helper: convert route.track_points -> [[lat,lng],...]
 // Per user instruction, do NOT use heuristics. Only consider `route.track_points` if present.
@@ -143,6 +144,18 @@ function logAxiosError(label, err){
   } else {
     console.error(label, err && err.message ? err.message : err);
   }
+}
+
+function getOpeningHoursSummaryFromPlace(place = {}) {
+  // Use ONLY regular opening hours for planning purposes; ignore currentOpeningHours entirely
+  const regularOpeningHours = place.regularOpeningHours || {};
+  const descriptions = regularOpeningHours.weekdayDescriptions;
+
+  if (Array.isArray(descriptions) && descriptions.length > 0) {
+    return `Regular hours:\n${descriptions.join('\n')}`;
+  }
+
+  return '';
 }
 
 if (!process.env.RWGPS_CLIENT_ID || !process.env.RWGPS_CLIENT_SECRET || !process.env.GOOGLE_API_KEY) {
@@ -870,7 +883,35 @@ app.post('/api/poi-search/google-maps', csrfProtection, requireAuth, requireAcce
     // Log response status and small snippet for debugging
     const respSnippet = r && r.data ? JSON.stringify(r.data).slice(0,2000) : `(no body)`;
     console.info('[Google Maps POI] Google response status=', r.status, 'snippet=', respSnippet.substring(0,1000));
-    res.json(r.data);
+    
+    // Transform Google Places response to our POI format
+    const places = r.data.places || [];
+    const transformedPlaces = places.map(place => {
+      const location = place.location || {};
+      const primaryType = place.primaryType || 'establishment';
+      
+      // Build description using the shared helper
+      const openingHoursSummary = getOpeningHoursSummaryFromPlace(place);
+      const descriptionParts = [];
+      if (openingHoursSummary) descriptionParts.push(openingHoursSummary);
+      if (place.editorialSummary?.text) descriptionParts.push(place.editorialSummary.text);
+      
+      return {
+        displayName: place.displayName,
+        name: place.displayName?.text || '',
+        location: location,
+        lat: location.latitude,
+        lng: location.longitude,
+        primaryType: primaryType,
+        poi_type_name: mapGoogleTypeToRideWithGPS(primaryType),
+        description: descriptionParts.join('\n\n'),
+        googleMapsUri: place.googleMapsUri || '',
+        url: place.googleMapsUri || '',
+        provider: 'google'
+      };
+    });
+    
+    res.json({ places: transformedPlaces });
   } catch (err) {
   logAxiosError('Google Maps POI search error', err);
   // Return error details to client for debugging (sanitized)
@@ -1104,7 +1145,8 @@ app.post('/api/poi-from-place-id', csrfProtection, requireAuth, requireAccess, a
     const response = await axios.get(url, {
       headers: {
         'X-Goog-Api-Key': googleApiKey,
-        'X-Goog-FieldMask': 'displayName,location,types,formattedAddress,websiteUri,editorialSummary'
+        // Use only regularOpeningHours; omit currentOpeningHours entirely
+        'X-Goog-FieldMask': 'displayName,location,types,formattedAddress,websiteUri,editorialSummary,regularOpeningHours.weekdayDescriptions'
       }
     });
 
@@ -1119,12 +1161,18 @@ app.post('/api/poi-from-place-id', csrfProtection, requireAuth, requireAccess, a
     const primaryType = place.types?.[0] || 'establishment';
     
     // Use the existing mapping function
+    const openingHoursSummary = getOpeningHoursSummaryFromPlace(place);
+    const descriptionParts = [];
+    if (openingHoursSummary) descriptionParts.push(openingHoursSummary);
+    if (place.editorialSummary?.text) descriptionParts.push(place.editorialSummary.text);
+    else if (place.formattedAddress) descriptionParts.push(place.formattedAddress);
+
     const poi = {
       name: place.displayName?.text || 'Unknown Place',
       lat: place.location.latitude,
       lng: place.location.longitude,
       poi_type_name: mapGoogleTypeToRideWithGPS(primaryType),
-      description: place.editorialSummary?.text || place.formattedAddress || '',
+      description: descriptionParts.join('\n\n'),
       url: place.websiteUri || '',
       provider: 'google'
     };
