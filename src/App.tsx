@@ -13,7 +13,6 @@ import {
   SidebarInset,
   SidebarProvider,
   SidebarTrigger,
-  useSidebar,
 } from '@/components/ui/sidebar'
 import { Loader2 } from 'lucide-react'
 import { POIProvider, POISearchParams } from '@/lib/poi-providers'
@@ -29,7 +28,6 @@ import { ElevationChart } from '@/features/elevation'
 import { POISearch, POISummary } from '@/features/poi'
 import { useAuth, useRoutes, usePOI, useMap, useElevation, useUI, useResetStore } from '@/store/selectors'
 import { useUnsavedChanges } from '@/hooks/use-unsaved-changes'
-import { useIsMobile } from '@/hooks/use-mobile'
 import type { Route, POI, RouteCoordinate } from '@/store/types'
 import type { 
   SessionResponse, 
@@ -89,229 +87,6 @@ const POI_TYPE_NAMES: Record<string, string> = {
   transit: 'Transit Center',
   bikeshare: 'Bike Share'
 };
-
-// Internal component that uses the sidebar context
-function AppContent({
-  authenticated,
-  user,
-  routes,
-  routesLoading,
-  selectedRouteId,
-  value,
-  open,
-  routePath,
-  routeColor,
-  markers,
-  markerStates,
-  selectedMarker,
-  poiProviders,
-  activeAccordionItem,
-  loadingProviderId,
-  sendingPOIs,
-  elevationData,
-  showElevation,
-  mapCenter,
-  mapZoom,
-  chartHoverPosition,
-  googleMapsApiKey,
-  googleMapsApiKeyLoaded,
-  routeFullyLoaded,
-  showIntroScreen,
-  routeSwitchDialog,
-  handleAuthChange,
-  setOpen,
-  setValue,
-  clearRouteSelection,
-  setElevationData,
-  setShowElevation,
-  handleRouteSwitch,
-  setActiveAccordionItem,
-  handlePOISearch,
-  clearSuggestedPOIs,
-  sendPOIsToRideWithGPS,
-  setShowIntroScreen,
-  setMapCenter,
-  setMapZoom,
-  handleMarkerClick,
-  setSelectedMarker,
-  updateMarkerState,
-  updatePOI,
-  handleGooglePlacesPOIClick,
-  getMarkerKey,
-  mapInstanceRef,
-  handleChartMouseMove,
-  handleChartMouseLeave,
-  handleRouteSwitchAction,
-  POI_TYPE_NAMES,
-}: any) {
-  const { isMobile, setOpenMobile } = useSidebar()
-
-  // Wrapper for handlePOISearch that closes sidebar on mobile after search
-  const handlePOISearchWithSidebarClose = async (provider: POIProvider, params: POISearchParams) => {
-    await handlePOISearch(provider, params)
-    // Close sidebar on mobile after successful search
-    if (isMobile) {
-      setOpenMobile(false)
-    }
-  }
-
-  return (
-    <>
-      <Sidebar>
-        <SidebarHeader>
-          <AuthHeader 
-            authenticated={authenticated} 
-            user={user}
-            onAuthChange={handleAuthChange} 
-          />
-        </SidebarHeader>
-        <SidebarContent>
-        {authenticated && (
-          <SidebarGroup>
-            <SidebarGroupLabel>Your Routes</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <RouteSelector
-                routes={routes}
-                selectedRouteId={selectedRouteId}
-                value={value}
-                open={open}
-                routesLoading={routesLoading}
-                onOpenChange={setOpen}
-                onValueChange={(newValue) => {
-                  if (newValue === "" && value !== "") {
-                    // Clearing route selection
-                                          clearRouteSelection()
-                    setElevationData([])
-                    setShowElevation(false)
-                  }
-                  setValue(newValue)
-                }}
-                onRouteSelect={handleRouteSwitch}
-              />
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
-        
-        <SidebarGroup>
-          <SidebarGroupLabel>Search POIs along route</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <POISearch
-              poiProviders={poiProviders}
-              activeAccordionItem={activeAccordionItem}
-              routePath={routePath}
-              mapBounds={mapInstanceRef.current?.getBounds() ? {
-                north: mapInstanceRef.current.getBounds()!.getNorthEast().lat(),
-                south: mapInstanceRef.current.getBounds()!.getSouthWest().lat(),
-                east: mapInstanceRef.current.getBounds()!.getNorthEast().lng(),
-                west: mapInstanceRef.current.getBounds()!.getSouthWest().lng()
-              } : null}
-              loadingProviderId={loadingProviderId}
-              onAccordionChange={setActiveAccordionItem}
-              onPOISearch={handlePOISearchWithSidebarClose}
-              onClearMarkers={clearSuggestedPOIs}
-            />
-          </SidebarGroupContent>
-        </SidebarGroup>
-      </SidebarContent>
-    </Sidebar>
-    <SidebarInset>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <SidebarTrigger />
-        <POISummary
-          selectedCount={Object.values(markerStates).filter(state => state === 'selected').length}
-          selectedRouteId={selectedRouteId}
-          onSendPOIs={sendPOIsToRideWithGPS}
-          sending={sendingPOIs}
-        />
-        {selectedRouteId && elevationData.length > 0 && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowElevation(!showElevation)}
-            className="ml-auto"
-            title={showElevation ? 'Hide Elevation' : 'Show Elevation'}
-          >
-            <Mountain className="h-4 w-4 md:mr-2" />
-            <span className="hidden md:inline">
-              {showElevation ? 'Hide' : 'Show'} Elevation
-            </span>
-          </Button>
-        )}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setShowIntroScreen(true)}
-          className={selectedRouteId && elevationData.length > 0 ? "ml-2" : "ml-auto"}
-          title="Help"
-        >
-          <HelpCircle className="h-4 w-4" />
-        </Button>
-      </header>
-      <div className="flex flex-col flex-1">
-        <div className="flex-1 relative">
-          {googleMapsApiKeyLoaded ? (
-            <MapContainer
-              googleMapsApiKey={googleMapsApiKey}
-              mapCenter={mapCenter}
-              mapZoom={mapZoom}
-              routePath={routePath}
-              routeColor={routeColor}
-              markers={markers}
-              markerStates={markerStates}
-              selectedMarker={selectedMarker}
-              chartHoverPosition={chartHoverPosition}
-              selectedRouteId={selectedRouteId}
-              routeFullyLoaded={routeFullyLoaded}
-              poiTypeNames={POI_TYPE_NAMES}
-              onCameraChange={(center, zoom) => {
-                setMapCenter(center)
-                setMapZoom(zoom)
-              }}
-              onMarkerClick={handleMarkerClick}
-              onCloseInfoWindow={() => setSelectedMarker(null)}
-              onUpdateMarkerState={updateMarkerState}
-              onPOIUpdate={updatePOI}
-              onGooglePlacesPOIClick={handleGooglePlacesPOIClick}
-              getMarkerKey={getMarkerKey}
-              mapInstanceRef={mapInstanceRef}
-            />
-          ) : (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center space-y-4">
-                <Loader2 className="animate-spin mx-auto text-blue-600 h-8 w-8" />
-                <p className="text-sm text-muted-foreground">Loading Google Maps...</p>
-              </div>
-            </div>
-          )}
-        </div>
-        {selectedRouteId && elevationData.length > 0 && (
-          <ElevationChart
-            elevationData={elevationData}
-            showElevation={showElevation}
-            routeColor={routeColor}
-            onShowElevationChange={setShowElevation}
-            onChartMouseMove={handleChartMouseMove}
-            onChartMouseLeave={handleChartMouseLeave}
-          />
-        )}
-      </div>
-    </SidebarInset>
-    <IntroScreen 
-      open={showIntroScreen} 
-      onOpenChange={setShowIntroScreen} 
-    />
-    
-    {/* Route Switch Confirmation Dialog */}
-    <RouteSwitchDialog
-      show={routeSwitchDialog.show}
-      newRouteName={routeSwitchDialog.newRoute?.name || ''}
-      currentRouteName={routeSwitchDialog.currentRouteName}
-      selectedCount={routeSwitchDialog.selectedCount}
-      onAction={handleRouteSwitchAction}
-    />
-  </>
-  )
-}
 
 export default function App(){
   // Get state and actions from Zustand store - using combined selectors
@@ -950,64 +725,163 @@ export default function App(){
     />
   )
 
-
   return (
     <>
       {emailDialog}
       <SidebarProvider>
-        <AppContent
-          authenticated={authenticated}
-          user={user}
-          routes={routes}
-          routesLoading={routesLoading}
-          selectedRouteId={selectedRouteId}
-          value={value}
-          open={open}
-          routePath={routePath}
-          routeColor={routeColor}
-          markers={markers}
-          markerStates={markerStates}
-          selectedMarker={selectedMarker}
-          poiProviders={poiProviders}
-          activeAccordionItem={activeAccordionItem}
-          loadingProviderId={loadingProviderId}
-          sendingPOIs={sendingPOIs}
-          elevationData={elevationData}
-          showElevation={showElevation}
-          mapCenter={mapCenter}
-          mapZoom={mapZoom}
-          chartHoverPosition={chartHoverPosition}
-          googleMapsApiKey={googleMapsApiKey}
-          googleMapsApiKeyLoaded={googleMapsApiKeyLoaded}
-          routeFullyLoaded={routeFullyLoaded}
-          showIntroScreen={showIntroScreen}
-          routeSwitchDialog={routeSwitchDialog}
-          handleAuthChange={handleAuthChange}
-          setOpen={setOpen}
-          setValue={setValue}
-          clearRouteSelection={clearRouteSelection}
-          setElevationData={setElevationData}
-          setShowElevation={setShowElevation}
-          handleRouteSwitch={handleRouteSwitch}
-          setActiveAccordionItem={setActiveAccordionItem}
-          handlePOISearch={handlePOISearch}
-          clearSuggestedPOIs={clearSuggestedPOIs}
-          sendPOIsToRideWithGPS={sendPOIsToRideWithGPS}
-          setShowIntroScreen={setShowIntroScreen}
-          setMapCenter={setMapCenter}
-          setMapZoom={setMapZoom}
-          handleMarkerClick={handleMarkerClick}
-          setSelectedMarker={setSelectedMarker}
-          updateMarkerState={updateMarkerState}
-          updatePOI={updatePOI}
-          handleGooglePlacesPOIClick={handleGooglePlacesPOIClick}
-          getMarkerKey={getMarkerKey}
-          mapInstanceRef={mapInstanceRef}
-          handleChartMouseMove={handleChartMouseMove}
-          handleChartMouseLeave={handleChartMouseLeave}
-          handleRouteSwitchAction={handleRouteSwitchAction}
-          POI_TYPE_NAMES={POI_TYPE_NAMES}
-        />
+        <Sidebar>
+          <SidebarHeader>
+            <AuthHeader 
+              authenticated={authenticated} 
+              user={user}
+              onAuthChange={handleAuthChange} 
+            />
+          </SidebarHeader>
+          <SidebarContent>
+          {authenticated && (
+            <SidebarGroup>
+              <SidebarGroupLabel>Your Routes</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <RouteSelector
+                  routes={routes}
+                  selectedRouteId={selectedRouteId}
+                  value={value}
+                  open={open}
+                  routesLoading={routesLoading}
+                  onOpenChange={setOpen}
+                  onValueChange={(newValue) => {
+                    if (newValue === "" && value !== "") {
+                      // Clearing route selection
+                                            clearRouteSelection()
+                      setElevationData([])
+                      setShowElevation(false)
+                    }
+                    setValue(newValue)
+                  }}
+                  onRouteSelect={handleRouteSwitch}
+                />
+              </SidebarGroupContent>
+            </SidebarGroup>
+          )}
+          
+          <SidebarGroup>
+            <SidebarGroupLabel>Search POIs along route</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <POISearch
+                poiProviders={poiProviders}
+                activeAccordionItem={activeAccordionItem}
+                routePath={routePath}
+                mapBounds={mapInstanceRef.current?.getBounds() ? {
+                  north: mapInstanceRef.current.getBounds()!.getNorthEast().lat(),
+                  south: mapInstanceRef.current.getBounds()!.getSouthWest().lat(),
+                  east: mapInstanceRef.current.getBounds()!.getNorthEast().lng(),
+                  west: mapInstanceRef.current.getBounds()!.getSouthWest().lng()
+                } : null}
+                loadingProviderId={loadingProviderId}
+                onAccordionChange={setActiveAccordionItem}
+                onPOISearch={handlePOISearch}
+                onClearMarkers={clearSuggestedPOIs}
+              />
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
+      </Sidebar>
+      <SidebarInset>
+        <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+          <SidebarTrigger />
+          <POISummary
+            selectedCount={Object.values(markerStates).filter(state => state === 'selected').length}
+            selectedRouteId={selectedRouteId}
+            onSendPOIs={sendPOIsToRideWithGPS}
+            sending={sendingPOIs}
+          />
+          {selectedRouteId && elevationData.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowElevation(!showElevation)}
+              className="ml-auto"
+              title={showElevation ? 'Hide Elevation' : 'Show Elevation'}
+            >
+              <Mountain className="h-4 w-4 md:mr-2" />
+              <span className="hidden md:inline">
+                {showElevation ? 'Hide' : 'Show'} Elevation
+              </span>
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowIntroScreen(true)}
+            className={selectedRouteId && elevationData.length > 0 ? "ml-2" : "ml-auto"}
+            title="Help"
+          >
+            <HelpCircle className="h-4 w-4" />
+          </Button>
+        </header>
+        <div className="flex flex-col flex-1">
+          <div className="flex-1 relative">
+            {googleMapsApiKeyLoaded ? (
+              <MapContainer
+                googleMapsApiKey={googleMapsApiKey}
+                mapCenter={mapCenter}
+                mapZoom={mapZoom}
+                routePath={routePath}
+                routeColor={routeColor}
+                markers={markers}
+                markerStates={markerStates}
+                selectedMarker={selectedMarker}
+                chartHoverPosition={chartHoverPosition}
+                selectedRouteId={selectedRouteId}
+                routeFullyLoaded={routeFullyLoaded}
+                poiTypeNames={POI_TYPE_NAMES}
+                onCameraChange={(center, zoom) => {
+                  setMapCenter(center)
+                  setMapZoom(zoom)
+                }}
+                onMarkerClick={handleMarkerClick}
+                onCloseInfoWindow={() => setSelectedMarker(null)}
+                onUpdateMarkerState={updateMarkerState}
+                onPOIUpdate={updatePOI}
+                onGooglePlacesPOIClick={handleGooglePlacesPOIClick}
+                getMarkerKey={getMarkerKey}
+                mapInstanceRef={mapInstanceRef}
+              />
+            ) : (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center space-y-4">
+                  <Loader2 className="animate-spin mx-auto text-blue-600 h-8 w-8" />
+                  <p className="text-gray-600">Loading Google Maps...</p>
+                </div>
+              </div>
+            )}
+          </div>
+          
+          {selectedRouteId && elevationData.length > 0 && (
+            <ElevationChart
+              elevationData={elevationData}
+              showElevation={showElevation}
+              routeColor={routeColor}
+              onShowElevationChange={setShowElevation}
+              onChartMouseMove={handleChartMouseMove}
+              onChartMouseLeave={handleChartMouseLeave}
+            />
+          )}
+        </div>
+      </SidebarInset>
+      <IntroScreen 
+        open={showIntroScreen} 
+        onOpenChange={setShowIntroScreen} 
+      />
+      
+      {/* Route Switch Confirmation Dialog */}
+      <RouteSwitchDialog
+        show={routeSwitchDialog.show}
+        newRouteName={routeSwitchDialog.newRoute?.name || ''}
+        currentRouteName={routeSwitchDialog.currentRouteName}
+        selectedCount={routeSwitchDialog.selectedCount}
+        onAction={handleRouteSwitchAction}
+      />
     </SidebarProvider>
     </>
   )
