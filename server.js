@@ -109,7 +109,8 @@ let viteServer = null; // in dev, populated with Vite middleware
 // API reference: https://developers.google.com/maps/documentation/places/web-service/nearby-search
 // Include coordinates so the frontend can render markers
 // Include editorialSummary for description field
-const GOOGLE_PLACES_FIELDMASK = 'places.displayName,places.googleMapsUri,places.location,places.primaryType,places.editorialSummary,places.regularOpeningHours.weekdayDescriptions,places.currentOpeningHours.weekdayDescriptions';
+// Per planning-oriented UX, we only use "regular" hours and do not request/consider "current" hours
+const GOOGLE_PLACES_FIELDMASK = 'places.displayName,places.googleMapsUri,places.location,places.primaryType,places.editorialSummary,places.regularOpeningHours.weekdayDescriptions';
 
 // Strict helper: convert route.track_points -> [[lat,lng],...]
 // Per user instruction, do NOT use heuristics. Only consider `route.track_points` if present.
@@ -146,15 +147,12 @@ function logAxiosError(label, err){
 }
 
 function getOpeningHoursSummaryFromPlace(place = {}) {
-  const currentOpeningHours = place.currentOpeningHours || {};
+  // Use ONLY regular opening hours for planning purposes; ignore currentOpeningHours entirely
   const regularOpeningHours = place.regularOpeningHours || {};
-
-  const descriptions = Array.isArray(currentOpeningHours.weekdayDescriptions) && currentOpeningHours.weekdayDescriptions.length > 0
-    ? currentOpeningHours.weekdayDescriptions
-    : regularOpeningHours.weekdayDescriptions;
+  const descriptions = regularOpeningHours.weekdayDescriptions;
 
   if (Array.isArray(descriptions) && descriptions.length > 0) {
-    return `Hours:\n${descriptions.join('\n')}`;
+    return `Regular hours:\n${descriptions.join('\n')}`;
   }
 
   return '';
@@ -1147,7 +1145,8 @@ app.post('/api/poi-from-place-id', csrfProtection, requireAuth, requireAccess, a
     const response = await axios.get(url, {
       headers: {
         'X-Goog-Api-Key': googleApiKey,
-        'X-Goog-FieldMask': 'displayName,location,types,formattedAddress,websiteUri,editorialSummary,regularOpeningHours.weekdayDescriptions,currentOpeningHours.weekdayDescriptions'
+        // Use only regularOpeningHours; omit currentOpeningHours entirely
+        'X-Goog-FieldMask': 'displayName,location,types,formattedAddress,websiteUri,editorialSummary,regularOpeningHours.weekdayDescriptions'
       }
     });
 
