@@ -800,10 +800,14 @@ export default function App(){
               variant="outline"
               size="sm"
               onClick={() => setShowElevation(!showElevation)}
-              className="ml-auto"
+              // Remove visible outline/border on mobile, keep outline on md+
+              className="ml-auto border-0 bg-transparent md:border md:bg-background"
+              title={showElevation ? 'Hide Elevation' : 'Show Elevation'}
             >
-              <Mountain className="h-4 w-4 mr-2" />
-              {showElevation ? 'Hide' : 'Show'} Elevation
+              <Mountain className="h-4 w-4 md:mr-2" />
+              <span className="hidden md:inline">
+                {showElevation ? 'Hide' : 'Show'} Elevation
+              </span>
             </Button>
           )}
           <Button
