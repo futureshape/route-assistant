@@ -7,66 +7,68 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
 
-// Preset OSM amenity tags relevant for cycling
-// Based on https://wiki.openstreetmap.org/wiki/Key:amenity
-const PRESET_AMENITIES = [
-  { value: 'toilets', label: 'Toilets', description: 'Essential for breaks during long rides' },
-  { value: 'drinking_water', label: 'Drinking Water', description: 'Refill water bottles / hydration station' },
-  { value: 'water_point', label: 'Water Point', description: 'Large volume water source' },
-  { value: 'shelter', label: 'Shelter', description: 'Protection from rain, wind, or sun' },
-  { value: 'bench', label: 'Bench', description: 'Somewhere to sit and rest' },
-  { value: 'shower', label: 'Shower', description: 'Useful for overnight stops' },
-  { value: 'bicycle_parking', label: 'Bicycle Parking', description: 'Secure/marked bike parking' },
-  { value: 'bicycle_repair_station', label: 'Bike Repair Station', description: 'Basic tools (pump, wrench)' },
-  { value: 'compressed_air', label: 'Compressed Air', description: 'For pumping up tires' },
-  { value: 'fuel', label: 'Fuel Station', description: 'Often sells snacks, water, sometimes bike items' },
-  { value: 'restaurant', label: 'Restaurant', description: 'Places to eat and recharge' },
-  { value: 'cafe', label: 'Cafe', description: 'Coffee and light meals' },
-  { value: 'fast_food', label: 'Fast Food', description: 'Quick meals on the go' },
-  { value: 'pharmacy', label: 'Pharmacy', description: 'First-aid supplies, painkillers, etc.' },
-  { value: 'hospital', label: 'Hospital', description: 'In case of injury or health emergency' },
-  { value: 'clinic', label: 'Clinic', description: 'Medical care facility' },
-  { value: 'doctors', label: 'Doctor', description: 'Medical professional' },
-  { value: 'parking', label: 'Parking', description: 'Rest area with space for pulling off road' },
-  { value: 'post_office', label: 'Post Office', description: 'For sending or receiving items' },
-  { value: 'vending_machine', label: 'Vending Machine', description: 'Quick snacks / drinks on the go' },
-  { value: 'bus_station', label: 'Bus Station', description: 'Backup transport option' },
-  { value: 'ferry_terminal', label: 'Ferry Terminal', description: 'Alternate transport option' },
+// Preset OSM tags relevant for cycling, using key=value consistently
+// amenity=* reference: https://wiki.openstreetmap.org/wiki/Key:amenity
+// railway=* reference: https://wiki.openstreetmap.org/wiki/Key:railway
+const PRESET_TAGS = [
+  { value: 'amenity=toilets', label: 'Toilets', description: 'Essential for breaks during long rides' },
+  { value: 'amenity=drinking_water', label: 'Drinking Water', description: 'Refill water bottles / hydration station' },
+  { value: 'amenity=water_point', label: 'Water Point', description: 'Large volume water source' },
+  { value: 'amenity=shelter', label: 'Shelter', description: 'Protection from rain, wind, or sun' },
+  { value: 'amenity=bench', label: 'Bench', description: 'Somewhere to sit and rest' },
+  { value: 'amenity=shower', label: 'Shower', description: 'Useful for overnight stops' },
+  { value: 'amenity=bicycle_parking', label: 'Bicycle Parking', description: 'Secure/marked bike parking' },
+  { value: 'amenity=bicycle_repair_station', label: 'Bike Repair Station', description: 'Basic tools (pump, wrench)' },
+  { value: 'amenity=compressed_air', label: 'Compressed Air', description: 'For pumping up tires' },
+  { value: 'amenity=fuel', label: 'Fuel Station', description: 'Often sells snacks, water, sometimes bike items' },
+  { value: 'amenity=restaurant', label: 'Restaurant', description: 'Places to eat and recharge' },
+  { value: 'amenity=cafe', label: 'Cafe', description: 'Coffee and light meals' },
+  { value: 'amenity=fast_food', label: 'Fast Food', description: 'Quick meals on the go' },
+  { value: 'amenity=pharmacy', label: 'Pharmacy', description: 'First-aid supplies, painkillers, etc.' },
+  { value: 'amenity=hospital', label: 'Hospital', description: 'In case of injury or health emergency' },
+  { value: 'amenity=clinic', label: 'Clinic', description: 'Medical care facility' },
+  { value: 'amenity=doctors', label: 'Doctor', description: 'Medical professional' },
+  { value: 'amenity=parking', label: 'Parking', description: 'Rest area with space for pulling off road' },
+  { value: 'amenity=post_office', label: 'Post Office', description: 'For sending or receiving items' },
+  { value: 'amenity=vending_machine', label: 'Vending Machine', description: 'Quick snacks / drinks on the go' },
+  { value: 'amenity=bus_station', label: 'Bus Station', description: 'Backup transport option' },
+  { value: 'amenity=ferry_terminal', label: 'Ferry Terminal', description: 'Alternate transport option' },
+  { value: 'railway=station', label: 'Train stations', description: 'Railway stations' },
 ];
 
 // OSM POI Search Form Component
 const OSMSearchForm: React.FC<POISearchFormProps> = ({ onSearch, disabled, loading }) => {
-  const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
 
-  const handleToggleAmenity = (amenity: string) => {
-    setSelectedAmenities(prev => 
-      prev.includes(amenity)
-        ? prev.filter(a => a !== amenity)
-        : [...prev, amenity]
+  const handleToggleTag = (tag: string) => {
+    setSelectedTags(prev => 
+      prev.includes(tag)
+        ? prev.filter(a => a !== tag)
+        : [...prev, tag]
     );
   };
 
-  const handleRemoveAmenity = (amenity: string) => {
-    setSelectedAmenities(prev => prev.filter(a => a !== amenity));
+  const handleRemoveTag = (tag: string) => {
+    setSelectedTags(prev => prev.filter(a => a !== tag));
   };
 
   const handleSearch = () => {
-    onSearch({ textQuery: selectedAmenities.join(',') });
+    onSearch({ textQuery: selectedTags.join(',') });
   };
 
-  const selectedAmenityObjects = selectedAmenities.map(value => 
-    PRESET_AMENITIES.find(amenity => amenity.value === value)
+  const selectedTagObjects = selectedTags.map(value => 
+    PRESET_TAGS.find(tag => tag.value === value)
   ).filter(Boolean);
 
-  const unselectedAmenities = PRESET_AMENITIES.filter(amenity => 
-    !selectedAmenities.includes(amenity.value)
+  const unselectedTags = PRESET_TAGS.filter(tag => 
+    !selectedTags.includes(tag.value)
   );
 
   return (
     <div className="space-y-3">
       
-      {/* Combobox for adding amenities */}
+      {/* Combobox for adding OSM key=value tags */}
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
@@ -76,30 +78,29 @@ const OSMSearchForm: React.FC<POISearchFormProps> = ({ onSearch, disabled, loadi
             className="w-full justify-between"
             disabled={disabled || loading}
           >
-            Add amenity types...
+            Add POI types ...
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
           <Command>
-            <CommandInput placeholder="Search amenity types..." />
+            <CommandInput placeholder="Search POI types ..." />
             <CommandList>
-              <CommandEmpty>No amenity types found.</CommandEmpty>
+              <CommandEmpty>No tags found.</CommandEmpty>
               <CommandGroup>
-                {unselectedAmenities.map((amenity) => (
+                {unselectedTags.map((tag) => (
                   <CommandItem
-                    key={amenity.value}
-                    value={amenity.value}
+                    key={tag.value}
+                    value={tag.value}
+                    keywords={[tag.label, tag.description]}
                     onSelect={() => {
-                      handleToggleAmenity(amenity.value);
+                      handleToggleTag(tag.value);
                       setOpen(false);
                     }}
                   >
                     <div className="flex flex-col">
-                      <span className="font-medium">{amenity.label}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {amenity.description}
-                      </span>
+                      <span className="font-medium">{tag.label}</span>
+
                     </div>
                   </CommandItem>
                 ))}
@@ -109,19 +110,19 @@ const OSMSearchForm: React.FC<POISearchFormProps> = ({ onSearch, disabled, loadi
         </PopoverContent>
       </Popover>
 
-      {/* Selected amenities as tokens/badges */}
-      {selectedAmenities.length > 0 && (
+      {/* Selected tags as tokens/badges */}
+      {selectedTags.length > 0 && (
         <div className="flex flex-wrap gap-1">
-          {selectedAmenityObjects.map((amenity) => (
+          {selectedTagObjects.map((tag) => (
             <Badge
-              key={amenity?.value}
+              key={tag?.value}
               variant="default"
               className="flex items-center gap-1 text-xs"
             >
-              {amenity?.label}
+              {tag?.label}
               <X
                 className="h-3 w-3 cursor-pointer hover:text-destructive"
-                onClick={() => handleRemoveAmenity(amenity?.value || '')}
+                onClick={() => handleRemoveTag(tag?.value || '')}
               />
             </Badge>
           ))}
@@ -131,7 +132,7 @@ const OSMSearchForm: React.FC<POISearchFormProps> = ({ onSearch, disabled, loadi
       <Button 
         onClick={handleSearch} 
         size="sm" 
-        disabled={disabled || loading || selectedAmenities.length === 0} 
+        disabled={disabled || loading || selectedTags.length === 0} 
       >
         {loading ? (
           <>
@@ -158,10 +159,10 @@ export class OSMProvider implements POIProvider {
   }
 
   async searchPOIs(params: POISearchParams): Promise<POIResult[]> {
-    const { textQuery, encodedPolyline, mapBounds } = params;
+  const { textQuery, encodedPolyline, mapBounds } = params;
     
     if (!textQuery) {
-      throw new Error('OSM provider requires amenity types (textQuery)');
+      throw new Error('OSM provider requires OSM tags (textQuery)');
     }
 
     // Prefer route-based search if available, fall back to map bounds
@@ -169,7 +170,8 @@ export class OSMProvider implements POIProvider {
       throw new Error('OSM provider requires either a route (encodedPolyline) or map bounds');
     }
 
-    const payload = { amenities: textQuery, encodedPolyline, mapBounds };
+  // Send generic `tags` payload using key=value tokens
+  const payload = { tags: textQuery, encodedPolyline, mapBounds };
     const response = await fetchWithCSRFRetry('/api/poi-search/osm', { 
       method: 'POST', 
       headers: { 'Content-Type': 'application/json' }, 

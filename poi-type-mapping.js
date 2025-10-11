@@ -229,86 +229,86 @@ function getRideWithGPSTypeId(typeName) {
   return TYPE_NAME_TO_ID[typeName] || TYPE_NAME_TO_ID['generic'];
 }
 
-// Mapping from OpenStreetMap amenity tags to RideWithGPS POI types
-// OSM amenity tags: https://wiki.openstreetmap.org/wiki/Key:amenity
-// RideWithGPS POI types: see TYPE_NAME_TO_ID mapping
+// Mapping from OpenStreetMap tags to RideWithGPS POI types
+// All keys are in key=value format for consistency
 const OSM_TO_RIDEWITHGPS_MAPPING = {
   // Essential cycling amenities
-  'toilets': 'restroom',
-  'drinking_water': 'water',
-  'water_point': 'water',
-  'shelter': 'rest_stop',
-  'bench': 'rest_stop',
-  'shower': 'shower',
-  'bicycle_parking': 'bike_parking',
-  'bicycle_repair_station': 'bike_shop',
-  'compressed_air': 'bike_shop',
-  
+  'amenity=toilets': 'restroom',
+  'amenity=drinking_water': 'water',
+  'amenity=water_point': 'water',
+  'amenity=shelter': 'rest_stop',
+  'amenity=bench': 'rest_stop',
+  'amenity=shower': 'shower',
+  'amenity=bicycle_parking': 'bike_parking',
+  'amenity=bicycle_repair_station': 'bike_shop',
+  'amenity=compressed_air': 'bike_shop',
+
   // Food & Drink
-  'restaurant': 'food',
-  'cafe': 'coffee',
-  'fast_food': 'food',
-  'bar': 'bar',
-  'pub': 'bar',
-  'biergarten': 'bar',
-  'food_court': 'food',
-  'ice_cream': 'food',
-  
+  'amenity=restaurant': 'food',
+  'amenity=cafe': 'coffee',
+  'amenity=fast_food': 'food',
+  'amenity=bar': 'bar',
+  'amenity=pub': 'bar',
+  'amenity=biergarten': 'bar',
+  'amenity=food_court': 'food',
+  'amenity=ice_cream': 'food',
+
   // Fuel & Vehicle Services
-  'fuel': 'gas',
-  
+  'amenity=fuel': 'gas',
+
   // Healthcare & Safety
-  'pharmacy': 'first_aid',
-  'hospital': 'hospital',
-  'clinic': 'hospital',
-  'doctors': 'first_aid',
-  'dentist': 'first_aid',
-  'veterinary': 'first_aid',
-  
+  'amenity=pharmacy': 'first_aid',
+  'amenity=hospital': 'hospital',
+  'amenity=clinic': 'hospital',
+  'amenity=doctors': 'first_aid',
+  'amenity=dentist': 'first_aid',
+  'amenity=veterinary': 'first_aid',
+
   // General parking & rest areas
-  'parking': 'parking',
-  'parking_space': 'parking',
-  
+  'amenity=parking': 'parking',
+  'amenity=parking_space': 'parking',
+
   // Postal services
-  'post_office': 'generic',
-  'post_box': 'generic',
-  'parcel_locker': 'generic',
-  
+  'amenity=post_office': 'generic',
+  'amenity=post_box': 'generic',
+  'amenity=parcel_locker': 'generic',
+
   // Vending & quick services
-  'vending_machine': 'convenience_store',
-  
-  // Public transport
-  'bus_station': 'transit',
-  'ferry_terminal': 'ferry',
-  'taxi': 'transit',
-  
+  'amenity=vending_machine': 'convenience_store',
+
+  // Public transport (key=value tags)
+  'amenity=bus_station': 'transit',
+  'amenity=ferry_terminal': 'ferry',
+  'amenity=taxi': 'transit',
+  'railway=station': 'transit',
+  'public_transport=station': 'transit',
+
   // Shopping
-  'marketplace': 'convenience_store',
-  'bicycle_rental': 'bikeshare',
-  
+  'amenity=marketplace': 'convenience_store',
+  'amenity=bicycle_rental': 'bikeshare',
+
   // Other common amenities
-  'telephone': 'generic',
-  'toilets': 'restroom',
-  'waste_basket': 'generic',
-  'recycling': 'generic',
-  'charging_station': 'generic',
-  'atm': 'atm',
-  'bank': 'atm',
-  'bureau_de_change': 'atm',
-  'public_bookcase': 'library',
-  'library': 'library',
-  'community_centre': 'rest_stop',
-  'social_facility': 'rest_stop',
-  'townhall': 'generic',
-  'police': 'first_aid',
-  'fire_station': 'first_aid',
-  'ranger_station': 'first_aid',
-  'emergency_phone': 'first_aid',
-  'place_of_worship': 'monument',
-  'fountain': 'water',
-  'watering_place': 'water',
-  'bbq': 'rest_stop',
-  'picnic_table': 'rest_stop',
+  'amenity=telephone': 'generic',
+  'amenity=waste_basket': 'generic',
+  'amenity=recycling': 'generic',
+  'amenity=charging_station': 'generic',
+  'amenity=atm': 'atm',
+  'amenity=bank': 'atm',
+  'amenity=bureau_de_change': 'atm',
+  'amenity=public_bookcase': 'library',
+  'amenity=library': 'library',
+  'amenity=community_centre': 'rest_stop',
+  'amenity=social_facility': 'rest_stop',
+  'amenity=townhall': 'generic',
+  'amenity=police': 'first_aid',
+  'amenity=fire_station': 'first_aid',
+  'amenity=ranger_station': 'first_aid',
+  'amenity=emergency_phone': 'first_aid',
+  'amenity=place_of_worship': 'monument',
+  'amenity=fountain': 'water',
+  'amenity=watering_place': 'water',
+  'amenity=bbq': 'rest_stop',
+  'amenity=picnic_table': 'rest_stop',
 };
 
 /**

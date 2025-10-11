@@ -929,31 +929,47 @@ app.post('/api/poi-search/google-maps', csrfProtection, requireAuth, requireAcce
 
 // OSM POI Provider endpoint - queries Overpass API
 app.post('/api/poi-search/osm', csrfProtection, requireAuth, requireAccess, async (req, res) => {
-  const { amenities, encodedPolyline, mapBounds } = req.body || {};
-  if (!amenities) return res.status(400).send({ error: 'amenities required' });
-  
+  // Accept `tags` as a comma-separated list of key=value tokens only
+  const { tags, encodedPolyline, mapBounds } = req.body || {};
+  const tokenStr = (typeof tags === 'string' && tags.trim().length > 0) ? tags : '';
+  if (!tokenStr) return res.status(400).send({ error: 'OSM tags required (must be key=value format)' });
+
   // Prefer route-based search, fall back to bounding box
   if (!encodedPolyline && !mapBounds) {
     return res.status(400).send({ error: 'Either encodedPolyline or mapBounds required' });
   }
-  
+
   try {
-    console.info('[OSM POI] Incoming search request:', { 
-      amenities, 
+    console.info('[OSM POI] Incoming search request:', {
+      tags,
       hasPolyline: !!encodedPolyline,
-      hasBounds: !!mapBounds 
+      hasBounds: !!mapBounds
     });
-    
-    // Parse amenities (comma-separated string)
-    const amenityList = amenities.split(',').map(a => a.trim()).filter(Boolean);
-    
-    if (amenityList.length === 0) {
-      return res.status(400).send({ error: 'At least one amenity type required' });
+
+    // Parse tags (comma-separated string), only key=value supported
+    const rawList = String(tokenStr).split(',').map(a => a.trim()).filter(Boolean);
+    if (rawList.length === 0) {
+      return res.status(400).send({ error: 'At least one key=value tag required' });
     }
+    // Group selections by key
+    const groups = new Map(); // key -> Set(values)
+    for (const token of rawList) {
+      if (token.includes('=')) {
+        const [key, value] = token.split('=');
+        const k = (key || '').trim();
+        const v = (value || '').trim();
+        if (!k || !v) continue;
+        if (!groups.has(k)) groups.set(k, new Set());
+        groups.get(k).add(v);
+      }
+    }
+    
+    // Helper for Overpass escaping
+    const esc = (s) => String(s).replace(/"/g, '\\"');
     
     let overpassQuery;
     
-    if (encodedPolyline) {
+  if (encodedPolyline) {
       // Route-based search: decode polyline and search around route points
       const coords = polyline.decode(encodedPolyline);
       
@@ -976,17 +992,19 @@ app.post('/api/poi-search/osm', csrfProtection, requireAuth, requireAccess, asyn
       // Build coordinate list for around operator: radius,lat1,lon1,lat2,lon2,...
       const coordsList = sampledCoords.map(([lat, lng]) => `${lat},${lng}`).join(',');
       
-      // Build query for multiple amenity types using union with around operator
-      const amenityQueries = amenityList.map(amenity => 
-        `node["amenity"="${amenity}"](around:${searchRadius},${coordsList});
-  way["amenity"="${amenity}"](around:${searchRadius},${coordsList});
-  relation["amenity"="${amenity}"](around:${searchRadius},${coordsList});`
-      ).join('\n  ');
+      // Build per-key union blocks using around operator
+      const perKeyBlocks = Array.from(groups.entries()).map(([key, values]) => {
+        return Array.from(values).map(v => 
+`node["${esc(key)}"="${esc(v)}"](around:${searchRadius},${coordsList});
+  way["${esc(key)}"="${esc(v)}"](around:${searchRadius},${coordsList});
+  relation["${esc(key)}"="${esc(v)}"](around:${searchRadius},${coordsList});`
+        ).join('\n  ');
+      }).join('\n  ');
       
       overpassQuery = `
 [out:json][timeout:25];
 (
-  ${amenityQueries}
+  ${perKeyBlocks}
 );
 out center;
 `;
@@ -1000,17 +1018,19 @@ out center;
       // Bounding box search (fallback)
       const bbox = `${mapBounds.south},${mapBounds.west},${mapBounds.north},${mapBounds.east}`;
       
-      // Build query for multiple amenity types using union
-      const amenityQueries = amenityList.map(amenity => 
-        `node["amenity"="${amenity}"](${bbox});
-  way["amenity"="${amenity}"](${bbox});
-  relation["amenity"="${amenity}"](${bbox});`
-      ).join('\n  ');
+      // Build per-key union blocks for bbox
+      const perKeyBlocks = Array.from(groups.entries()).map(([key, values]) => {
+        return Array.from(values).map(v => 
+`node["${esc(key)}"="${esc(v)}"](${bbox});
+  way["${esc(key)}"="${esc(v)}"](${bbox});
+  relation["${esc(key)}"="${esc(v)}"](${bbox});`
+        ).join('\n  ');
+      }).join('\n  ');
       
       overpassQuery = `
 [out:json][timeout:25];
 (
-  ${amenityQueries}
+  ${perKeyBlocks}
 );
 out center;
 `;
@@ -1036,20 +1056,32 @@ out center;
     
     // Process and format OSM data into standard POI format
     const elements = overpassResponse.data?.elements || [];
-    const formattedPOIs = elements.map(element => {
+  const formattedPOIs = elements.map(element => {
       // Get coordinates - nodes have lat/lon, ways/relations have center
       const lat = element.lat ?? element.center?.lat ?? 0;
       const lon = element.lon ?? element.center?.lon ?? 0;
       
       const tags = element.tags || {};
-      const amenity = tags.amenity || 'unknown';
-      const name = tags.name || `${amenity.charAt(0).toUpperCase() + amenity.slice(1).replace(/_/g, ' ')}`;
-      
+      // Prefer OSM name; fallback to a readable label from available tags
+      const readable = (s) => (s || '').toString().replace(/_/g, ' ');
+      let name = tags.name;
+      if (!name) {
+        // Use first available tag value for name
+        const firstTag = Object.values(tags)[0];
+        name = firstTag ? readable(firstTag) : 'POI';
+      }
+
+      // Build key=value for POI type detection (prefer amenity, railway, public_transport)
+      let poiTypeKeyValue = null;
+      if (tags.amenity) poiTypeKeyValue = `amenity=${tags.amenity}`;
+      else if (tags.railway) poiTypeKeyValue = `railway=${tags.railway}`;
+      else if (tags.public_transport) poiTypeKeyValue = `public_transport=${tags.public_transport}`;
+
       return {
         name,
         lat: parseFloat(String(lat)),
         lng: parseFloat(String(lon)),
-        poi_type_name: mapOSMAmenityToRideWithGPS(amenity),
+        poi_type_name: poiTypeKeyValue ? mapOSMAmenityToRideWithGPS(poiTypeKeyValue) : 'generic',
         description: tags.description || '',
         url: tags.website || `https://www.openstreetmap.org/${element.type}/${element.id}`
       };
