@@ -186,6 +186,11 @@ export class OSMProvider implements POIProvider {
     const data = await response.json();
     const places = data.places || [];
     
+    // Show message if no POIs found
+    if (places.length === 0) {
+      throw new Error('Your search didn\'t find anything near your route. Try selecting different POI types or checking a different area.');
+    }
+    
     // Set provider field for each POI to be consistent with other providers
     return places.map((poi: POIResult) => ({
       ...poi,
