@@ -65,8 +65,8 @@ const CommandList = React.forwardRef<
       "[&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-track]:bg-gray-100",
       className
     )}
-    // Keep momentum scrolling on iOS and constrain touch to vertical panning
-    style={{ WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
+    // Constrain touch to vertical panning
+    // Removed deprecated WebkitOverflowScrolling property; modern iOS supports momentum scrolling natively.
     // Stop scroll/gesture events from bubbling to underlying layers (e.g., Google Maps),
     // but do NOT preventDefault so native scrolling still works within the list.
     onWheelCapture={(e) => {
