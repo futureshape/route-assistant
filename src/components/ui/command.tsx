@@ -58,8 +58,32 @@ const CommandList = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <CommandPrimitive.List
     ref={ref}
-    className={cn("max-h-[300px] overflow-y-auto overflow-x-hidden [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-track]:bg-gray-100", className)}
-    style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' } as React.CSSProperties}
+    className={cn(
+      // Ensure the list itself is scrollable and contains overscroll to avoid scroll chaining
+      "max-h-[300px] overflow-y-auto overflow-x-hidden overscroll-contain touch-pan-y",
+      // Improve scrollbar usability on webkit
+      "[&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-track]:bg-gray-100",
+      className
+    )}
+    // Keep momentum scrolling on iOS and constrain touch to vertical panning
+    style={{ WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
+    // Stop scroll/gesture events from bubbling to underlying layers (e.g., Google Maps),
+    // but do NOT preventDefault so native scrolling still works within the list.
+    onWheelCapture={(e) => {
+      e.stopPropagation()
+    }}
+    onWheel={(e) => {
+      e.stopPropagation()
+    }}
+    onTouchStartCapture={(e) => {
+      e.stopPropagation()
+    }}
+    onTouchMoveCapture={(e) => {
+      e.stopPropagation()
+    }}
+    onPointerDownCapture={(e) => {
+      e.stopPropagation()
+    }}
     {...props}
   />
 ))
