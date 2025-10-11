@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/accordion"
 import { POIProvider, POISearchParams } from '@/lib/poi-providers'
 import { useMarkerStates, useMarkers } from '@/store/selectors'
+import { useSidebar } from '@/components/ui/sidebar'
 
 interface MapBounds {
   north: number
@@ -22,7 +23,7 @@ interface POISearchProps {
   mapBounds: MapBounds | null
   loadingProviderId: string | null
   onAccordionChange: (value: string) => void
-  onPOISearch: (provider: POIProvider, params: POISearchParams) => void
+  onPOISearch: (provider: POIProvider, params: POISearchParams) => Promise<void>
   onClearMarkers: () => void
 }
 
@@ -38,6 +39,8 @@ export function POISearch({
 }: POISearchProps) {
   const markerStates = useMarkerStates()
   const markers = useMarkers()
+  const { isMobile, setOpenMobile } = useSidebar()
+  
   // A POI is considered "suggested" if its stored state is not 'existing' or 'selected'.
   // Some suggested POIs may not have an explicit entry in markerStates (undefined),
   // but they should still be treated as suggested (the map rendering treats missing as suggested).
@@ -46,6 +49,16 @@ export function POISearch({
     const state = markerStates[key]
     return state !== 'existing' && state !== 'selected'
   })
+  
+  // Wrapper to close sidebar on mobile after search
+  const handleSearch = async (provider: POIProvider, params: POISearchParams) => {
+    await onPOISearch(provider, params)
+    // Close sidebar on mobile to reveal the new markers
+    if (isMobile) {
+      setOpenMobile(false)
+    }
+  }
+  
   return (
     <div className="p-2 space-y-2">
       {poiProviders.length > 0 ? (
@@ -73,7 +86,7 @@ export function POISearch({
                         {provider.description}
                       </p>
                       <SearchForm 
-                        onSearch={(params) => onPOISearch(provider, params)}
+                        onSearch={(params) => handleSearch(provider, params)}
                         disabled={!isEnabled || isLoading}
                         loading={isLoading}
                       />
