@@ -118,6 +118,10 @@ This is a full-stack web application that helps cyclists explore routes and find
   - Use `showAlert(message, title)` for general notifications
   - Use `showError(message)` for error messages
   - Use `showSuccess(message)` for success confirmations
+  - All methods support optional secondary actions via options object:
+    - `secondaryActionLabel`: Label for the secondary button (e.g., "View in RideWithGPS")
+    - `onSecondaryAction`: Callback function for the secondary button
+  - Example with secondary action: `showSuccess('POIs sent!', { secondaryActionLabel: 'View Route', onSecondaryAction: () => window.open(url) })`
   - The `AlertDialogProvider` component is already included in App.tsx
   - These dialogs are accessible, styled with shadcn/ui, and provide better UX than native alerts
 

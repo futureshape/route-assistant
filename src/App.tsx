@@ -675,7 +675,12 @@ export default function App(){
         return
       }
       
-      showSuccess(`Successfully sent ${selectedPOIs.length} new POI(s) to RideWithGPS!`)
+      showSuccess(`Successfully sent ${selectedPOIs.length} new POI(s) to RideWithGPS!`, {
+        secondaryActionLabel: 'View in RideWithGPS',
+        onSecondaryAction: () => {
+          window.open(`https://ridewithgps.com/routes/${selectedRouteId}`, '_blank', 'noopener,noreferrer')
+        }
+      })
       
       // Reload the route to show updated POIs as "existing"
       console.log('[sendPOIsToRideWithGPS] Reloading route to show updated POIs')
