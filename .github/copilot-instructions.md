@@ -46,7 +46,8 @@ This is a full-stack web application that helps cyclists explore routes and find
 │   │   ├── IntroScreen.tsx  # Welcome/help dialog
 │   │   └── ui/              # shadcn/ui components
 │   ├── hooks/               # Custom React hooks
-│   │   └── use-mobile.tsx   # Mobile detection hook
+│   │   ├── use-mobile.tsx   # Mobile detection hook
+│   │   └── use-alert-dialog.tsx  # Alert dialog hook (replaces native alerts)
 │   └── lib/                 # Shared utilities and services
 │       ├── utils.ts         # Utility functions (cn classname helper)
 │       ├── poi-providers.ts # POI provider interface definitions
@@ -113,6 +114,12 @@ This is a full-stack web application that helps cyclists explore routes and find
 - **Consistent spacing**: Use Tailwind spacing utilities consistently with shadcn/ui
 - **Color system**: Use CSS variables and shadcn/ui color tokens
 - **Responsive design**: Follow Tailwind responsive patterns
+- **Alert Dialogs**: NEVER use browser native `alert()` - always use the custom `useAlert()` hook from `@/hooks/use-alert-dialog`
+  - Use `showAlert(message, title)` for general notifications
+  - Use `showError(message)` for error messages
+  - Use `showSuccess(message)` for success confirmations
+  - The `AlertDialogProvider` component is already included in App.tsx
+  - These dialogs are accessible, styled with shadcn/ui, and provide better UX than native alerts
 
 ### Authentication Flow
 1. User clicks "Sign in with RideWithGPS"

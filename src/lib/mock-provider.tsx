@@ -4,14 +4,16 @@ import { Input } from '@/components/ui/input';
 import { fetchWithCSRFRetry } from '@/lib/csrf';
 import { Loader2 } from 'lucide-react';
 import { POIProvider, POISearchParams, POIResult, POISearchFormProps } from '@/lib/poi-providers';
+import { useAlert } from '@/hooks/use-alert-dialog';
 
 // Mock POI Search Form Component
 const MockSearchForm: React.FC<POISearchFormProps> = ({ onSearch, disabled, loading }) => {
   const [query, setQuery] = useState('');
+  const { showAlert } = useAlert();
 
   const handleSearch = () => {
     if (!query.trim()) {
-      alert('Enter a search term');
+      showAlert('Please enter a search term');
       return;
     }
     onSearch({ textQuery: query });

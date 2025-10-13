@@ -28,6 +28,7 @@ import { ElevationChart } from '@/features/elevation'
 import { POISearch, POISummary } from '@/features/poi'
 import { useAuth, useRoutes, usePOI, useMap, useElevation, useUI, useResetStore } from '@/store/selectors'
 import { useUnsavedChanges } from '@/hooks/use-unsaved-changes'
+import { AlertDialogProvider, useAlert } from '@/hooks/use-alert-dialog'
 import type { Route, POI, RouteCoordinate } from '@/store/types'
 import type { 
   SessionResponse, 
@@ -92,6 +93,9 @@ export default function App(){
   // Get state and actions from Zustand store - using combined selectors
   const { authenticated, setAuthenticated, user, setUser } = useAuth()
   const resetStore = useResetStore()
+  
+  // Initialize alert dialog
+  const { showAlert, showError, showSuccess } = useAlert()
   
   // Initialize unsaved changes protection
   useUnsavedChanges()
@@ -441,7 +445,7 @@ export default function App(){
       console.error('[showRoute] Failed to load route, status:', r.status)
       const errorText = await r.text()
       console.error('[showRoute] Error response:', errorText)
-      alert('Failed to load route'); 
+      showError('Failed to load route'); 
       return 
     }
     
@@ -487,7 +491,7 @@ export default function App(){
     
     if (!enc){ 
       console.error('[showRoute] Route has no encoded_polyline')
-      alert('Route has no encoded_polyline'); 
+      showError('Route has no encoded_polyline'); 
       return 
     }
     
@@ -578,7 +582,7 @@ export default function App(){
       console.log(`[POI Search] Found ${results.length} POIs from ${provider.name}`);
     } catch (error) {
       console.error('POI search failed:', error);
-      alert(`POI search failed: ${error}`);
+      showError(`POI search failed: ${error}`);
     } finally {
       // Clear loading state
       setLoadingProviderId(null);
@@ -641,7 +645,7 @@ export default function App(){
 
   async function sendPOIsToRideWithGPS(){
     if (!selectedRouteId) {
-      alert('Please select a route first')
+      showAlert('Please select a route first')
       return
     }
     
@@ -653,7 +657,7 @@ export default function App(){
     })
     
     if (selectedPOIs.length === 0) {
-      alert('No new POIs selected')
+      showAlert('No new POIs selected')
       return
     }
     
@@ -667,11 +671,11 @@ export default function App(){
       
       if (!response.ok) {
         const errorText = await response.text()
-        alert(`Failed to send POIs to RideWithGPS: ${errorText}`)
+        showError(`Failed to send POIs to RideWithGPS: ${errorText}`)
         return
       }
       
-      alert(`Successfully sent ${selectedPOIs.length} new POI(s) to RideWithGPS!`)
+      showSuccess(`Successfully sent ${selectedPOIs.length} new POI(s) to RideWithGPS!`)
       
       // Reload the route to show updated POIs as "existing"
       console.log('[sendPOIsToRideWithGPS] Reloading route to show updated POIs')
@@ -679,7 +683,7 @@ export default function App(){
       
     } catch (error) {
       console.error('Error sending POIs:', error)
-      alert('An error occurred while sending POIs to RideWithGPS')
+      showError('An error occurred while sending POIs to RideWithGPS')
     } finally {
       setSendingPOIs(false)
     }
@@ -884,6 +888,9 @@ export default function App(){
         onAction={handleRouteSwitchAction}
       />
     </SidebarProvider>
+    
+    {/* Alert Dialog Provider */}
+    <AlertDialogProvider />
     </>
   )
 }

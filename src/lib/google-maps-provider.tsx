@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { fetchWithCSRFRetry } from '@/lib/csrf';
 import { Loader2 } from 'lucide-react';
 import { POIProvider, POISearchParams, POIResult, POISearchFormProps } from '@/lib/poi-providers';
+import { useAlert } from '@/hooks/use-alert-dialog';
 
 // Note: Google type mapping and description building is now handled on the backend
 // This keeps the frontend simple and eliminates duplication
@@ -11,10 +12,11 @@ import { POIProvider, POISearchParams, POIResult, POISearchFormProps } from '@/l
 // Google Maps POI Search Form Component
 const GoogleMapsSearchForm: React.FC<POISearchFormProps> = ({ onSearch, disabled, loading }) => {
   const [query, setQuery] = useState('');
+  const { showAlert } = useAlert();
 
   const handleSearch = () => {
     if (!query.trim()) {
-      alert('Enter a search term');
+      showAlert('Please enter a search term');
       return;
     }
     onSearch({ textQuery: query });
