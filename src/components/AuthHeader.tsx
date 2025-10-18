@@ -80,7 +80,7 @@ export function AuthHeader({ authenticated, user, onAuthChange }: AuthHeaderProp
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 text-left">
-                <div className="text-sm font-medium text-sidebar-foreground">
+                <div className="text-sm font-medium text-sidebar-foreground" data-testid="user-name">
                   {user.name}
                 </div>
                 {user.email && (

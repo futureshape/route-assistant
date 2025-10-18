@@ -177,6 +177,69 @@ app.use(session({
   saveUninitialized: true, // Enable session creation for CSRF tokens
 }));
 
+// Test Mode Authentication Bypass
+// This allows E2E tests to bypass OAuth using a real RideWithGPS OAuth token
+if (process.env.TEST_MODE === 'true') {
+  console.log('[Server] TEST_MODE enabled - test authentication bypass active');
+  
+  app.use(async (req, res, next) => {
+    // Check for test token in Authorization header
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.substring(7);
+      const testToken = process.env.TEST_OAUTH_TOKEN;
+      
+      if (token === testToken && !req.session.rwgps) {
+        try {
+          // Fetch user info from RideWithGPS using the real token
+          const userResponse = await axios.get('https://ridewithgps.com/api/v1/users/current.json', {
+            headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
+          });
+          
+          const rwgpsUser = userResponse.data.user;
+          
+          // Inject session with real user data
+          req.session.rwgps = {
+            access_token: token,
+            token_type: 'Bearer',
+            scope: 'read',
+            created_at: Date.now(),
+          };
+          
+          // Find or create user in database using userService
+          let dbUser = userService.findUserByRwgpsId(rwgpsUser.id);
+          
+          if (!dbUser) {
+            // Create user with active status for testing
+            dbUser = userService.createUser(rwgpsUser.id, rwgpsUser.email, 'active', 'user');
+            // Verify email automatically for test users
+            if (rwgpsUser.email) {
+              const db = getDatabase();
+              db.prepare('UPDATE users SET email_verified = 1 WHERE rwgps_user_id = ?').run(rwgpsUser.id);
+              dbUser = userService.findUserByRwgpsId(rwgpsUser.id);
+            }
+          }
+          
+          req.session.user = {
+            dbId: dbUser.id,
+            rwgpsUserId: dbUser.rwgps_user_id,
+            name: rwgpsUser.name, // Name comes from RideWithGPS API, not stored in DB
+            email: dbUser.email,
+            emailVerified: dbUser.email_verified === 1,
+            status: dbUser.status,
+            role: dbUser.role,
+          };
+          
+          console.log(`[TestMode] Authenticated as ${rwgpsUser.name} (RWGPS ID: ${rwgpsUser.id})`);
+        } catch (error) {
+          console.error('[TestMode] Failed to authenticate with test token:', error.message);
+        }
+      }
+    }
+    next();
+  });
+}
+
 // CSRF Protection Setup - Using lusca.csrf() as recommended by security audit
 app.use(lusca.csrf());
 
