@@ -12,6 +12,7 @@ This document summarizes the E2E testing implementation for Route Assistant. Thi
 - **Video recording**: Configurable via `RECORD_VIDEO=always` environment variable
 - **Persistent server**: `reuseExistingServer: true` maintains sessions across tests
 - **Persistent database**: `.test-data/test-db.sqlite` (not in-memory)
+- **Automatic route management**: Creates unique test route before tests, deletes it after all tests complete
 
 ### 2. Authentication Strategy
 **Real OAuth Token Approach**:
@@ -71,15 +72,15 @@ npm run test:e2e:report   # Open HTML test report
 
 ### 5. Tests Implemented
 
-**Comprehensive Test Suite** (`authentication.spec.ts`) - **10 tests total, all passing in ~12.8s**:
+**Comprehensive Test Suite** (`authentication.spec.ts`) - **11 tests total, all passing in ~14.4s**:
 
-0. **Setup: Create unique test route** (~944ms)
+0. **Setup: Create unique test route** (~918ms)
    - POSTs `test-route.json` to RideWithGPS API
-   - Generates unique route name with timestamp (e.g., `[E2E-TEST-1760893635243] Sample Route`)
+   - Generates unique route name with timestamp (e.g., `[E2E-TEST-1760896297078] Sample Route`)
    - Saves route name and ID to `.auth/test-route-{name,id}.txt` for tests to use
    - Ensures tests don't interfere with existing routes
 
-1. **Setup: User authentication** (~1.6s)
+1. **Setup: User authentication** (~1.0s)
    - Navigates to `/auth/test` endpoint
    - Simulates OAuth callback
    - Saves authentication state to `.auth/user.json`
@@ -128,7 +129,19 @@ npm run test:e2e:report   # Open HTML test report
    - Clicks "Keep" button to select POI
    - Verifies selected count increased
 
-9. **Teardown: Delete test route** (~594ms)
+9. **Sending POIs to RideWithGPS and verifying persistence after reload** (2.9s)
+   - Captures initial state: 1 selected POI, 2 existing POIs
+   - Finds and verifies "Send to RideWithGPS" button is visible and enabled
+   - Clicks send button
+   - Waits for success `alertdialog` to appear
+   - Verifies success message: "Successfully sent X new POI(s) to RideWithGPS!"
+   - Dismisses dialog by clicking "OK" button
+   - Waits for automatic route reload (2s)
+   - Verifies existing POI count increased correctly (2 → 3)
+   - Verifies unique test POI now exists in route as "existing" POI
+   - Confirms pre-existing POIs were preserved during the operation
+
+10. **Teardown: Delete test route** (~583ms)
    - Reads route ID from `.auth/test-route-id.txt`
    - Sends DELETE request to RideWithGPS API
    - Removes cleanup files
@@ -142,6 +155,7 @@ npm run test:e2e:report   # Open HTML test report
 - **State preservation**: Route selection, POI searches, and selections persist across tests
 - **Performance optimized**: Setup steps run in parallel, tests run sequentially
 - **Safe testing**: Tests use dedicated routes, auto-cleanup prevents route accumulation
+- **Full workflow coverage**: Complete user journey from route creation → authentication → POI search → selection → sending to RideWithGPS → verification of persistence
 
 **Test Data Used**:
 - Test user: Alex Baxevanis (RideWithGPS user ID 1625496)
@@ -177,6 +191,10 @@ Added to `POIInfoWindow` component:
 - `data-testid="poi-keep-button"` - Select POI button
 - `data-testid="poi-remove-button"` - Deselect POI button
 - `data-testid="poi-existing-label"` - Existing POI indicator
+
+### POI Summary Test IDs
+Added to `POISummary` component:
+- `data-testid="send-pois-button"` - Send to RideWithGPS button
 
 **Rationale**: Google Maps markers aren't regular DOM elements, so programmatic clicking via JavaScript functions is required instead of Playwright selectors. See `tests/e2e/MARKER_TESTING_PROPOSAL.md` for detailed technical approach.
 

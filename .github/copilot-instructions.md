@@ -261,12 +261,12 @@ See `tests/e2e/MARKER_TESTING_PROPOSAL.md` for technical details.
 - **Next phase**: Consider extracting custom hooks and adding context providers
 
 ## Testing Status
-- **E2E Testing**: ✅ Comprehensive Playwright implementation complete (10 tests, ~12.8s)
+- **E2E Testing**: ✅ Comprehensive Playwright implementation complete (11 tests, ~14.4s)
   - Automatic unique route creation before each test run
   - Automatic route cleanup after all tests (successful or failed)
   - Sequential execution with shared page context
   - Real OAuth authentication, persistent test database
-  - Full user journey coverage: route creation → authentication → route selection → POI search → marker interactions → cleanup
+  - Full user journey coverage: route creation → authentication → route selection → POI search → marker interactions → send to RideWithGPS → persistence verification → cleanup
   - See `tests/e2e/IMPLEMENTATION_SUMMARY.md` for details
 - **Unit Testing**: Not yet implemented
 - **Integration Testing**: Not yet implemented

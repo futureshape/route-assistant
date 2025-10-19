@@ -354,5 +354,79 @@ test.describe.serial('Authentication and Route Management', () => {
     testRouteName = uniqueTestId; // Reuse existing variable to store test ID
     console.log(`✓ Test completed: POI renamed and selected`);
   });
+
+  test('sending POIs to RideWithGPS and verifying persistence after reload', async () => {
+    // Get initial counts before sending
+    const mapContainer = sharedPage.getByTestId('map-container');
+    const initialSelectedCount = parseInt(await mapContainer.getAttribute('data-selected-count') || '0');
+    const initialExistingCount = parseInt(await mapContainer.getAttribute('data-existing-count') || '0');
+    
+    expect(initialSelectedCount).toBeGreaterThan(0);
+    console.log(`✓ Initial state: ${initialSelectedCount} selected, ${initialExistingCount} existing POIs`);
+    
+    // Find the "Send to RideWithGPS" button
+    const sendButton = sharedPage.getByTestId('send-pois-button');
+    await expect(sendButton).toBeVisible();
+    await expect(sendButton).toBeEnabled();
+    console.log(`✓ Send to RideWithGPS button is visible and enabled`);
+
+    // Click the send button
+    await sendButton.click();
+    console.log(`✓ Clicked Send to RideWithGPS button`);
+
+    // Wait for the success dialog to appear (it's an alertdialog, not dialog)
+    const successDialog = sharedPage.getByRole('alertdialog', { name: 'Success' });
+    await expect(successDialog).toBeVisible({ timeout: 10000 });
+    console.log(`✓ Success dialog appeared`);
+    
+    // Verify the success message
+    await expect(successDialog).toContainText('Successfully sent');
+    await expect(successDialog).toContainText('POI(s) to RideWithGPS');
+    console.log(`✓ Success message verified`);
+
+    // Click OK to dismiss the dialog
+    const okButton = sharedPage.getByRole('button', { name: 'OK' });
+    await okButton.click();
+    console.log(`✓ Dismissed success dialog`);
+    
+    // Wait for the dialog to close
+    await expect(successDialog).not.toBeVisible({ timeout: 5000 });
+    console.log(`✓ Dialog closed`);
+
+    // The route should automatically reload after sending POIs
+    // Wait a moment for the reload to complete
+    await sharedPage.waitForTimeout(2000);
+    console.log(`✓ Waited for automatic route reload`);
+    
+    // Verify the route is still loaded
+    await expect(mapContainer).toHaveAttribute('data-route-loaded', 'true');
+    
+    // Get the final existing POI count
+    const finalExistingCount = parseInt(await mapContainer.getAttribute('data-existing-count') || '0');
+    console.log(`✓ Final existing POI count: ${finalExistingCount}`);
+    
+    // Verify that:
+    // 1. Pre-existing POIs are still there (existing count should be at least what we had before)
+    expect(finalExistingCount).toBeGreaterThanOrEqual(initialExistingCount);
+    console.log(`✓ Pre-existing POIs preserved (${initialExistingCount} → ${finalExistingCount})`);
+    
+    // 2. New POI has been added (final count should be higher than initial)
+    const poisAdded = finalExistingCount - initialExistingCount;
+    expect(poisAdded).toBe(initialSelectedCount);
+    console.log(`✓ New POI(s) persisted: ${poisAdded} POI(s) added to route`);
+
+    // Verify our uniquely-named POI is in the existing markers
+    const markers = await sharedPage.evaluate(() => {
+      return (window as any).__testGetMarkers();
+    });
+    
+    const existingMarkers = markers.filter((m: any) => m.state === 'existing');
+    const ourPoiExists = existingMarkers.some((m: any) => m.name.startsWith('TEST-POI-'));
+    expect(ourPoiExists).toBe(true);
+    console.log(`✓ Verified unique test POI exists in route as existing POI`);
+    
+    console.log(`✓ Test completed: POIs successfully sent and persisted after route reload`);
+  });
 });
+
 
