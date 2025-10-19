@@ -45,11 +45,6 @@ export default defineConfig({
     
     /* Video on failure */
     video: 'retain-on-failure',
-    
-    /* Make environment variables available in tests */
-    extraHTTPHeaders: {
-      'Authorization': `Bearer ${process.env.TEST_OAUTH_TOKEN || ''}`,
-    },
   },
 
   /* Configure projects for major browsers */
@@ -95,7 +90,7 @@ export default defineConfig({
   webServer: {
     command: 'npm run dev',
     url: 'http://localhost:3001',
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: true, // Always reuse server to maintain sessions and database
     stdout: 'ignore',
     stderr: 'pipe',
     timeout: 120000, // 2 minutes for server to start
@@ -103,7 +98,7 @@ export default defineConfig({
       NODE_ENV: 'test',
       TEST_MODE: 'true',
       TEST_OAUTH_TOKEN: process.env.TEST_OAUTH_TOKEN || '',
-      DB_PATH: ':memory:',
+      DB_PATH: '.test-data/test-db.sqlite', // Persistent test database (not :memory:)
       SESSION_SECRET: 'test-session-secret',
     },
   },

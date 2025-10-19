@@ -41,6 +41,9 @@ test-results/
 playwright-report/
 playwright/.cache/
 
+# Test data
+.test-data/
+
 # Database
 *.db
 *.db-shm

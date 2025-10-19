@@ -177,66 +177,82 @@ app.use(session({
   saveUninitialized: true, // Enable session creation for CSRF tokens
 }));
 
-// Test Mode Authentication Bypass
-// This allows E2E tests to bypass OAuth using a real RideWithGPS OAuth token
+// Test Mode Authentication Endpoint
+// This allows E2E tests to simulate OAuth callback using a test token
 if (process.env.TEST_MODE === 'true') {
-  console.log('[Server] TEST_MODE enabled - test authentication bypass active');
+  console.log('[Server] TEST_MODE enabled - test authentication endpoint available at /auth/test');
   
-  app.use(async (req, res, next) => {
-    // Check for test token in Authorization header
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
-      const testToken = process.env.TEST_OAUTH_TOKEN;
+  app.get('/auth/test', async (req, res) => {
+    const testToken = process.env.TEST_OAUTH_TOKEN;
+    
+    if (!testToken) {
+      return res.status(500).send('TEST_OAUTH_TOKEN not configured');
+    }
+    
+    try {
+      console.log('[TestMode] Simulating OAuth callback with test token');
       
-      if (token === testToken && !req.session.rwgps) {
-        try {
-          // Fetch user info from RideWithGPS using the real token
-          const userResponse = await axios.get('https://ridewithgps.com/api/v1/users/current.json', {
-            headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
-          });
-          
-          const rwgpsUser = userResponse.data.user;
-          
-          // Inject session with real user data
-          req.session.rwgps = {
-            access_token: token,
-            token_type: 'Bearer',
-            scope: 'read',
-            created_at: Date.now(),
-          };
-          
-          // Find or create user in database using userService
-          let dbUser = userService.findUserByRwgpsId(rwgpsUser.id);
-          
-          if (!dbUser) {
-            // Create user with active status for testing
-            dbUser = userService.createUser(rwgpsUser.id, rwgpsUser.email, 'active', 'user');
-            // Verify email automatically for test users
-            if (rwgpsUser.email) {
-              const db = getDatabase();
-              db.prepare('UPDATE users SET email_verified = 1 WHERE rwgps_user_id = ?').run(rwgpsUser.id);
-              dbUser = userService.findUserByRwgpsId(rwgpsUser.id);
-            }
-          }
-          
-          req.session.user = {
-            dbId: dbUser.id,
-            rwgpsUserId: dbUser.rwgps_user_id,
-            name: rwgpsUser.name, // Name comes from RideWithGPS API, not stored in DB
-            email: dbUser.email,
-            emailVerified: dbUser.email_verified === 1,
-            status: dbUser.status,
-            role: dbUser.role,
-          };
-          
-          console.log(`[TestMode] Authenticated as ${rwgpsUser.name} (RWGPS ID: ${rwgpsUser.id})`);
-        } catch (error) {
-          console.error('[TestMode] Failed to authenticate with test token:', error.message);
+      // Fetch user info from RideWithGPS using the test token
+      const userResponse = await axios.get('https://ridewithgps.com/api/v1/users/current.json', {
+        headers: { Authorization: `Bearer ${testToken}`, Accept: 'application/json' }
+      });
+      
+      const rwgpsUser = userResponse.data.user;
+      console.log(`[TestMode] Fetched user from RideWithGPS: ${rwgpsUser.name}`);
+      
+      // Create session with real user data (same as OAuth callback)
+      req.session.rwgps = {
+        access_token: testToken,
+        token_type: 'Bearer',
+        scope: 'read',
+        created_at: Date.now(),
+      };
+      
+      // Find or create user in database using userService
+      let dbUser = userService.findUserByRwgpsId(rwgpsUser.id);
+      
+      if (!dbUser) {
+        console.log(`[TestMode] Creating new test user: ${rwgpsUser.name}`);
+        // Create user with active status for testing
+        dbUser = userService.createUser(rwgpsUser.id, rwgpsUser.email, 'active', 'user');
+        
+        // Always verify email for test users (bypass email verification requirement)
+        const db = getDatabase();
+        const updateResult = db.prepare('UPDATE users SET email_verified = 1 WHERE rwgps_user_id = ?').run(rwgpsUser.id);
+        console.log(`[TestMode] Email auto-verified for test user, updated ${updateResult.changes} rows`);
+        dbUser = userService.findUserByRwgpsId(rwgpsUser.id);
+      } else {
+        console.log(`[TestMode] User already exists: ${rwgpsUser.name}`);
+        // Also verify email for existing test users if not already verified
+        if (!dbUser.email_verified) {
+          const db = getDatabase();
+          const updateResult = db.prepare('UPDATE users SET email_verified = 1 WHERE rwgps_user_id = ?').run(rwgpsUser.id);
+          console.log(`[TestMode] Email auto-verified for existing test user, updated ${updateResult.changes} rows`);
+          dbUser = userService.findUserByRwgpsId(rwgpsUser.id);
         }
       }
+      
+      req.session.user = {
+        dbId: dbUser.id,
+        rwgpsUserId: dbUser.rwgps_user_id,
+        name: rwgpsUser.name, // Name comes from RideWithGPS API, not stored in DB
+        email: dbUser.email,
+        emailVerified: dbUser.email_verified === 1,
+        status: dbUser.status,
+        role: dbUser.role,
+      };
+      
+      console.log(`[TestMode] Authenticated as ${rwgpsUser.name} (RWGPS ID: ${rwgpsUser.id}, status: ${dbUser.status}, emailVerified: ${dbUser.email_verified})`);
+      
+      // Redirect to home page (same as real OAuth)
+      res.redirect('/');
+    } catch (error) {
+      console.error('[TestMode] Failed to authenticate with test token:', error.message);
+      if (error.response?.status) {
+        console.error(`[TestMode] RideWithGPS API returned status ${error.response.status}`);
+      }
+      res.status(500).send('Test authentication failed');
     }
-    next();
   });
 }
 
