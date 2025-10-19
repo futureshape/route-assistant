@@ -47,20 +47,21 @@ npm run test:e2e:debug
 ```
 tests/e2e/
 ├── setup/
-│   └── auth.setup.ts         # Authentication setup (runs before all tests)
-└── authentication.spec.ts    # Basic authentication test
+│   ├── create-route.setup.ts       # Creates unique test route in RWGPS (runs first)
+│   ├── auth.setup.ts               # Auth setup using /auth/test (depends on create-route)
+│   └── cleanup-route.teardown.ts   # Deletes test route after all tests
+└── authentication.spec.ts          # E2E workflow tests (serial)
 ```
 
-## Authentication
-
-Tests use a bypass authentication mechanism enabled by `TEST_MODE=true`. Instead of going through the OAuth flow, tests provide a **real RideWithGPS OAuth token** via the Authorization header.
+Tests use a bypass authentication mechanism enabled by `TEST_MODE=true`. Instead of going through the full OAuth flow, the test setup navigates to `/auth/test`, which creates a session using a **real RideWithGPS OAuth token** provided in your `.env.test` file. Playwright then saves the authenticated state (`storageState`) and reuses it across all tests. There is no need to set extra HTTP headers in your tests.
 
 ### How it works:
 
-1. **Real Token**: You provide a valid OAuth token from your RideWithGPS account in `TEST_OAUTH_TOKEN`
-2. **Backend Bypass**: When `TEST_MODE=true`, the server checks for `Authorization: Bearer <token>` header
-3. **User Fetch**: Server uses the token to fetch real user data from RideWithGPS API
-4. **Session Creation**: Creates a real session with your actual user data
+1. **Real Token**: You provide a valid OAuth token from your RideWithGPS account in `TEST_OAUTH_TOKEN` in your `.env.test` file.
+2. **Test Auth Route**: During setup, Playwright navigates to `/auth/test` with `TEST_MODE=true` enabled on the server.
+3. **Session Creation**: The backend uses the provided token to fetch your user data from the RideWithGPS API and creates a real session.
+4. **State Persistence**: Playwright saves the authenticated session state (`storageState.json`) after setup.
+5. **Test Execution**: All subsequent tests reuse this saved state for authentication—no need to set extra HTTP headers.
 5. **Real API Calls**: All subsequent requests use the real token to fetch actual routes and data
 6. **State Persistence**: Playwright saves the authenticated state and reuses it across tests
 
@@ -87,21 +88,41 @@ All tests should:
 Example:
 ```typescript
 import { test, expect } from '@playwright/test';
+Instead of setting Authorization headers in every test, the test setup performs an auth-bypass flow by navigating to /auth/test and saving Playwright's storageState. Ensure you set TEST_MODE=true and TEST_OAUTH_TOKEN in your .env.test before running the setup.
 
-test.use({
-  extraHTTPHeaders: {
-    'Authorization': `Bearer ${process.env.TEST_OAUTH_TOKEN || ''}`,
-  },
-});
+Example setup script (run in tests/e2e/setup, or as a Playwright global setup step):
+```ts
+// tests/e2e/setup/auth.setup.ts (example)
+import { chromium } from '@playwright/test';
 
-test.describe('My Feature', () => {
-  test('should do something', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.getByTestId('my-element')).toBeVisible();
-  });
-});
+(async () => {
+    const browser = await chromium.launch();
+    const context = await browser.newContext();
+    const page = await context.newPage();
+
+    // Server must be started with TEST_MODE=true and TEST_OAUTH_TOKEN set.
+    // Visiting /auth/test creates a real session using the provided TEST_OAUTH_TOKEN.
+    await page.goto('http://localhost:3001/auth/test');
+
+    // Persist authenticated state for all tests
+    await context.storageState({ path: 'tests/e2e/.auth/storageState.json' });
+
+    await browser.close();
+})();
 ```
 
+Usage in tests:
+```ts
+import { test, expect } from '@playwright/test';
+
+// Reuse the saved authenticated state — no need to set Authorization headers.
+test.use({ storageState: 'tests/e2e/.auth/storageState.json' });
+
+test('should do something', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByTestId('my-element')).toBeVisible();
+});
+```
 ### Using Test IDs
 
 For reliable element selection, prefer `data-testid` attributes:

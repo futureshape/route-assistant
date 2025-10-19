@@ -70,7 +70,7 @@ Test that your token is valid:
 
 ```bash
 # This should return your user info
-curl -H "Authorization: Bearer YOUR_TOKEN" https://ridewithgps.com/api/v1/user.json
+curl -H "Authorization: Bearer YOUR_TOKEN" https://ridewithgps.com/api/v1/users/current.json
 ```
 
 ## Token Expiration

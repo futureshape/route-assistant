@@ -291,11 +291,11 @@ Added to `POISummary` component:
 - ✅ Random marker selection and programmatic clicking
 - ✅ POI name editing to unique test ID
 - ✅ POI state transitions (suggested → selected)
+- ✅ POI persistence after route reload
+- ✅ Sending POIs to RideWithGPS
 - ✅ Video recording capabilities
 
 ### 🚧 Infrastructure Ready, Not Yet Tested
-- POI persistence after route reload (test helpers ready)
-- Sending POIs to RideWithGPS (deferred until user ready)
 
 ### 🔮 Future Enhancements
 - Route switching with unsaved changes dialog
@@ -400,8 +400,8 @@ await page.evaluate((idx) => (window as any).__testClickMarkerByIndex(idx), 0);
 ## Branch Info
 
 - **Branch**: `feature/e2e-testing`
-- **Status**: ✅ Comprehensive implementation complete (8 tests passing)
-- **Performance**: 9.7s for complete test suite
+- **Status**: ✅ Comprehensive implementation complete (10 tests passing)
+- **Performance**: 12.8s for complete test suite
 - **Next Steps**: 
   - Add POI persistence test (infrastructure ready)
   - Test sending POIs to RideWithGPS when user ready
@@ -410,7 +410,7 @@ await page.evaluate((idx) => (window as any).__testClickMarkerByIndex(idx), 0);
 
 ## Test Results Summary
 
-**Latest Run** (10 tests):
+**Latest Run** (11 tests):
 ```
 ✓ [create-route] create unique test route (944ms)
   - Creates route: [E2E-TEST-1760893635243] Sample Route

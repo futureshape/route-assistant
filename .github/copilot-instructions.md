@@ -217,7 +217,7 @@ The project uses **Playwright** for end-to-end testing with real RideWithGPS OAu
 - Persistent test database (`.test-data/test-db.sqlite`)
 - Sequential test execution with shared page context
 - Video recording support
-- 10 comprehensive tests (2 setup + 8 tests + 1 teardown) covering complete user journey
+- 11 comprehensive tests (2 setup + 8 tests + 1 teardown) covering complete user journey
 
 **Test Coverage**:
 - Unique route creation in RideWithGPS (setup)
