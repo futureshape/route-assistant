@@ -54,10 +54,17 @@ export default defineConfig({
 
   /* Configure projects for major browsers */
   projects: [
-    // Setup project - runs authentication before all tests
+    // Setup project 1 - Create unique test route in RideWithGPS
     {
-      name: 'setup',
-      testMatch: /.*\.setup\.ts/,
+      name: 'create-route',
+      testMatch: /create-route\.setup\.ts/,
+    },
+
+    // Setup project 2 - Authenticate (depends on route creation)
+    {
+      name: 'auth',
+      testMatch: /auth\.setup\.ts/,
+      dependencies: ['create-route'],
     },
 
     {
@@ -67,7 +74,14 @@ export default defineConfig({
         // Use saved authentication state
         storageState: 'tests/e2e/.auth/user.json',
       },
-      dependencies: ['setup'],
+      dependencies: ['auth'],
+      teardown: 'cleanup-route',
+    },
+
+    // Teardown project - Clean up test route after all tests
+    {
+      name: 'cleanup-route',
+      testMatch: /cleanup-route\.teardown\.ts/,
     },
 
     // {

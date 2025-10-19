@@ -34,13 +34,18 @@ This document summarizes the E2E testing implementation for Route Assistant. Thi
 #### New Files:
 - `playwright.config.ts` - Playwright configuration with video recording and persistent server/DB
 - `tests/e2e/setup/auth.setup.ts` - Authentication setup (runs before tests)
+- `tests/e2e/setup/create-route.setup.ts` - Creates unique test route in RideWithGPS before tests
+- `tests/e2e/setup/cleanup-route.teardown.ts` - Deletes test route after all tests complete
 - `tests/e2e/authentication.spec.ts` - Comprehensive test suite (8 tests, sequential execution)
 - `tests/e2e/README.md` - Test documentation
 - `tests/e2e/GETTING_OAUTH_TOKEN.md` - Guide for obtaining OAuth token
 - `tests/e2e/MARKER_TESTING_PROPOSAL.md` - Technical proposal for marker interaction testing
 - `tests/e2e/IMPLEMENTATION_SUMMARY.md` - This file
+- `tests/e2e/test-route.json` - Template route data for creating test routes
 - `.env.test` - Test environment configuration template
 - `.test-data/test-db.sqlite` - Persistent test database
+- `tests/e2e/.auth/test-route-name.txt` - Stores unique test route name (auto-generated, auto-deleted)
+- `tests/e2e/.auth/test-route-id.txt` - Stores test route ID for cleanup (auto-generated, auto-deleted)
 
 #### Modified Files:
 - `server.js` - Added TEST_MODE middleware for auth bypass
@@ -66,66 +71,82 @@ npm run test:e2e:report   # Open HTML test report
 
 ### 5. Tests Implemented
 
-**Comprehensive Test Suite** (`authentication.spec.ts`) - **8 sequential tests, all passing in ~9.7s**:
+**Comprehensive Test Suite** (`authentication.spec.ts`) - **10 tests total, all passing in ~12.8s**:
 
-1. **User can authenticate and routes are fetched** (2.7s)
+0. **Setup: Create unique test route** (~944ms)
+   - POSTs `test-route.json` to RideWithGPS API
+   - Generates unique route name with timestamp (e.g., `[E2E-TEST-1760893635243] Sample Route`)
+   - Saves route name and ID to `.auth/test-route-{name,id}.txt` for tests to use
+   - Ensures tests don't interfere with existing routes
+
+1. **Setup: User authentication** (~1.6s)
+   - Navigates to `/auth/test` endpoint
+   - Simulates OAuth callback
+   - Saves authentication state to `.auth/user.json`
+
+2. **User can authenticate and routes are fetched** (2.6s)
    - Navigates to application
    - Verifies authentication via `data-testid="user-name"`
    - Closes intro dialog
    - Waits for routes to load
    - Verifies `/api/session` and `/api/routes` API calls
 
-2. **Route selector combobox can open and contains a [TEST] route** (147ms)
+3. **Route selector combobox can open and contains the test route** (156ms)
    - Opens route selector dropdown
-   - Finds route with "[TEST]" in name
-   - Stores test route name for subsequent tests
+   - Finds the unique test route created in setup
+   - Verifies route exists in the list
 
-3. **Selecting a [TEST] route shows the route line on the map** (1.0s)
-   - Selects the [TEST] route
+4. **Selecting the test route shows the route line on the map** (962ms)
+   - Selects the unique test route
    - Verifies map overlay disappears
-   - Confirms 417 route points loaded
+   - Confirms route points loaded (275 points in test route)
    - Validates route name displayed in selector
 
-4. **Searching for POIs returns results from Google** (456ms)
+5. **Searching for POIs returns results from Google** (686ms)
    - Opens Google Maps POI provider
    - Searches for "coffee"
    - Verifies 20 POIs added to map
    - Tracks initial vs final POI count
 
-5. **Clearing all suggested POIs removes them from the map** (56ms)
+6. **Clearing all suggested POIs removes them from the map** (43ms)
    - Clicks "Clear all suggested POIs" button
    - Verifies POIs removed
    - Confirms button becomes disabled
 
-6. **Searching OSM for fuel stations and toilets returns results** (1.4s)
+7. **Searching OSM for fuel stations and toilets returns results** (1.4s)
    - Opens OpenStreetMap POI provider
    - Selects "Fuel Station" and "Toilets" POI types
    - Searches for POIs
-   - Verifies 21 POIs added to map
+   - Verifies 19 POIs added to map
 
-7. **Clicking a random marker and changing its name to a unique test ID** (487ms)
+8. **Clicking a random marker and changing its name to a unique test ID** (245ms)
    - Gets all markers via `__testGetMarkers()` test helper
-   - Filters to suggested markers (21 found)
+   - Filters to suggested markers (19 found)
    - Randomly selects one marker
    - Clicks marker programmatically via `__testClickMarkerByKey()`
-   - Changes POI name to unique timestamp-based ID (e.g., `TEST-POI-1760888940180`)
+   - Changes POI name to unique timestamp-based ID (e.g., `TEST-POI-1760892954792`)
    - Clicks "Keep" button to select POI
    - Verifies selected count increased
 
-8. **Setup project** (1.1s)
-   - Runs authentication setup from `auth.setup.ts`
-   - Validates TEST_OAUTH_TOKEN environment variable
-   - Saves authentication state to `.auth/user.json`
+9. **Teardown: Delete test route** (~594ms)
+   - Reads route ID from `.auth/test-route-id.txt`
+   - Sends DELETE request to RideWithGPS API
+   - Removes cleanup files
+   - Runs automatically after all tests (successful or failed)
 
 **Test Architecture**:
+- **Unique route creation**: Each test run creates a fresh route with timestamp-based unique name
+- **Automatic cleanup**: Test routes are deleted after all tests complete (successful or failed)
 - **Sequential execution**: Tests run in order using `test.describe.serial()`
 - **Shared page context**: All tests share single page instance created in `beforeAll()`
 - **State preservation**: Route selection, POI searches, and selections persist across tests
-- **Performance optimized**: 37% faster than independent test execution
+- **Performance optimized**: Setup steps run in parallel, tests run sequentially
+- **Safe testing**: Tests use dedicated routes, auto-cleanup prevents route accumulation
 
 **Test Data Used**:
 - Test user: Alex Baxevanis (RideWithGPS user ID 1625496)
-- Test route: "[TEST] For Route Assistant" with 417 points and 14 existing POIs
+- Test route: Dynamically created from `test-route.json` with unique name
+- Route template: 275 points, ~7.8km cycling route in London area
 - Real OAuth token stored in `.env.test`
 
 ## Marker Testing Infrastructure (Phase 1)
@@ -159,33 +180,48 @@ Added to `POIInfoWindow` component:
 
 **Rationale**: Google Maps markers aren't regular DOM elements, so programmatic clicking via JavaScript functions is required instead of Playwright selectors. See `tests/e2e/MARKER_TESTING_PROPOSAL.md` for detailed technical approach.
 
+## How It Works
+
 ### Authentication Flow
 
 ```
 1. Test starts → Playwright config sets TEST_MODE=true
-2. Auth setup runs → Sets Authorization header with real token
-3. Request hits backend → TEST_MODE middleware intercepts
-4. Server validates token → Matches TEST_OAUTH_TOKEN env var
-5. Server fetches user → Calls RideWithGPS API /user.json
-6. User added to DB → Creates/updates user in local database
-7. Session created → req.session populated with real data
-8. Tests run normally → All API calls work with real token
+2. Route creation → POSTs test-route.json to RideWithGPS
+3. Unique route name → [E2E-TEST-{timestamp}] Sample Route
+4. Auth setup runs → Sets Authorization header with real token
+5. Request hits backend → TEST_MODE middleware intercepts
+6. Server validates token → Matches TEST_OAUTH_TOKEN env var
+7. Server fetches user → Calls RideWithGPS API /user.json
+8. User added to DB → Creates/updates user in local database
+9. Session created → req.session populated with real data
+10. Tests run → Use unique route name from .auth/test-route-name.txt
 ```
 
 ### Test Execution Flow
 
 ```
-1. Setup Project → Runs auth.setup.ts once
-   - Validates TEST_OAUTH_TOKEN is set
-   - Sets Authorization header
-   - Navigates to app
-   - Waits for authentication
+1. Setup Project 1 → Create unique route (~944ms)
+   - Reads test-route.json template
+   - Generates unique name with timestamp
+   - POSTs to RideWithGPS API
+   - Saves route name and ID to .auth/test-route-{name,id}.txt
+
+2. Setup Project 2 → Authenticate (~1.6s)
+   - Depends on route creation
+   - Navigates to /auth/test endpoint
    - Saves auth state to .auth/user.json
 
-2. Test Projects → Each test reuses saved auth state
-   - Chromium tests run with authenticated session
-   - No re-authentication needed per test
-   - Fast parallel execution
+3. Test Projects → Run tests with auth state (~8.3s)
+   - Chromium tests use saved authentication
+   - Read unique route name from file
+   - Load and interact with the test route
+   - Fast sequential execution with shared page
+
+4. Teardown Project → Delete test route (~594ms)
+   - Runs after all tests (even if tests failed)
+   - Reads route ID from file
+   - DELETEs route via RideWithGPS API
+   - Removes cleanup files
 ```
 
 ## Setup Requirements
@@ -255,7 +291,7 @@ Added to `POIInfoWindow` component:
 ## Known Limitations
 
 1. **Token Expiration**: OAuth tokens expire after ~60 days. Need to refresh periodically.
-2. **Test Data Dependency**: Tests depend on the test account having a route with "[TEST]" in the name.
+2. **Cleanup Dependency**: If cleanup fails (network error, API issue), route may remain. Manual cleanup may be needed rarely.
 3. **API Rate Limits**: Using real API means tests count toward RideWithGPS rate limits.
 4. **Google Maps API**: Tests require valid GOOGLE_MAPS_API_KEY for map features.
 5. **Single Browser**: Currently only configured for Chromium (Firefox/WebKit available but disabled).
@@ -327,9 +363,13 @@ await page.evaluate((idx) => (window as any).__testClickMarkerByIndex(idx), 0);
 7. Check test output in terminal for console.log statements
 
 **Performance Metrics** (as of latest run):
-- Total execution time: ~9.7s for 8 tests
-- Sequential execution provides 37% performance improvement vs independent tests
-- Shared page context maintains state and reduces setup overhead
+- Total execution time: ~12.8s for 10 tests (includes 2 setup + 8 tests + 1 teardown)
+- Route creation: ~944ms
+- Authentication: ~1.6s  
+- Main tests: ~8.3s (8 tests)
+- Route cleanup: ~594ms
+- Sequential execution with shared page maintains state and reduces setup overhead
+- Each test run creates a fresh, isolated route and cleans it up automatically
 
 ## Documentation
 
@@ -352,18 +392,28 @@ await page.evaluate((idx) => (window as any).__testClickMarkerByIndex(idx), 0);
 
 ## Test Results Summary
 
-**Latest Run** (8 tests):
+**Latest Run** (10 tests):
 ```
-✓ [setup] authenticate (1.1s)
+✓ [create-route] create unique test route (944ms)
+  - Creates route: [E2E-TEST-1760893635243] Sample Route
+  - RideWithGPS route ID: 53073155
+  
+✓ [auth] authenticate (1.6s)
+  - Saves auth state to .auth/user.json
+
 ✓ user can authenticate and routes are fetched (2.7s)
-✓ route selector combobox can open and contains a [TEST] route (147ms)
-✓ selecting a [TEST] route shows the route line on the map (1.0s)
-✓ searching for POIs returns results from Google (456ms)
-✓ clearing all suggested POIs removes them from the map (56ms)
-✓ searching OSM for fuel stations and toilets returns results (1.4s)
-✓ clicking a random marker and changing its name to a unique test ID (487ms)
+✓ route selector combobox can open and contains a [TEST] route (151ms)
+✓ selecting a [TEST] route shows the route line on the map (970ms)
+✓ searching for POIs returns results from Google (639ms)
+✓ clearing all suggested POIs removes them from the map (47ms)
+✓ searching OSM for fuel stations and toilets returns results (1.3s)
+✓ clicking a random marker and changing its name to a unique test ID (474ms)
 
-8 passed (9.7s)
+✓ [cleanup-route] delete test route (594ms)
+  - Deletes route ID: 53073155 from RideWithGPS
+  - Cleanup files removed
+
+10 passed (12.8s)
 ```
 
-**Test Coverage**: Complete user journey from authentication through route selection, POI search (Google + OSM), marker interaction, and state management.
+**Test Coverage**: Complete user journey from route creation through authentication, route selection, POI search (Google + OSM), marker interaction, state management, and automatic cleanup. Each test run uses a fresh, uniquely-named route that is automatically deleted afterward.

@@ -1,4 +1,6 @@
 import { test, expect, Page } from '@playwright/test';
+import * as fs from 'fs';
+import * as path from 'path';
 
 test.describe.serial('Authentication and Route Management', () => {
   let sharedPage: Page;
@@ -8,6 +10,15 @@ test.describe.serial('Authentication and Route Management', () => {
     // Create a single page context that will be shared across all tests
     const context = await browser.newContext({ storageState: 'tests/e2e/.auth/user.json' });
     sharedPage = await context.newPage();
+
+    // Read the unique test route name created by the setup
+    const routeNameFile = path.join(__dirname, '.auth', 'test-route-name.txt');
+    if (fs.existsSync(routeNameFile)) {
+      testRouteName = fs.readFileSync(routeNameFile, 'utf-8').trim();
+      console.log(`Using test route: ${testRouteName}`);
+    } else {
+      throw new Error('Test route name file not found. Route creation setup may have failed.');
+    }
   });
 
   test.afterAll(async () => {
@@ -71,24 +82,23 @@ test.describe.serial('Authentication and Route Management', () => {
     await sharedPage.waitForSelector('[data-testid="route-selector-popover"]', { timeout: 5000 });
     console.log(`✓ Route selector popover is visible`);
 
-    // Find all route options and check for [TEST] in the name
+    // Find all route options and check for our unique test route
     const routeOptions = await sharedPage.locator('[data-testid^="route-option-"]').all();
     console.log(`✓ Found ${routeOptions.length} route options`);
     expect(routeOptions.length).toBeGreaterThan(0);
 
-    // Check if any route contains [TEST] in its name
+    // Check if our unique test route exists
     let foundTestRoute = false;
     for (const option of routeOptions) {
       const routeName = await option.getAttribute('data-route-name');
-      if (routeName && routeName.includes('[TEST]')) {
+      if (routeName === testRouteName) {
         foundTestRoute = true;
-        testRouteName = routeName; // Save for next test
         break;
       }
     }
 
     expect(foundTestRoute).toBe(true);
-    console.log(`✓ Found route with [TEST] in name: ${testRouteName}`);
+    console.log(`✓ Found test route: ${testRouteName}`);
     
     // Close the popover (click outside or press Escape)
     await sharedPage.keyboard.press('Escape');
@@ -107,13 +117,13 @@ test.describe.serial('Authentication and Route Management', () => {
     await sharedPage.waitForSelector('[data-testid="route-selector-popover"]', { timeout: 5000 });
     console.log(`✓ Route selector opened`);
 
-    // Find and click the [TEST] route (we already know it exists from previous test)
+    // Find and click our unique test route
     const routeOptions = await sharedPage.locator('[data-testid^="route-option-"]').all();
     let testRouteFound = false;
     
     for (const option of routeOptions) {
       const routeName = await option.getAttribute('data-route-name');
-      if (routeName && routeName.includes('[TEST]')) {
+      if (routeName === testRouteName) {
         await option.click();
         testRouteFound = true;
         console.log(`✓ Selected route: ${routeName}`);

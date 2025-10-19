@@ -212,18 +212,22 @@ The project uses **Playwright** for end-to-end testing with real RideWithGPS OAu
 
 **Key Features**:
 - Real OAuth token authentication (no mocking)
+- **Automatic test route creation**: Each test run creates a unique route in RideWithGPS
+- **Automatic cleanup**: Test routes are deleted after all tests complete
 - Persistent test database (`.test-data/test-db.sqlite`)
 - Sequential test execution with shared page context
 - Video recording support
-- 8 comprehensive tests covering complete user journey
+- 10 comprehensive tests (2 setup + 8 tests + 1 teardown) covering complete user journey
 
 **Test Coverage**:
+- Unique route creation in RideWithGPS (setup)
 - Authentication and session management
 - Route loading and selection
 - Google Maps POI search
 - OpenStreetMap POI search
 - POI marker interactions (programmatic clicking)
 - POI state management (suggested → selected)
+- Automatic route cleanup (teardown)
 
 **Documentation**: See `tests/e2e/IMPLEMENTATION_SUMMARY.md` for complete implementation details, test architecture, and usage guide.
 
@@ -257,10 +261,12 @@ See `tests/e2e/MARKER_TESTING_PROPOSAL.md` for technical details.
 - **Next phase**: Consider extracting custom hooks and adding context providers
 
 ## Testing Status
-- **E2E Testing**: ✅ Comprehensive Playwright implementation complete (8 tests, ~9.7s)
-  - Sequential execution with shared page context (37% faster than independent tests)
+- **E2E Testing**: ✅ Comprehensive Playwright implementation complete (10 tests, ~12.8s)
+  - Automatic unique route creation before each test run
+  - Automatic route cleanup after all tests (successful or failed)
+  - Sequential execution with shared page context
   - Real OAuth authentication, persistent test database
-  - Full user journey coverage: authentication → route selection → POI search → marker interactions
+  - Full user journey coverage: route creation → authentication → route selection → POI search → marker interactions → cleanup
   - See `tests/e2e/IMPLEMENTATION_SUMMARY.md` for details
 - **Unit Testing**: Not yet implemented
 - **Integration Testing**: Not yet implemented
