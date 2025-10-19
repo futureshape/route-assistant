@@ -158,5 +158,88 @@ test.describe('Authentication', () => {
     expect(buttonText).toContain(testRouteName);
     console.log(`✓ Selected route name displayed in selector: ${testRouteName}`);
   });
+
+  test('searching for POIs returns results from Google', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForSelector('[data-testid="user-name"]', { timeout: 10000 });
+    
+    // Close the intro dialog if it appears
+    const introDialog = page.getByRole('dialog');
+    if (await introDialog.isVisible().catch(() => false)) {
+      await page.getByRole('button', { name: 'OK' }).click();
+      await introDialog.waitFor({ state: 'hidden', timeout: 2000 });
+      console.log(`✓ Closed intro dialog`);
+    }
+    
+    // Wait for routes to load
+    await page.waitForSelector('[data-testid="route-selector-button"]:not([disabled])', { timeout: 10000 });
+    const loadingSpinner = page.getByTestId('route-selector-loading');
+    if (await loadingSpinner.isVisible().catch(() => false)) {
+      await loadingSpinner.waitFor({ state: 'hidden', timeout: 10000 });
+    }
+    console.log(`✓ Routes loaded successfully`);
+
+    // Open the route selector and select the [TEST] route
+    await page.getByTestId('route-selector-button').click();
+    await page.waitForSelector('[data-testid="route-selector-popover"]', { timeout: 5000 });
+    
+    const routeOptions = await page.locator('[data-testid^="route-option-"]').all();
+    let testRouteSelected = false;
+    
+    for (const option of routeOptions) {
+      const routeName = await option.getAttribute('data-route-name');
+      if (routeName && routeName.includes('[TEST]')) {
+        await option.click();
+        testRouteSelected = true;
+        console.log(`✓ Selected route: ${routeName}`);
+        break;
+      }
+    }
+    
+    expect(testRouteSelected).toBe(true);
+
+    // Wait for the route to load (overlay should disappear)
+    const mapOverlay = page.getByTestId('map-overlay');
+    await mapOverlay.waitFor({ state: 'hidden', timeout: 10000 });
+    console.log(`✓ Route loaded on map`);
+
+    // Open the Google Maps POI provider accordion
+    const googleProviderTrigger = page.getByTestId('poi-provider-trigger-google');
+    await googleProviderTrigger.click();
+    await page.waitForSelector('[data-testid="poi-provider-content-google"]', { timeout: 5000 });
+    console.log(`✓ Opened Google Maps POI provider`);
+
+    // Get initial POI count
+    const mapContainer = page.getByTestId('map-container');
+    const initialPoiCount = parseInt(await mapContainer.getAttribute('data-poi-count') || '0');
+    console.log(`✓ Initial POI count: ${initialPoiCount}`);
+
+    // Enter search query
+    const searchInput = page.getByTestId('google-poi-search-input');
+    await searchInput.fill('coffee');
+    console.log(`✓ Entered search query: coffee`);
+
+    // Click search button
+    const searchButton = page.getByTestId('google-poi-search-button');
+    await searchButton.click();
+    console.log(`✓ Clicked search button`);
+
+    // Wait for search to complete (button should not be in loading state)
+    await page.waitForFunction(
+      () => {
+        const btn = document.querySelector('[data-testid="google-poi-search-button"]');
+        return btn && !btn.textContent?.includes('Searching');
+      },
+      { timeout: 15000 }
+    );
+    console.log(`✓ Search completed`);
+
+    // Verify POIs were added
+    const finalPoiCount = parseInt(await mapContainer.getAttribute('data-poi-count') || '0');
+    expect(finalPoiCount).toBeGreaterThan(initialPoiCount);
+    const poisAdded = finalPoiCount - initialPoiCount;
+    console.log(`✓ POIs added: ${poisAdded} (total: ${finalPoiCount})`);
+    expect(poisAdded).toBeGreaterThan(0);
+  });
 });
 

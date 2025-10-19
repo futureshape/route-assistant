@@ -88,6 +88,7 @@ export function MapContainer({
       data-testid="map-container"
       data-route-loaded={routePath.length > 0 ? 'true' : 'false'}
       data-route-points={routePath.length}
+      data-poi-count={markers.length}
     >
       {googleMapsApiKey && (
         <APIProvider apiKey={googleMapsApiKey} libraries={['geometry', 'places']}>

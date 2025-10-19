@@ -30,9 +30,15 @@ const GoogleMapsSearchForm: React.FC<POISearchFormProps> = ({ onSearch, disabled
         onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSearch(); } }}
         placeholder="e.g. coffee, 24hr petrol station"
         disabled={disabled || loading}
+        data-testid="google-poi-search-input"
       />
       <div className="flex gap-2">
-        <Button onClick={handleSearch} size="sm" disabled={disabled || loading || !query.trim()}>
+        <Button 
+          onClick={handleSearch} 
+          size="sm" 
+          disabled={disabled || loading || !query.trim()}
+          data-testid="google-poi-search-button"
+        >
           {loading ? (
             <>
               <Loader2 className="animate-spin mr-2 h-4 w-4" />
