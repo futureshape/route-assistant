@@ -274,5 +274,75 @@ test.describe.serial('Authentication and Route Management', () => {
     console.log(`✓ POIs added: ${poisAdded} (total: ${finalPoiCount})`);
     expect(poisAdded).toBeGreaterThan(0);
   });
+
+  test('clicking a random marker and changing its name to a unique test ID', async () => {
+    // Get all markers via test helper
+    const markers = await sharedPage.evaluate(() => {
+      return (window as any).__testGetMarkers();
+    });
+    
+    console.log(`✓ Found ${markers.length} total markers on map`);
+    expect(markers.length).toBeGreaterThan(0);
+
+    // Filter to only suggested markers (those we can edit)
+    const suggestedMarkers = markers.filter((m: any) => m.state === 'suggested');
+    console.log(`✓ Found ${suggestedMarkers.length} suggested markers`);
+    expect(suggestedMarkers.length).toBeGreaterThan(0);
+
+    // Pick a random suggested marker
+    const randomIndex = Math.floor(Math.random() * suggestedMarkers.length);
+    const selectedMarker = suggestedMarkers[randomIndex];
+    console.log(`✓ Selected random marker #${randomIndex}: ${selectedMarker.name}`);
+
+    // Click the marker programmatically
+    const clicked = await sharedPage.evaluate((markerKey: string) => {
+      return (window as any).__testClickMarkerByKey(markerKey);
+    }, selectedMarker.key);
+    
+    expect(clicked).toBe(true);
+    console.log(`✓ Clicked marker programmatically`);
+
+    // Wait for info window to appear
+    const infoWindow = sharedPage.getByTestId('poi-info-window');
+    await expect(infoWindow).toBeVisible({ timeout: 5000 });
+    
+    // Verify we're looking at the right marker
+    const infoWindowPoiKey = await infoWindow.getAttribute('data-poi-key');
+    expect(infoWindowPoiKey).toBe(selectedMarker.key);
+    console.log(`✓ Info window opened for correct marker`);
+
+    // Generate a unique test ID
+    const uniqueTestId = `TEST-POI-${Date.now()}`;
+    console.log(`✓ Generated unique test ID: ${uniqueTestId}`);
+
+    // Change the POI name to the unique test ID
+    const nameInput = sharedPage.getByTestId('poi-name-input');
+    await expect(nameInput).toBeVisible();
+    await nameInput.clear();
+    await nameInput.fill(uniqueTestId);
+    console.log(`✓ Changed POI name to: ${uniqueTestId}`);
+
+    // Verify the name was updated in the input
+    await expect(nameInput).toHaveValue(uniqueTestId);
+
+    // Click Keep to select this POI
+    await sharedPage.getByTestId('poi-keep-button').click();
+    console.log(`✓ Clicked Keep button to select POI`);
+
+    // Close the info window
+    await sharedPage.keyboard.press('Escape');
+    await expect(infoWindow).not.toBeVisible();
+    console.log(`✓ Closed info window`);
+
+    // Verify the marker is now in selected state
+    const mapContainer = sharedPage.getByTestId('map-container');
+    const selectedCount = await mapContainer.getAttribute('data-selected-count');
+    expect(parseInt(selectedCount || '0')).toBeGreaterThan(0);
+    console.log(`✓ Selected POI count: ${selectedCount}`);
+
+    // Store the test ID for potential future tests
+    testRouteName = uniqueTestId; // Reuse existing variable to store test ID
+    console.log(`✓ Test completed: POI renamed and selected`);
+  });
 });
 

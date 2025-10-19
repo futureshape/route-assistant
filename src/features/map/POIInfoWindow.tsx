@@ -79,6 +79,9 @@ export function POIInfoWindow({
   const [editedUrl, setEditedUrl] = useState(poi?.url || '')
   const [urlError, setUrlError] = useState(false)
 
+  // Generate marker key for testing (same logic as in App.tsx)
+  const getMarkerKey = (p: POI) => `${p.name}_${p.lat}_${p.lng}`
+
   // Helper: allow only http/https links for anchor tags
   const isSafeHref = (url: string) => {
     try {
@@ -145,7 +148,13 @@ export function POIInfoWindow({
       position={{ lat: poi.lat, lng: poi.lng }}
       onCloseClick={onClose}
     >
-      <div className="p-2 max-w-xs">
+      <div 
+        className="p-2 max-w-xs" 
+        data-testid="poi-info-window"
+        data-poi-key={getMarkerKey(poi)}
+        data-poi-name={poi.name}
+        data-poi-state={markerState}
+      >
         <div className="space-y-2">
           {/* POI Name */}
           {isEditable ? (
@@ -154,6 +163,7 @@ export function POIInfoWindow({
               onChange={(e) => handleNameChange(e.target.value)}
               className="font-bold text-sm"
               placeholder="POI Name"
+              data-testid="poi-name-input"
             />
           ) : (
             <h3 className="font-bold text-sm">{poi.name}</h3>
@@ -235,13 +245,14 @@ export function POIInfoWindow({
           
           <div>
             {markerState === 'existing' ? (
-              <div className="text-xs text-gray-500 italic mt-2">
+              <div className="text-xs text-gray-500 italic mt-2" data-testid="poi-existing-label">
                 Existing POI
               </div>
             ) : markerState === 'suggested' ? (
               <button
                 onClick={() => onUpdateState('selected')}
                 className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs font-medium mt-2"
+                data-testid="poi-keep-button"
               >
                 Keep
               </button>
@@ -249,6 +260,7 @@ export function POIInfoWindow({
               <button
                 onClick={() => onUpdateState('suggested')}
                 className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-xs font-medium mt-2"
+                data-testid="poi-remove-button"
               >
                 Remove
               </button>
