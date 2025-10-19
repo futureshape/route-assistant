@@ -83,7 +83,12 @@ export function MapContainer({
   mapInstanceRef
 }: MapContainerProps) {
   return (
-    <div className="relative w-full h-full">
+    <div 
+      className="relative w-full h-full" 
+      data-testid="map-container"
+      data-route-loaded={routePath.length > 0 ? 'true' : 'false'}
+      data-route-points={routePath.length}
+    >
       {googleMapsApiKey && (
         <APIProvider apiKey={googleMapsApiKey} libraries={['geometry', 'places']}>
           <Map
@@ -94,6 +99,7 @@ export function MapContainer({
             onCameraChanged={(event) => {
               onCameraChange(event.detail.center, event.detail.zoom)
             }}
+            data-testid="google-map"
           >
             {/* Capture map instance */}
             <MapInstanceCapture 
@@ -152,7 +158,7 @@ export function MapContainer({
       
       {/* Overlay when no route is selected or route is not fully loaded */}
       {(!selectedRouteId || !routeFullyLoaded) && (
-        <div className="absolute inset-0 bg-background flex items-center justify-center z-10">
+        <div className="absolute inset-0 bg-background flex items-center justify-center z-10" data-testid="map-overlay">
           <div className="text-center space-y-4">
             <ListTodo className="h-12 w-12 mx-auto text-muted-foreground" />
             <p className="text-muted-foreground">

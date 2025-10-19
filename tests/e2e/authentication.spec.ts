@@ -88,4 +88,75 @@ test.describe('Authentication', () => {
     expect(foundTestRoute).toBe(true);
     console.log(`✓ Found route with [TEST] in name: ${testRouteName}`);
   });
+
+  test('selecting a [TEST] route shows the route line on the map', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForSelector('[data-testid="user-name"]', { timeout: 10000 });
+    
+    // Close the intro dialog if it appears
+    const introDialog = page.getByRole('dialog');
+    if (await introDialog.isVisible().catch(() => false)) {
+      await page.getByRole('button', { name: 'OK' }).click();
+      await introDialog.waitFor({ state: 'hidden', timeout: 2000 });
+      console.log(`✓ Closed intro dialog`);
+    }
+    
+    // Wait for routes to load
+    await page.waitForSelector('[data-testid="route-selector-button"]:not([disabled])', { timeout: 10000 });
+    const loadingSpinner = page.getByTestId('route-selector-loading');
+    if (await loadingSpinner.isVisible().catch(() => false)) {
+      await loadingSpinner.waitFor({ state: 'hidden', timeout: 10000 });
+    }
+    console.log(`✓ Routes loaded successfully`);
+
+    // Initially, the map overlay should be visible (no route selected)
+    const mapOverlay = page.getByTestId('map-overlay');
+    await expect(mapOverlay).toBeVisible();
+    console.log(`✓ Map overlay visible (no route selected)`);
+
+    // Open the route selector
+    await page.getByTestId('route-selector-button').click();
+    await page.waitForSelector('[data-testid="route-selector-popover"]', { timeout: 5000 });
+    console.log(`✓ Route selector opened`);
+
+    // Find and click the first route with [TEST] in its name
+    const routeOptions = await page.locator('[data-testid^="route-option-"]').all();
+    let testRouteFound = false;
+    let testRouteName = '';
+    
+    for (const option of routeOptions) {
+      const routeName = await option.getAttribute('data-route-name');
+      if (routeName && routeName.includes('[TEST]')) {
+        testRouteName = routeName;
+        await option.click();
+        testRouteFound = true;
+        console.log(`✓ Selected route: ${testRouteName}`);
+        break;
+      }
+    }
+    
+    expect(testRouteFound).toBe(true);
+
+    // Wait for the route to load (overlay should disappear)
+    await mapOverlay.waitFor({ state: 'hidden', timeout: 10000 });
+    console.log(`✓ Map overlay hidden (route loaded)`);
+
+    // Verify that the route data is loaded on the map
+    const mapContainer = page.getByTestId('map-container');
+    await expect(mapContainer).toHaveAttribute('data-route-loaded', 'true');
+    console.log(`✓ Route data loaded on map`);
+    
+    // Get the number of route points loaded
+    const routePoints = await mapContainer.getAttribute('data-route-points');
+    const pointCount = parseInt(routePoints || '0');
+    expect(pointCount).toBeGreaterThan(0);
+    console.log(`✓ Route polyline rendered with ${pointCount} points`);
+
+    // Verify the route name is shown in the selector button
+    const selectorButton = page.getByTestId('route-selector-button');
+    const buttonText = await selectorButton.textContent();
+    expect(buttonText).toContain(testRouteName);
+    console.log(`✓ Selected route name displayed in selector: ${testRouteName}`);
+  });
 });
+
