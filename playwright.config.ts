@@ -43,8 +43,13 @@ export default defineConfig({
     /* Screenshot on failure */
     screenshot: 'only-on-failure',
     
-    /* Video on failure */
-    video: 'retain-on-failure',
+    /* Video recording options:
+     * 'off' - Do not record video
+     * 'on' - Record video for each test
+     * 'retain-on-failure' - Record video, but remove if test passed (default)
+     * 'on-first-retry' - Record video only when retrying a test
+     */
+    video: process.env.RECORD_VIDEO === 'always' ? 'on' : 'retain-on-failure',
   },
 
   /* Configure projects for major browsers */
