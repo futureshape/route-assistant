@@ -1,31 +1,52 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
 
-test.describe('Authentication', () => {
-  test('user can authenticate and see their name', async ({ page }) => {
-    await page.goto('/');
-    await page.waitForSelector('[data-testid="user-name"]', { timeout: 10000 });
-    const userName = await page.getByTestId('user-name').textContent();
-    expect(userName).toBeTruthy();
-    expect(userName?.trim().length).toBeGreaterThan(0);
-    console.log(`✓ Successfully authenticated as: ${userName}`);
+test.describe.serial('Authentication and Route Management', () => {
+  let sharedPage: Page;
+  let testRouteName = '';
+
+  test.beforeAll(async ({ browser }) => {
+    // Create a single page context that will be shared across all tests
+    const context = await browser.newContext({ storageState: 'tests/e2e/.auth/user.json' });
+    sharedPage = await context.newPage();
   });
 
-  test('routes are fetched from API after authentication', async ({ page }) => {
+  test.afterAll(async () => {
+    await sharedPage?.close();
+  });
+
+  test('user can authenticate and routes are fetched', async () => {
     const apiRequests: string[] = [];
     
     // Set up listener BEFORE navigation to catch all requests
-    page.on('response', (response) => {
+    sharedPage.on('response', (response) => {
       if (response.url().includes('/api/')) {
         apiRequests.push(`${response.status()} ${response.url()}`);
       }
     });
 
-    await page.goto('/');
-    await page.waitForSelector('[data-testid="user-name"]', { timeout: 10000 });
+    await sharedPage.goto('/');
+    await sharedPage.waitForSelector('[data-testid="user-name"]', { timeout: 10000 });
+    const userName = await sharedPage.getByTestId('user-name').textContent();
+    expect(userName).toBeTruthy();
+    expect(userName?.trim().length).toBeGreaterThan(0);
+    console.log(`✓ Successfully authenticated as: ${userName}`);
     
-    // Wait for route selector to be ready (routes loaded)
-    await page.waitForSelector('[data-testid="route-selector-button"]:not([disabled])', { timeout: 10000 });
+    // Close the intro dialog if it appears (do this once for all subsequent tests)
+    const introDialog = sharedPage.getByRole('dialog');
+    if (await introDialog.isVisible().catch(() => false)) {
+      await sharedPage.getByRole('button', { name: 'OK' }).click();
+      await introDialog.waitFor({ state: 'hidden', timeout: 2000 });
+      console.log(`✓ Closed intro dialog`);
+    }
 
+    // Wait for route selector to be ready (routes loaded)
+    await sharedPage.waitForSelector('[data-testid="route-selector-button"]:not([disabled])', { timeout: 10000 });
+    const loadingSpinner = sharedPage.getByTestId('route-selector-loading');
+    if (await loadingSpinner.isVisible().catch(() => false)) {
+      await loadingSpinner.waitFor({ state: 'hidden', timeout: 10000 });
+    }
+
+    // Verify API calls
     const sessionCalls = apiRequests.filter(r => r.includes('/api/session'));
     expect(sessionCalls.length).toBeGreaterThan(0);
     console.log(`✓ /api/session called: ${sessionCalls[0]}`);
@@ -37,100 +58,65 @@ test.describe('Authentication', () => {
     // Routes API should return 200 (success)
     expect(routesCalls[0]).toContain('200');
 
-    console.log(`✓ All authentication and route fetching working correctly`);
+    console.log(`✓ Routes loaded successfully`);
   });
 
-  test('route selector combobox can open and contains a [TEST] route', async ({ page }) => {
-    await page.goto('/');
-    await page.waitForSelector('[data-testid="user-name"]', { timeout: 10000 });
-    
-    // Close the intro dialog if it appears
-    const introDialog = page.getByRole('dialog');
-    if (await introDialog.isVisible().catch(() => false)) {
-      await page.getByRole('button', { name: 'OK' }).click();
-      await introDialog.waitFor({ state: 'hidden', timeout: 2000 });
-      console.log(`✓ Closed intro dialog`);
-    }
-    
-    // Wait for routes to load (loading spinner should disappear)
-    await page.waitForSelector('[data-testid="route-selector-button"]:not([disabled])', { timeout: 10000 });
-    const loadingSpinner = page.getByTestId('route-selector-loading');
-    if (await loadingSpinner.isVisible().catch(() => false)) {
-      await loadingSpinner.waitFor({ state: 'hidden', timeout: 10000 });
-    }
-    console.log(`✓ Routes loaded successfully`);
-
+  test('route selector combobox can open and contains a [TEST] route', async () => {
+    // Routes are already loaded from previous test
     // Click the route selector button to open the combobox
-    await page.getByTestId('route-selector-button').click();
+    await sharedPage.getByTestId('route-selector-button').click();
     console.log(`✓ Route selector combobox opened`);
 
     // Wait for the popover to be visible
-    await page.waitForSelector('[data-testid="route-selector-popover"]', { timeout: 5000 });
+    await sharedPage.waitForSelector('[data-testid="route-selector-popover"]', { timeout: 5000 });
     console.log(`✓ Route selector popover is visible`);
 
     // Find all route options and check for [TEST] in the name
-    const routeOptions = await page.locator('[data-testid^="route-option-"]').all();
+    const routeOptions = await sharedPage.locator('[data-testid^="route-option-"]').all();
     console.log(`✓ Found ${routeOptions.length} route options`);
     expect(routeOptions.length).toBeGreaterThan(0);
 
     // Check if any route contains [TEST] in its name
     let foundTestRoute = false;
-    let testRouteName = '';
     for (const option of routeOptions) {
       const routeName = await option.getAttribute('data-route-name');
       if (routeName && routeName.includes('[TEST]')) {
         foundTestRoute = true;
-        testRouteName = routeName;
+        testRouteName = routeName; // Save for next test
         break;
       }
     }
 
     expect(foundTestRoute).toBe(true);
     console.log(`✓ Found route with [TEST] in name: ${testRouteName}`);
+    
+    // Close the popover (click outside or press Escape)
+    await sharedPage.keyboard.press('Escape');
+    await sharedPage.waitForSelector('[data-testid="route-selector-popover"]', { state: 'hidden', timeout: 2000 });
+    console.log(`✓ Closed route selector`);
   });
 
-  test('selecting a [TEST] route shows the route line on the map', async ({ page }) => {
-    await page.goto('/');
-    await page.waitForSelector('[data-testid="user-name"]', { timeout: 10000 });
-    
-    // Close the intro dialog if it appears
-    const introDialog = page.getByRole('dialog');
-    if (await introDialog.isVisible().catch(() => false)) {
-      await page.getByRole('button', { name: 'OK' }).click();
-      await introDialog.waitFor({ state: 'hidden', timeout: 2000 });
-      console.log(`✓ Closed intro dialog`);
-    }
-    
-    // Wait for routes to load
-    await page.waitForSelector('[data-testid="route-selector-button"]:not([disabled])', { timeout: 10000 });
-    const loadingSpinner = page.getByTestId('route-selector-loading');
-    if (await loadingSpinner.isVisible().catch(() => false)) {
-      await loadingSpinner.waitFor({ state: 'hidden', timeout: 10000 });
-    }
-    console.log(`✓ Routes loaded successfully`);
-
-    // Initially, the map overlay should be visible (no route selected)
-    const mapOverlay = page.getByTestId('map-overlay');
+  test('selecting a [TEST] route shows the route line on the map', async () => {
+    // Map overlay should be visible initially (no route selected)
+    const mapOverlay = sharedPage.getByTestId('map-overlay');
     await expect(mapOverlay).toBeVisible();
     console.log(`✓ Map overlay visible (no route selected)`);
 
-    // Open the route selector
-    await page.getByTestId('route-selector-button').click();
-    await page.waitForSelector('[data-testid="route-selector-popover"]', { timeout: 5000 });
+    // Open the route selector (routes already loaded)
+    await sharedPage.getByTestId('route-selector-button').click();
+    await sharedPage.waitForSelector('[data-testid="route-selector-popover"]', { timeout: 5000 });
     console.log(`✓ Route selector opened`);
 
-    // Find and click the first route with [TEST] in its name
-    const routeOptions = await page.locator('[data-testid^="route-option-"]').all();
+    // Find and click the [TEST] route (we already know it exists from previous test)
+    const routeOptions = await sharedPage.locator('[data-testid^="route-option-"]').all();
     let testRouteFound = false;
-    let testRouteName = '';
     
     for (const option of routeOptions) {
       const routeName = await option.getAttribute('data-route-name');
       if (routeName && routeName.includes('[TEST]')) {
-        testRouteName = routeName;
         await option.click();
         testRouteFound = true;
-        console.log(`✓ Selected route: ${testRouteName}`);
+        console.log(`✓ Selected route: ${routeName}`);
         break;
       }
     }
@@ -142,7 +128,7 @@ test.describe('Authentication', () => {
     console.log(`✓ Map overlay hidden (route loaded)`);
 
     // Verify that the route data is loaded on the map
-    const mapContainer = page.getByTestId('map-container');
+    const mapContainer = sharedPage.getByTestId('map-container');
     await expect(mapContainer).toHaveAttribute('data-route-loaded', 'true');
     console.log(`✓ Route data loaded on map`);
     
@@ -153,79 +139,37 @@ test.describe('Authentication', () => {
     console.log(`✓ Route polyline rendered with ${pointCount} points`);
 
     // Verify the route name is shown in the selector button
-    const selectorButton = page.getByTestId('route-selector-button');
+    const selectorButton = sharedPage.getByTestId('route-selector-button');
     const buttonText = await selectorButton.textContent();
     expect(buttonText).toContain(testRouteName);
-    console.log(`✓ Selected route name displayed in selector: ${testRouteName}`);
+    console.log(`✓ Selected route name displayed in selector`);
   });
 
-  test('searching for POIs returns results from Google', async ({ page }) => {
-    await page.goto('/');
-    await page.waitForSelector('[data-testid="user-name"]', { timeout: 10000 });
-    
-    // Close the intro dialog if it appears
-    const introDialog = page.getByRole('dialog');
-    if (await introDialog.isVisible().catch(() => false)) {
-      await page.getByRole('button', { name: 'OK' }).click();
-      await introDialog.waitFor({ state: 'hidden', timeout: 2000 });
-      console.log(`✓ Closed intro dialog`);
-    }
-    
-    // Wait for routes to load
-    await page.waitForSelector('[data-testid="route-selector-button"]:not([disabled])', { timeout: 10000 });
-    const loadingSpinner = page.getByTestId('route-selector-loading');
-    if (await loadingSpinner.isVisible().catch(() => false)) {
-      await loadingSpinner.waitFor({ state: 'hidden', timeout: 10000 });
-    }
-    console.log(`✓ Routes loaded successfully`);
-
-    // Open the route selector and select the [TEST] route
-    await page.getByTestId('route-selector-button').click();
-    await page.waitForSelector('[data-testid="route-selector-popover"]', { timeout: 5000 });
-    
-    const routeOptions = await page.locator('[data-testid^="route-option-"]').all();
-    let testRouteSelected = false;
-    
-    for (const option of routeOptions) {
-      const routeName = await option.getAttribute('data-route-name');
-      if (routeName && routeName.includes('[TEST]')) {
-        await option.click();
-        testRouteSelected = true;
-        console.log(`✓ Selected route: ${routeName}`);
-        break;
-      }
-    }
-    
-    expect(testRouteSelected).toBe(true);
-
-    // Wait for the route to load (overlay should disappear)
-    const mapOverlay = page.getByTestId('map-overlay');
-    await mapOverlay.waitFor({ state: 'hidden', timeout: 10000 });
-    console.log(`✓ Route loaded on map`);
-
+  test('searching for POIs returns results from Google', async () => {
+    // Route is already loaded from previous test
     // Open the Google Maps POI provider accordion
-    const googleProviderTrigger = page.getByTestId('poi-provider-trigger-google');
+    const googleProviderTrigger = sharedPage.getByTestId('poi-provider-trigger-google');
     await googleProviderTrigger.click();
-    await page.waitForSelector('[data-testid="poi-provider-content-google"]', { timeout: 5000 });
+    await sharedPage.waitForSelector('[data-testid="poi-provider-content-google"]', { timeout: 5000 });
     console.log(`✓ Opened Google Maps POI provider`);
 
     // Get initial POI count
-    const mapContainer = page.getByTestId('map-container');
+    const mapContainer = sharedPage.getByTestId('map-container');
     const initialPoiCount = parseInt(await mapContainer.getAttribute('data-poi-count') || '0');
     console.log(`✓ Initial POI count: ${initialPoiCount}`);
 
     // Enter search query
-    const searchInput = page.getByTestId('google-poi-search-input');
+    const searchInput = sharedPage.getByTestId('google-poi-search-input');
     await searchInput.fill('coffee');
     console.log(`✓ Entered search query: coffee`);
 
     // Click search button
-    const searchButton = page.getByTestId('google-poi-search-button');
+    const searchButton = sharedPage.getByTestId('google-poi-search-button');
     await searchButton.click();
     console.log(`✓ Clicked search button`);
 
     // Wait for search to complete (button should not be in loading state)
-    await page.waitForFunction(
+    await sharedPage.waitForFunction(
       () => {
         const btn = document.querySelector('[data-testid="google-poi-search-button"]');
         return btn && !btn.textContent?.includes('Searching');
