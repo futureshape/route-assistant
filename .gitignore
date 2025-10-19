@@ -35,6 +35,15 @@ tmp/
 .env.*
 !.env.example
 
+# Playwright test artifacts
+tests/e2e/.auth/
+test-results/
+playwright-report/
+playwright/.cache/
+
+# Test data
+.test-data/
+
 # Database
 *.db
 *.db-shm

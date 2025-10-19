@@ -22,6 +22,7 @@ export function POISummary({ selectedCount, selectedRouteId, onSendPOIs, sending
         size="sm" 
         className="ml-2"
         disabled={!selectedRouteId || sending}
+        data-testid="send-pois-button"
       >
         {sending ? (
           <>

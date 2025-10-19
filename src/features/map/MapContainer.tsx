@@ -82,8 +82,91 @@ export function MapContainer({
   getMarkerKey,
   mapInstanceRef
 }: MapContainerProps) {
+  // Calculate POI counts by state
+  const suggestedCount = markers.filter(poi => {
+    const key = getMarkerKey(poi)
+    const state = markerStates[key]
+    return !state || state === 'suggested'
+  }).length
+
+  const selectedCount = markers.filter(poi => {
+    const key = getMarkerKey(poi)
+    return markerStates[key] === 'selected'
+  }).length
+
+  const existingCount = markers.filter(poi => {
+    const key = getMarkerKey(poi)
+    return markerStates[key] === 'existing'
+  }).length
+
+  // Create a JSON string of marker info for testing
+  const markerInfo = JSON.stringify(markers.map(poi => ({
+    key: getMarkerKey(poi),
+    name: poi.name,
+    state: markerStates[getMarkerKey(poi)] || 'suggested',
+    lat: poi.lat,
+    lng: poi.lng
+  })))
+
+  // Expose test helpers for E2E testing
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // Function to click a marker by name
+      (window as any).__testClickMarkerByName = (poiName: string) => {
+        const poi = markers.find(m => m.name === poiName)
+        if (poi) {
+          onMarkerClick(poi)
+          return true
+        }
+        return false
+      }
+
+      // Function to click a marker by index
+      (window as any).__testClickMarkerByIndex = (index: number) => {
+        if (index >= 0 && index < markers.length) {
+          onMarkerClick(markers[index])
+          return true
+        }
+        return false
+      }
+
+      // Function to click a marker by key
+      (window as any).__testClickMarkerByKey = (markerKey: string) => {
+        const poi = markers.find(m => getMarkerKey(m) === markerKey)
+        if (poi) {
+          onMarkerClick(poi)
+          return true
+        }
+        return false
+      }
+
+      // Function to get all markers (for test inspection)
+      (window as any).__testGetMarkers = () => {
+        return markers.map((poi, index) => ({
+          index,
+          key: getMarkerKey(poi),
+          name: poi.name,
+          state: markerStates[getMarkerKey(poi)] || 'suggested',
+          lat: poi.lat,
+          lng: poi.lng,
+          poi_type_name: poi.poi_type_name
+        }))
+      }
+    }
+  }, [markers, markerStates, onMarkerClick, getMarkerKey])
+
   return (
-    <div className="relative w-full h-full">
+    <div 
+      className="relative w-full h-full" 
+      data-testid="map-container"
+      data-route-loaded={routePath.length > 0 ? 'true' : 'false'}
+      data-route-points={routePath.length}
+      data-poi-count={markers.length}
+      data-suggested-count={suggestedCount}
+      data-selected-count={selectedCount}
+      data-existing-count={existingCount}
+      data-marker-info={markerInfo}
+    >
       {googleMapsApiKey && (
         <APIProvider apiKey={googleMapsApiKey} libraries={['geometry', 'places']}>
           <Map
@@ -94,6 +177,7 @@ export function MapContainer({
             onCameraChanged={(event) => {
               onCameraChange(event.detail.center, event.detail.zoom)
             }}
+            data-testid="google-map"
           >
             {/* Capture map instance */}
             <MapInstanceCapture 
@@ -152,7 +236,7 @@ export function MapContainer({
       
       {/* Overlay when no route is selected or route is not fully loaded */}
       {(!selectedRouteId || !routeFullyLoaded) && (
-        <div className="absolute inset-0 bg-background flex items-center justify-center z-10">
+        <div className="absolute inset-0 bg-background flex items-center justify-center z-10" data-testid="map-overlay">
           <div className="text-center space-y-4">
             <ListTodo className="h-12 w-12 mx-auto text-muted-foreground" />
             <p className="text-muted-foreground">

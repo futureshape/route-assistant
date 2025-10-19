@@ -197,11 +197,59 @@ This is a full-stack web application that helps cyclists explore routes and find
 - `npm run build`: Build for production
 - `npm run preview`: Preview production build
 
+### Testing Commands
+- `npm run test:e2e`: Run E2E tests (headless)
+- `npm run test:e2e:ui`: Run E2E tests with Playwright UI
+- `npm run test:e2e:headed`: Run E2E tests with visible browser
+- `npm run test:e2e:debug`: Run E2E tests in debug mode
+- `npm run test:e2e:video`: Run E2E tests with video recording
+- `npm run test:e2e:report`: View HTML test report
+
+## Testing
+
+### E2E Testing
+The project uses **Playwright** for end-to-end testing with real RideWithGPS OAuth authentication.
+
+**Key Features**:
+- Real OAuth token authentication (no mocking)
+- **Automatic test route creation**: Each test run creates a unique route in RideWithGPS
+- **Automatic cleanup**: Test routes are deleted after all tests complete
+- Persistent test database (`.test-data/test-db.sqlite`)
+- Sequential test execution with shared page context
+- Video recording support
+- 11 comprehensive tests (2 setup + 8 tests + 1 teardown) covering complete user journey
+
+**Test Coverage**:
+- Unique route creation in RideWithGPS (setup)
+- Authentication and session management
+- Route loading and selection
+- Google Maps POI search
+- OpenStreetMap POI search
+- POI marker interactions (programmatic clicking)
+- POI state management (suggested → selected)
+- Automatic route cleanup (teardown)
+
+**Documentation**: See `tests/e2e/IMPLEMENTATION_SUMMARY.md` for complete implementation details, test architecture, and usage guide.
+
+**Adding Test IDs**: When creating new interactive components, add `data-testid` attributes for E2E testing:
+```tsx
+<Button data-testid="my-button-action">Click Me</Button>
+```
+
+**Marker Testing**: Google Maps markers require special handling. Use test helper functions:
+- `__testGetMarkers()` - Get all markers with metadata
+- `__testClickMarkerByKey(key)` - Click marker programmatically
+- `__testClickMarkerByName(name)` - Click marker by POI name
+- `__testClickMarkerByIndex(index)` - Click marker by array index
+
+See `tests/e2e/MARKER_TESTING_PROPOSAL.md` for technical details.
+
 ## Debugging Tips
 - Check browser console for Google Maps API errors
 - Verify environment variables are set
 - Check Network tab for API request/response issues
 - Use React DevTools for component state inspection
+- For E2E test failures: Run `npm run test:e2e:ui` for interactive debugging
 
 ## Future Considerations
 - Add toast notifications instead of alerts
@@ -211,7 +259,17 @@ This is a full-stack web application that helps cyclists explore routes and find
 - Add offline support for cached routes
 - **Refactoring completed**: App.tsx successfully refactored from 1,153 to 680 lines
 - **Next phase**: Consider extracting custom hooks and adding context providers
-- **Testing**: Add unit tests for individual feature components
+
+## Testing Status
+- **E2E Testing**: ✅ Comprehensive Playwright implementation complete (11 tests, ~14.4s)
+  - Automatic unique route creation before each test run
+  - Automatic route cleanup after all tests (successful or failed)
+  - Sequential execution with shared page context
+  - Real OAuth authentication, persistent test database
+  - Full user journey coverage: route creation → authentication → route selection → POI search → marker interactions → send to RideWithGPS → persistence verification → cleanup
+  - See `tests/e2e/IMPLEMENTATION_SUMMARY.md` for details
+- **Unit Testing**: Not yet implemented
+- **Integration Testing**: Not yet implemented
 
 ## Documentation Guidelines
 

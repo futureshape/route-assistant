@@ -60,7 +60,7 @@ export function POISearch({
   }
   
   return (
-    <div className="p-2 space-y-2">
+    <div className="p-2 space-y-2" data-testid="poi-search">
       {poiProviders.length > 0 ? (
         <>
           <Accordion 
@@ -68,6 +68,7 @@ export function POISearch({
             collapsible 
             value={activeAccordionItem}
             onValueChange={onAccordionChange}
+            data-testid="poi-providers-accordion"
           >
             {poiProviders.map((provider) => {
               const SearchForm = provider.getSearchFormComponent();
@@ -76,12 +77,12 @@ export function POISearch({
               const isLoading = loadingProviderId === provider.id;
               
               return (
-                <AccordionItem key={provider.id} value={provider.id}>
-                  <AccordionTrigger className="text-sm">
+                <AccordionItem key={provider.id} value={provider.id} data-testid={`poi-provider-${provider.id}`}>
+                  <AccordionTrigger className="text-sm" data-testid={`poi-provider-trigger-${provider.id}`}>
                     {provider.name}
                   </AccordionTrigger>
                   <AccordionContent>
-                    <div className="space-y-2">
+                    <div className="space-y-2" data-testid={`poi-provider-content-${provider.id}`}>
                       <p className="text-xs text-muted-foreground">
                         {provider.description}
                       </p>
@@ -97,7 +98,14 @@ export function POISearch({
             })}
           </Accordion>
           <div className="pt-2">
-              <Button onClick={onClearMarkers} variant="destructive" size="sm" className="w-full" disabled={!hasSuggestedPOIs}>
+              <Button 
+                onClick={onClearMarkers} 
+                variant="destructive" 
+                size="sm" 
+                className="w-full" 
+                disabled={!hasSuggestedPOIs}
+                data-testid="clear-suggested-pois-button"
+              >
                 Clear all suggested POIs
               </Button>
           </div>
