@@ -185,5 +185,94 @@ test.describe.serial('Authentication and Route Management', () => {
     console.log(`✓ POIs added: ${poisAdded} (total: ${finalPoiCount})`);
     expect(poisAdded).toBeGreaterThan(0);
   });
+
+  test('clearing all suggested POIs removes them from the map', async () => {
+    // Get current POI count (should have coffee POIs from previous test)
+    const mapContainer = sharedPage.getByTestId('map-container');
+    const initialPoiCount = parseInt(await mapContainer.getAttribute('data-poi-count') || '0');
+    expect(initialPoiCount).toBeGreaterThan(0);
+    console.log(`✓ Initial POI count: ${initialPoiCount}`);
+
+    // Find and click the "Clear all suggested POIs" button
+    const clearButton = sharedPage.getByTestId('clear-suggested-pois-button');
+    await expect(clearButton).toBeEnabled();
+    await clearButton.click();
+    console.log(`✓ Clicked clear suggested POIs button`);
+
+    // Verify POIs were cleared (should only have existing POIs from the route now)
+    const finalPoiCount = parseInt(await mapContainer.getAttribute('data-poi-count') || '0');
+    expect(finalPoiCount).toBeLessThan(initialPoiCount);
+    const poisRemoved = initialPoiCount - finalPoiCount;
+    console.log(`✓ POIs removed: ${poisRemoved} (remaining: ${finalPoiCount})`);
+    
+    // Button should now be disabled (no suggested POIs left)
+    await expect(clearButton).toBeDisabled();
+    console.log(`✓ Clear button disabled (no suggested POIs)`);
+  });
+
+  test('searching OSM for fuel stations and toilets returns results', async () => {
+    // OSM provider should already be available (route is loaded)
+    // Open the OpenStreetMap POI provider accordion
+    const osmProviderTrigger = sharedPage.getByTestId('poi-provider-trigger-osm');
+    await osmProviderTrigger.click();
+    await sharedPage.waitForSelector('[data-testid="poi-provider-content-osm"]', { timeout: 5000 });
+    console.log(`✓ Opened OpenStreetMap POI provider`);
+
+    // Get initial POI count
+    const mapContainer = sharedPage.getByTestId('map-container');
+    const initialPoiCount = parseInt(await mapContainer.getAttribute('data-poi-count') || '0');
+    console.log(`✓ Initial POI count: ${initialPoiCount}`);
+
+    // Open the POI types combobox
+    await sharedPage.getByTestId('osm-poi-types-button').click();
+    await sharedPage.waitForSelector('[data-testid="osm-poi-types-popover"]', { timeout: 5000 });
+    console.log(`✓ Opened OSM POI types selector`);
+
+    // Select "Fuel Station" (amenity=fuel)
+    const fuelOption = sharedPage.getByTestId('osm-poi-type-amenity=fuel');
+    await fuelOption.click();
+    console.log(`✓ Selected Fuel Station`);
+
+    // Verify the tag is shown as selected
+    await sharedPage.waitForSelector('[data-testid="osm-selected-tag-amenity=fuel"]', { timeout: 2000 });
+    console.log(`✓ Fuel Station tag displayed`);
+
+    // Open the combobox again to select Toilets
+    await sharedPage.getByTestId('osm-poi-types-button').click();
+    await sharedPage.waitForSelector('[data-testid="osm-poi-types-popover"]', { timeout: 5000 });
+    console.log(`✓ Reopened OSM POI types selector`);
+
+    // Select "Toilets" (amenity=toilets)
+    const toiletsOption = sharedPage.getByTestId('osm-poi-type-amenity=toilets');
+    await toiletsOption.click();
+    console.log(`✓ Selected Toilets`);
+
+    // Verify the tag is shown as selected
+    await sharedPage.waitForSelector('[data-testid="osm-selected-tag-amenity=toilets"]', { timeout: 2000 });
+    console.log(`✓ Toilets tag displayed`);
+
+    // Click search button
+    const searchButton = sharedPage.getByTestId('osm-poi-search-button');
+    await expect(searchButton).toBeEnabled();
+    await searchButton.click();
+    console.log(`✓ Clicked search button`);
+
+    // Wait for search to complete (button should not be in loading state)
+    await sharedPage.waitForFunction(
+      () => {
+        const btn = document.querySelector('[data-testid="osm-poi-search-button"]');
+        return btn && !btn.textContent?.includes('Searching');
+      },
+      { timeout: 15000 }
+    );
+    console.log(`✓ Search completed`);
+
+    // Verify POIs were added
+    const finalPoiCount = parseInt(await mapContainer.getAttribute('data-poi-count') || '0');
+    expect(finalPoiCount).toBeGreaterThan(initialPoiCount);
+    const poisAdded = finalPoiCount - initialPoiCount;
+    console.log(`✓ POIs added: ${poisAdded} (total: ${finalPoiCount})`);
+    expect(poisAdded).toBeGreaterThan(0);
+  });
 });
 

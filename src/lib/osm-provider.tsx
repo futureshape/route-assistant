@@ -77,12 +77,13 @@ const OSMSearchForm: React.FC<POISearchFormProps> = ({ onSearch, disabled, loadi
             aria-expanded={open}
             className="w-full justify-between"
             disabled={disabled || loading}
+            data-testid="osm-poi-types-button"
           >
             Add POI types ...
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" data-testid="osm-poi-types-popover">
           <Command>
             <CommandInput placeholder="Search POI types ..." />
             <CommandList>
@@ -93,6 +94,8 @@ const OSMSearchForm: React.FC<POISearchFormProps> = ({ onSearch, disabled, loadi
                     key={tag.value}
                     value={tag.value}
                     keywords={[tag.label, tag.description]}
+                    data-testid={`osm-poi-type-${tag.value}`}
+                    data-poi-label={tag.label}
                     onSelect={() => {
                       handleToggleTag(tag.value);
                       setOpen(false);
@@ -112,12 +115,13 @@ const OSMSearchForm: React.FC<POISearchFormProps> = ({ onSearch, disabled, loadi
 
       {/* Selected tags as tokens/badges */}
       {selectedTags.length > 0 && (
-        <div className="flex flex-wrap gap-1">
+        <div className="flex flex-wrap gap-1" data-testid="osm-selected-tags">
           {selectedTagObjects.map((tag) => (
             <Badge
               key={tag?.value}
               variant="default"
               className="flex items-center gap-1 text-xs"
+              data-testid={`osm-selected-tag-${tag?.value}`}
             >
               {tag?.label}
               <X
@@ -133,6 +137,7 @@ const OSMSearchForm: React.FC<POISearchFormProps> = ({ onSearch, disabled, loadi
         onClick={handleSearch} 
         size="sm" 
         disabled={disabled || loading || selectedTags.length === 0} 
+        data-testid="osm-poi-search-button"
       >
         {loading ? (
           <>
