@@ -57,6 +57,7 @@ export function RouteSelector({
             aria-expanded={open}
             className="w-full justify-between"
             disabled={routesLoading}
+            data-testid="route-selector-button"
           >
             <span className="truncate">
               {routesLoading
@@ -65,13 +66,13 @@ export function RouteSelector({
               }
             </span>
             {routesLoading ? (
-              <Loader2 className="animate-spin text-muted-foreground flex-shrink-0 h-4 w-4" />
+              <Loader2 className="animate-spin text-muted-foreground flex-shrink-0 h-4 w-4" data-testid="route-selector-loading" />
             ) : (
               <ChevronsUpDown className="opacity-50 flex-shrink-0" />
             )}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
+        <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" data-testid="route-selector-popover">
           <Command>
             <CommandInput placeholder="Search route..." className="h-9" />
             <CommandList>
@@ -84,6 +85,8 @@ export function RouteSelector({
                     key={route.id}
                     value={route.id.toString()}
                     keywords={[route.name]}
+                    data-testid={`route-option-${route.id}`}
+                    data-route-name={route.name}
                     onSelect={(currentValue: string) => {
                       console.log('[Route Selection] onSelect triggered with ID:', currentValue)
                       console.log('[Route Selection] Current value state:', value)
