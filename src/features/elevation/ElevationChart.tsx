@@ -62,9 +62,15 @@ const CustomTooltip = ({ active, payload, label }: TooltipProps) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload
     return (
-      <div className="bg-popover border border-border rounded-lg p-3 shadow-lg">
-        <p className="font-medium text-sm text-popover-foreground">{`Distance: ${Number(label).toFixed(1)} km`}</p>
-        <p className="text-sm text-muted-foreground">{`Elevation: ${Math.round(data.elevation)} m`}</p>
+      <div 
+        className="bg-popover border border-border rounded-lg p-3 shadow-lg pointer-events-none"
+        style={{ 
+          transform: 'translateZ(0)',
+          willChange: 'transform'
+        }}
+      >
+        <p className="font-medium text-sm text-popover-foreground whitespace-nowrap">{`Distance: ${Number(label).toFixed(1)} km`}</p>
+        <p className="text-sm text-muted-foreground whitespace-nowrap">{`Elevation: ${Math.round(data.elevation)} m`}</p>
       </div>
     )
   }
@@ -119,7 +125,12 @@ export function ElevationChart({
                       tickLine={false}
                       className="text-xs"
                     />
-                    <ChartTooltip content={<CustomTooltip />} />
+                    <ChartTooltip 
+                      content={<CustomTooltip />}
+                      animationDuration={0}
+                      animationEasing="linear"
+                      isAnimationActive={false}
+                    />
                     <Area
                       type="monotone"
                       dataKey="elevation"

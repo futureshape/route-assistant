@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useMemo } from 'react'
 import { Mountain, HelpCircle } from 'lucide-react'
-import { getCookie } from '@/lib/utils'
+import { getCookie, throttle } from '@/lib/utils'
 import { fetchWithCSRFRetry, fetchCSRFToken, clearCSRFToken } from '@/lib/csrf'
 import { Button } from '@/components/ui/button'
 import {
@@ -541,16 +541,20 @@ export default function App(){
     }>
   }
 
-  const handleChartMouseMove = (state: ChartMouseState | null) => {
-    if (state && state.activePayload && state.activePayload[0]) {
-      const dataPoint = state.activePayload[0].payload
-      
-      // The elevation data now includes lat/lng coordinates directly
-      if (dataPoint.lat && dataPoint.lng) {
-        setChartHoverPosition({ lat: dataPoint.lat, lng: dataPoint.lng })
+  // Throttled chart mouse move handler to prevent flickering
+  const handleChartMouseMove = useMemo(
+    () => throttle((state: ChartMouseState | null) => {
+      if (state && state.activePayload && state.activePayload[0]) {
+        const dataPoint = state.activePayload[0].payload
+        
+        // The elevation data now includes lat/lng coordinates directly
+        if (dataPoint.lat && dataPoint.lng) {
+          setChartHoverPosition({ lat: dataPoint.lat, lng: dataPoint.lng })
+        }
       }
-    }
-  }
+    }, 16), // ~60fps limit
+    []
+  )
 
   const handleChartMouseLeave = () => {
     setChartHoverPosition(null)

@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo, memo } from 'react'
 import { APIProvider, Map, Marker, useMap } from '@vis.gl/react-google-maps'
 import { ListTodo } from 'lucide-react'
 import { RoutePolyline } from './RoutePolyline'
@@ -7,6 +7,22 @@ import { POIInfoWindow } from './POIInfoWindow'
 import { setupGoogleMapsPOIClickListener } from '@/lib/google-maps-provider'
 import type { POI, MarkerState, MarkerStates } from '@/types/poi'
 import type { POIResult } from '@/lib/poi-providers'
+
+// Memoized chart hover marker component to prevent flickering
+const ChartHoverMarker = memo(({ position, color }: { position: { lat: number; lng: number }, color: string }) => {
+  const icon = useMemo(() => ({
+    url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="${color}" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <circle cx="12" cy="12" r="3"/>
+      </svg>
+    `),
+    scaledSize: new window.google.maps.Size(16, 16),
+    anchor: new window.google.maps.Point(8, 8)
+  }), [color])
+
+  return <Marker position={position} icon={icon} />
+})
 
 interface MapContainerProps {
   googleMapsApiKey: string
@@ -190,19 +206,7 @@ export function MapContainer({
           
             {/* Chart hover position marker */}
             {chartHoverPosition && (
-              <Marker
-                position={chartHoverPosition}
-                icon={{
-                  url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="${routeColor}" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <circle cx="12" cy="12" r="10"/>
-                      <circle cx="12" cy="12" r="3"/>
-                    </svg>
-                  `),
-                  scaledSize: new window.google.maps.Size(16, 16),
-                  anchor: new window.google.maps.Point(8, 8)
-                }}
-              />
+              <ChartHoverMarker position={chartHoverPosition} color={routeColor} />
             )}
           
             {/* POI Markers */}
