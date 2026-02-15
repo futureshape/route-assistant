@@ -362,6 +362,7 @@ test.describe.serial('Authentication and Route Management', () => {
     });
     
     const initialMarkerCount = markers.length;
+    expect(initialMarkerCount).toBeGreaterThan(0);
     console.log(`✓ Initial marker count: ${initialMarkerCount}`);
     
     // Filter to only suggested markers
