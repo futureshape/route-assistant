@@ -355,6 +355,70 @@ test.describe.serial('Authentication and Route Management', () => {
     console.log(`✓ Test completed: POI renamed and selected`);
   });
 
+  test('discarding suggested POIs removes them completely', async () => {
+    // Get all markers before discarding
+    const markers = await sharedPage.evaluate(() => {
+      return (window as any).__testGetMarkers();
+    });
+    
+    const initialMarkerCount = markers.length;
+    expect(initialMarkerCount).toBeGreaterThan(0);
+    console.log(`✓ Initial marker count: ${initialMarkerCount}`);
+    
+    // Filter to only suggested markers
+    const suggestedMarkers = markers.filter((m: any) => m.state === 'suggested');
+    console.log(`✓ Found ${suggestedMarkers.length} suggested markers`);
+    
+    if (suggestedMarkers.length === 0) {
+      console.log('⚠ No suggested markers to discard, skipping test');
+      return;
+    }
+    
+    // Pick a suggested marker to discard
+    const markerToDiscard = suggestedMarkers[0];
+    console.log(`✓ Selected marker to discard: ${markerToDiscard.name}`);
+    
+    // Click the marker programmatically
+    const clicked = await sharedPage.evaluate((markerKey: string) => {
+      return (window as any).__testClickMarkerByKey(markerKey);
+    }, markerToDiscard.key);
+    
+    expect(clicked).toBe(true);
+    console.log(`✓ Clicked marker programmatically`);
+    
+    // Wait for info window to appear
+    const infoWindow = sharedPage.getByTestId('poi-info-window');
+    await expect(infoWindow).toBeVisible({ timeout: 5000 });
+    console.log(`✓ Info window opened`);
+    
+    // Verify the Discard button is visible for suggested POIs
+    const discardButton = sharedPage.getByTestId('poi-discard-button');
+    await expect(discardButton).toBeVisible();
+    console.log(`✓ Discard button is visible`);
+    
+    // Click the Discard button
+    await discardButton.click();
+    console.log(`✓ Clicked Discard button`);
+    
+    // Info window should close automatically after discarding
+    await expect(infoWindow).not.toBeVisible({ timeout: 2000 });
+    console.log(`✓ Info window closed after discarding`);
+    
+    // Verify the POI is completely removed from the map
+    const markersAfterDiscard = await sharedPage.evaluate(() => {
+      return (window as any).__testGetMarkers();
+    });
+    
+    const finalMarkerCount = markersAfterDiscard.length;
+    expect(finalMarkerCount).toBe(initialMarkerCount - 1);
+    console.log(`✓ Marker count reduced by 1: ${initialMarkerCount} -> ${finalMarkerCount}`);
+    
+    // Verify the discarded marker is not in the list
+    const discardedMarkerStillExists = markersAfterDiscard.find((m: any) => m.key === markerToDiscard.key);
+    expect(discardedMarkerStillExists).toBeUndefined();
+    console.log(`✓ Discarded POI completely removed from markers list`);
+  });
+
   test('sending POIs to RideWithGPS and verifying persistence after reload', async () => {
     // Get initial counts before sending
     const mapContainer = sharedPage.getByTestId('map-container');

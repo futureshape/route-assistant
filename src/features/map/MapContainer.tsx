@@ -42,6 +42,7 @@ interface MapContainerProps {
   onCloseInfoWindow: () => void
   onUpdateMarkerState: (markerKey: string, newState: MarkerState) => void
   onPOIUpdate?: (markerKey: string, updatedPOI: Partial<POI>) => void
+  onDiscardPOI?: (markerKey: string) => void
   onGooglePlacesPOIClick?: (poi: POIResult) => void
   getMarkerKey: (poi: POI) => string
   mapInstanceRef: React.MutableRefObject<google.maps.Map | null>
@@ -94,6 +95,7 @@ export function MapContainer({
   onCloseInfoWindow,
   onUpdateMarkerState,
   onPOIUpdate,
+  onDiscardPOI,
   onGooglePlacesPOIClick,
   getMarkerKey,
   mapInstanceRef
@@ -231,6 +233,7 @@ export function MapContainer({
                   onClose={onCloseInfoWindow}
                   onUpdateState={(newState) => onUpdateMarkerState(markerKey, newState)}
                   onPOIUpdate={onPOIUpdate ? (updatedPOI) => onPOIUpdate(markerKey, updatedPOI) : undefined}
+                  onDiscard={onDiscardPOI ? () => onDiscardPOI(markerKey) : undefined}
                 />
               )
             })()}

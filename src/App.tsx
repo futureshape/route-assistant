@@ -306,6 +306,24 @@ export default function App(){
     setSelectedMarker(poi)
   }
 
+  // Handler for discarding a POI (removes it completely)
+  const handleDiscardPOI = (markerKey: string) => {
+    // Remove the POI from markers array
+    setMarkers(prev => prev.filter(poi => getMarkerKey(poi) !== markerKey))
+    
+    // Remove the marker state
+    setMarkerStates(prev => {
+      const newStates = { ...prev }
+      delete newStates[markerKey]
+      return newStates
+    })
+    
+    // Close the info window if this POI was selected
+    if (selectedMarker && getMarkerKey(selectedMarker) === markerKey) {
+      setSelectedMarker(null)
+    }
+  }
+
   // Handler for when user clicks on native Google Maps POI markers
   const handleGooglePlacesPOIClick = (poiResult: any) => {
     console.log('[Google Places POI] User clicked on Google POI:', poiResult)
@@ -857,6 +875,7 @@ export default function App(){
                 onCloseInfoWindow={() => setSelectedMarker(null)}
                 onUpdateMarkerState={updateMarkerState}
                 onPOIUpdate={updatePOI}
+                onDiscardPOI={handleDiscardPOI}
                 onGooglePlacesPOIClick={handleGooglePlacesPOIClick}
                 getMarkerKey={getMarkerKey}
                 mapInstanceRef={mapInstanceRef}
