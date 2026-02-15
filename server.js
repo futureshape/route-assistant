@@ -1141,13 +1141,35 @@ out center;
       const lon = element.lon ?? element.center?.lon ?? 0;
       
       const tags = element.tags || {};
-      // Prefer OSM name; fallback to a readable label from available tags
-      const readable = (s) => (s || '').toString().replace(/_/g, ' ');
+      // Helper to convert underscore/hyphen strings to title case
+      const toTitleCase = (s) => {
+        return (s || '').toString()
+          .replace(/[_-]/g, ' ')
+          .split(' ')
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+          .join(' ');
+      };
+      
+      // Prefer OSM name tag; otherwise generate a descriptive name from the type
       let name = tags.name;
       if (!name) {
-        // Use first available tag value for name
-        const firstTag = Object.values(tags)[0];
-        name = firstTag ? readable(firstTag) : 'POI';
+        // Generate name from amenity/railway/public_transport type
+        if (tags.amenity) {
+          name = toTitleCase(tags.amenity);
+        } else if (tags.railway) {
+          name = toTitleCase(tags.railway);
+        } else if (tags.public_transport) {
+          name = toTitleCase(tags.public_transport);
+        } else if (tags.shop) {
+          name = toTitleCase(tags.shop);
+        } else if (tags.tourism) {
+          name = toTitleCase(tags.tourism);
+        } else if (tags.leisure) {
+          name = toTitleCase(tags.leisure);
+        } else {
+          // Last resort fallback
+          name = 'POI';
+        }
       }
 
       // Build key=value for POI type detection (prefer amenity, railway, public_transport)
