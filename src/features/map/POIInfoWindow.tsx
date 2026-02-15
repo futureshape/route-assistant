@@ -15,10 +15,10 @@ import { POI } from '@/types/poi'
 
 interface POIInfoWindowProps {
   poi: POI | null
-  markerState: 'suggested' | 'selected' | 'existing'
+  markerState: 'suggested' | 'selected' | 'existing' | 'discarded'
   poiTypeNames: Record<string, string>
   onClose: () => void
-  onUpdateState: (newState: 'suggested' | 'selected') => void
+  onUpdateState: (newState: 'suggested' | 'selected' | 'discarded') => void
   onPOIUpdate?: (updatedPOI: Partial<POI>) => void
 }
 
@@ -249,13 +249,22 @@ export function POIInfoWindow({
                 Existing POI
               </div>
             ) : markerState === 'suggested' ? (
-              <button
-                onClick={() => onUpdateState('selected')}
-                className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs font-medium mt-2"
-                data-testid="poi-keep-button"
-              >
-                Keep
-              </button>
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={() => onUpdateState('selected')}
+                  className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs font-medium"
+                  data-testid="poi-keep-button"
+                >
+                  Keep
+                </button>
+                <button
+                  onClick={() => onUpdateState('discarded')}
+                  className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded text-xs font-medium"
+                  data-testid="poi-discard-button"
+                >
+                  Discard
+                </button>
+              </div>
             ) : (
               <button
                 onClick={() => onUpdateState('suggested')}

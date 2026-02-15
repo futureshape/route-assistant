@@ -17,7 +17,7 @@ export interface POIMarker extends POI {
   provider?: string
 }
 
-export type MarkerState = 'suggested' | 'selected' | 'existing'
+export type MarkerState = 'suggested' | 'selected' | 'existing' | 'discarded'
 
 export interface MarkerStates {
   [key: string]: MarkerState
