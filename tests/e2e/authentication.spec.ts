@@ -355,7 +355,7 @@ test.describe.serial('Authentication and Route Management', () => {
     console.log(`✓ Test completed: POI renamed and selected`);
   });
 
-  test('discarding suggested POIs removes them from the map', async () => {
+  test('discarding suggested POIs removes them completely', async () => {
     // Get all markers before discarding
     const markers = await sharedPage.evaluate(() => {
       return (window as any).__testGetMarkers();
@@ -400,24 +400,23 @@ test.describe.serial('Authentication and Route Management', () => {
     await discardButton.click();
     console.log(`✓ Clicked Discard button`);
     
-    // Close the info window
-    await sharedPage.keyboard.press('Escape');
-    await expect(infoWindow).not.toBeVisible();
-    console.log(`✓ Closed info window`);
+    // Info window should close automatically after discarding
+    await expect(infoWindow).not.toBeVisible({ timeout: 2000 });
+    console.log(`✓ Info window closed after discarding`);
     
-    // Verify the marker is no longer visible on the map
+    // Verify the POI is completely removed from the map
     const markersAfterDiscard = await sharedPage.evaluate(() => {
       return (window as any).__testGetMarkers();
     });
     
     const finalMarkerCount = markersAfterDiscard.length;
-    expect(finalMarkerCount).toBeLessThan(initialMarkerCount);
-    console.log(`✓ Marker count reduced: ${initialMarkerCount} -> ${finalMarkerCount}`);
+    expect(finalMarkerCount).toBe(initialMarkerCount - 1);
+    console.log(`✓ Marker count reduced by 1: ${initialMarkerCount} -> ${finalMarkerCount}`);
     
     // Verify the discarded marker is not in the list
-    const discardedMarkerStillVisible = markersAfterDiscard.find((m: any) => m.key === markerToDiscard.key);
-    expect(discardedMarkerStillVisible).toBeUndefined();
-    console.log(`✓ Discarded marker is no longer visible on map`);
+    const discardedMarkerStillExists = markersAfterDiscard.find((m: any) => m.key === markerToDiscard.key);
+    expect(discardedMarkerStillExists).toBeUndefined();
+    console.log(`✓ Discarded POI completely removed from markers list`);
   });
 
   test('sending POIs to RideWithGPS and verifying persistence after reload', async () => {

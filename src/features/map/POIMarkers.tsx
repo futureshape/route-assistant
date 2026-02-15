@@ -59,11 +59,6 @@ export function POIMarkers({
       {markers.map((poi) => {
         const markerKey = getMarkerKey(poi)
         const markerState = markerStates[markerKey] || 'suggested'
-        
-        // Don't render discarded markers
-        if (markerState === 'discarded') {
-          return null
-        }
 
         return (
           <Marker

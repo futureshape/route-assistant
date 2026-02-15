@@ -15,11 +15,12 @@ import { POI } from '@/types/poi'
 
 interface POIInfoWindowProps {
   poi: POI | null
-  markerState: 'suggested' | 'selected' | 'existing' | 'discarded'
+  markerState: 'suggested' | 'selected' | 'existing'
   poiTypeNames: Record<string, string>
   onClose: () => void
-  onUpdateState: (newState: 'suggested' | 'selected' | 'discarded') => void
+  onUpdateState: (newState: 'suggested' | 'selected') => void
   onPOIUpdate?: (updatedPOI: Partial<POI>) => void
+  onDiscard?: () => void
 }
 
 // Helper: get human-readable POI type name
@@ -71,7 +72,8 @@ export function POIInfoWindow({
   poiTypeNames,
   onClose,
   onUpdateState,
-  onPOIUpdate
+  onPOIUpdate,
+  onDiscard
 }: POIInfoWindowProps) {
   const [editedName, setEditedName] = useState(poi?.name || '')
   const [editedType, setEditedType] = useState(poi?.poi_type_name || 'generic')
@@ -257,13 +259,15 @@ export function POIInfoWindow({
                 >
                   Keep
                 </button>
-                <button
-                  onClick={() => onUpdateState('discarded')}
-                  className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded text-xs font-medium"
-                  data-testid="poi-discard-button"
-                >
-                  Discard
-                </button>
+                {onDiscard && (
+                  <button
+                    onClick={onDiscard}
+                    className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded text-xs font-medium"
+                    data-testid="poi-discard-button"
+                  >
+                    Discard
+                  </button>
+                )}
               </div>
             ) : (
               <button

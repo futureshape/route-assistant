@@ -48,7 +48,7 @@ interface POIState {
   setMarkerStates: (states: MarkerStates | ((prev: MarkerStates) => MarkerStates)) => void
   setSelectedMarker: (marker: POI | null) => void
   setPOIProviders: (providers: POIProvider[]) => void
-  updateMarkerState: (markerKey: string, newState: 'suggested' | 'selected' | 'existing' | 'discarded') => void
+  updateMarkerState: (markerKey: string, newState: 'suggested' | 'selected' | 'existing') => void
   updatePOI: (markerKey: string, updatedPOI: Partial<POI>) => void
   // Compound actions
   clearAllPOIs: () => void
@@ -236,12 +236,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
       }
     })
     
-    // Only clear selectedMarker if it was a suggested or discarded POI
+    // Only clear selectedMarker if it was a suggested POI
     let newSelectedMarker = state.selectedMarker
     if (state.selectedMarker) {
       const selectedKey = `${state.selectedMarker.name}_${state.selectedMarker.lat}_${state.selectedMarker.lng}`
       const selectedState = state.markerStates[selectedKey]
-      if (selectedState === 'suggested' || selectedState === 'discarded') {
+      if (selectedState === 'suggested') {
         newSelectedMarker = null
       }
     }
