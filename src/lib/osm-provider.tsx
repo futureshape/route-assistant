@@ -30,6 +30,7 @@ const PRESET_TAGS = [
   { value: 'amenity=doctors', label: 'Doctor', description: 'Medical professional' },
   { value: 'amenity=parking', label: 'Parking', description: 'Rest area with space for pulling off road' },
   { value: 'amenity=post_office', label: 'Post Office', description: 'For sending or receiving items' },
+  { value: 'amenity=telephone', label: 'Public Telephone', description: 'Emergency calls or communication' },
   { value: 'amenity=vending_machine', label: 'Vending Machine', description: 'Quick snacks / drinks on the go' },
   { value: 'amenity=bus_station', label: 'Bus Station', description: 'Backup transport option' },
   { value: 'amenity=ferry_terminal', label: 'Ferry Terminal', description: 'Alternate transport option' },
