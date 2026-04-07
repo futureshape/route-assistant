@@ -230,6 +230,7 @@ export function MapContainer({
                   poi={selectedMarker}
                   markerState={markerState}
                   poiTypeNames={poiTypeNames}
+                  routePath={routePath}
                   onClose={onCloseInfoWindow}
                   onUpdateState={(newState) => onUpdateMarkerState(markerKey, newState)}
                   onPOIUpdate={onPOIUpdate ? (updatedPOI) => onPOIUpdate(markerKey, updatedPOI) : undefined}
