@@ -225,6 +225,18 @@ export function MapContainer({
               const markerKey = getMarkerKey(selectedMarker)
               const markerState = markerStates[markerKey] || 'suggested'
               
+              const STREET_VIEW_DEFAULT_HEADING = 0
+              const STREET_VIEW_DEFAULT_PITCH = 0
+
+              const handleOpenStreetView = () => {
+                const map = mapInstanceRef.current
+                if (!map) return
+                const panorama = map.getStreetView()
+                panorama.setPosition({ lat: selectedMarker.lat, lng: selectedMarker.lng })
+                panorama.setPov({ heading: STREET_VIEW_DEFAULT_HEADING, pitch: STREET_VIEW_DEFAULT_PITCH })
+                panorama.setVisible(true)
+              }
+
               return (
                 <POIInfoWindow
                   poi={selectedMarker}
@@ -234,6 +246,7 @@ export function MapContainer({
                   onUpdateState={(newState) => onUpdateMarkerState(markerKey, newState)}
                   onPOIUpdate={onPOIUpdate ? (updatedPOI) => onPOIUpdate(markerKey, updatedPOI) : undefined}
                   onDiscard={onDiscardPOI ? () => onDiscardPOI(markerKey) : undefined}
+                  onOpenStreetView={handleOpenStreetView}
                 />
               )
             })()}

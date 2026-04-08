@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { InfoWindow } from '@vis.gl/react-google-maps'
-import { Link } from 'lucide-react'
+import { Link, PersonStanding } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -21,6 +21,7 @@ interface POIInfoWindowProps {
   onUpdateState: (newState: 'suggested' | 'selected') => void
   onPOIUpdate?: (updatedPOI: Partial<POI>) => void
   onDiscard?: () => void
+  onOpenStreetView?: () => void
 }
 
 // Helper: get human-readable POI type name
@@ -73,7 +74,8 @@ export function POIInfoWindow({
   onClose,
   onUpdateState,
   onPOIUpdate,
-  onDiscard
+  onDiscard,
+  onOpenStreetView
 }: POIInfoWindowProps) {
   const [editedName, setEditedName] = useState(poi?.name || '')
   const [editedType, setEditedType] = useState(poi?.poi_type_name || 'generic')
@@ -276,6 +278,17 @@ export function POIInfoWindow({
                 data-testid="poi-remove-button"
               >
                 Remove
+              </button>
+            )}
+            {onOpenStreetView && (
+              <button
+                onClick={onOpenStreetView}
+                className="flex items-center gap-1 text-blue-600 hover:text-blue-800 text-xs mt-2"
+                data-testid="poi-street-view-button"
+                title="Open Street View"
+              >
+                <PersonStanding className="h-3 w-3" />
+                Street View
               </button>
             )}
           </div>
