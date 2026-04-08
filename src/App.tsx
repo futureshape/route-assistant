@@ -240,15 +240,17 @@ export default function App(){
     }
   }, [setShowIntroScreen])
 
-  // Persist selected POIs to localStorage whenever they change
+  // Persist selected POIs to localStorage whenever they change.
+  // Guard with routeFullyLoaded to avoid overwriting saved data during the
+  // clearMarkers() → loadPOIs() sequence inside showRoute().
   useEffect(() => {
-    if (!selectedRouteId) return
+    if (!selectedRouteId || !routeFullyLoaded) return
     const selectedPOIs = markers.filter(poi => {
       const markerKey = getMarkerKey(poi)
       return markerStates[markerKey] === 'selected'
     })
     savePOIs(selectedRouteId, selectedPOIs)
-  }, [markers, markerStates, selectedRouteId, savePOIs])
+  }, [markers, markerStates, selectedRouteId, routeFullyLoaded, savePOIs])
 
   // Helper: clear all user-specific data (for logout and unauthenticated state)
   const clearAllUserData = () => {
