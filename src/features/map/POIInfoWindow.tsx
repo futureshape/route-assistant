@@ -17,6 +17,7 @@ interface POIInfoWindowProps {
   poi: POI | null
   markerState: 'suggested' | 'selected' | 'existing'
   poiTypeNames: Record<string, string>
+  routeDistanceKm?: number | null
   onClose: () => void
   onUpdateState: (newState: 'suggested' | 'selected') => void
   onPOIUpdate?: (updatedPOI: Partial<POI>) => void
@@ -70,6 +71,7 @@ export function POIInfoWindow({
   poi,
   markerState,
   poiTypeNames,
+  routeDistanceKm,
   onClose,
   onUpdateState,
   onPOIUpdate,
@@ -108,6 +110,11 @@ export function POIInfoWindow({
   if (!poi) return null
 
   const isEditable = markerState !== 'existing'
+
+  // Format distance label (distance is computed once at parent level)
+  const routeDistanceLabel = routeDistanceKm !== null && routeDistanceKm !== undefined
+    ? `~${routeDistanceKm.toFixed(1)} km into route`
+    : null
 
   // Get all POI type options sorted alphabetically
   const poiTypeOptions = Object.entries(poiTypeNames).sort((a, b) => 
@@ -244,6 +251,13 @@ export function POIInfoWindow({
               <span className="truncate">{formatURLForDisplay(poi.url)}</span>
             </a>
           ) : null}
+
+          {/* Distance along route */}
+          {routeDistanceLabel && (
+            <div className="text-xs text-gray-500 italic" data-testid="poi-route-distance">
+              {routeDistanceLabel}
+            </div>
+          )}
           
           <div>
             {markerState === 'existing' ? (
