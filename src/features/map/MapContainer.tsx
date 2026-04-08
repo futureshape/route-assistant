@@ -1,4 +1,4 @@
-import { useEffect, useMemo, memo } from 'react'
+import { useEffect, useMemo, memo, useState } from 'react'
 import { APIProvider, Map, Marker, useMap } from '@vis.gl/react-google-maps'
 import { ListTodo } from 'lucide-react'
 import { RoutePolyline } from './RoutePolyline'
@@ -7,6 +7,45 @@ import { POIInfoWindow } from './POIInfoWindow'
 import { setupGoogleMapsPOIClickListener } from '@/lib/google-maps-provider'
 import type { POI, MarkerState, MarkerStates } from '@/types/poi'
 import type { POIResult } from '@/lib/poi-providers'
+
+// Haversine distance between two lat/lng points in metres
+function haversineMetres(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000 // Earth radius in metres
+  const toRad = (deg: number) => (deg * Math.PI) / 180
+  const dLat = toRad(lat2 - lat1)
+  const dLng = toRad(lng2 - lng1)
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+// Find the cumulative distance (km) along the route to the nearest route point
+function distanceAlongRoute(
+  poi: { lat: number; lng: number },
+  routePath: Array<{ lat: number; lng: number }>
+): number | null {
+  if (!routePath || routePath.length === 0) return null
+
+  let nearestIndex = 0
+  let minDist = Infinity
+  for (let i = 0; i < routePath.length; i++) {
+    const d = haversineMetres(poi.lat, poi.lng, routePath[i].lat, routePath[i].lng)
+    if (d < minDist) {
+      minDist = d
+      nearestIndex = i
+    }
+  }
+
+  let cumulative = 0
+  for (let i = 1; i <= nearestIndex; i++) {
+    cumulative += haversineMetres(
+      routePath[i - 1].lat, routePath[i - 1].lng,
+      routePath[i].lat, routePath[i].lng
+    )
+  }
+  return cumulative / 1000 // convert to km
+}
 
 // Memoized chart hover marker component to prevent flickering
 const ChartHoverMarker = memo(({ position, color }: { position: { lat: number; lng: number }, color: string }) => {
@@ -102,6 +141,17 @@ export function MapContainer({
   getMarkerKey,
   mapInstanceRef
 }: MapContainerProps) {
+  // Compute distance along route when selectedMarker changes (once per marker selection)
+  const [selectedMarkerDistanceKm, setSelectedMarkerDistanceKm] = useState<number | null>(null)
+  
+  useEffect(() => {
+    if (selectedMarker && routePath.length > 0) {
+      const distance = distanceAlongRoute(selectedMarker, routePath)
+      setSelectedMarkerDistanceKm(distance)
+    } else {
+      setSelectedMarkerDistanceKm(null)
+    }
+  }, [selectedMarker, routePath])
   // Calculate POI counts by state
   const suggestedCount = markers.filter(poi => {
     const key = getMarkerKey(poi)
@@ -233,7 +283,7 @@ export function MapContainer({
                   poi={selectedMarker}
                   markerState={markerState}
                   poiTypeNames={poiTypeNames}
-                  routePath={routePath}
+                  routeDistanceKm={selectedMarkerDistanceKm}
                   onClose={onCloseInfoWindow}
                   onUpdateState={(newState) => onUpdateMarkerState(markerKey, newState)}
                   onPOIUpdate={onPOIUpdate ? (updatedPOI) => onPOIUpdate(markerKey, updatedPOI) : undefined}
