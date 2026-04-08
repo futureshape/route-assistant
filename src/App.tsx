@@ -15,7 +15,7 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar'
 import { Loader2 } from 'lucide-react'
-import { POIProvider, POISearchParams } from '@/lib/poi-providers'
+import { POIProvider, POIResult, POISearchParams } from '@/lib/poi-providers'
 import { getEnabledProviders } from '@/lib/provider-registry'
 import { AuthHeader } from '@/components/AuthHeader'
 import { IntroScreen } from '@/components/IntroScreen'
@@ -182,7 +182,7 @@ export default function App(){
       const cs = getComputedStyle(document.documentElement)
       const v = cs.getPropertyValue('--route-color')?.trim()
       if (v) setRouteColor(v)
-    } catch (e) {
+    } catch {
       // ignore in non-browser environments
     }
   }, [setRouteColor])
@@ -344,7 +344,7 @@ export default function App(){
   }
 
   // Handler for when user clicks on native Google Maps POI markers
-  const handleGooglePlacesPOIClick = (poiResult: any) => {
+  const handleGooglePlacesPOIClick = (poiResult: POIResult) => {
     console.log('[Google Places POI] User clicked on Google POI:', poiResult)
     
     // Convert POIResult to our POI format
@@ -610,7 +610,7 @@ export default function App(){
         }
       }
     }, 16), // ~60fps limit
-    []
+    [setChartHoverPosition]
   )
 
   const handleChartMouseLeave = () => {

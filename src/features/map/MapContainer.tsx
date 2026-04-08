@@ -182,7 +182,7 @@ export function MapContainer({
   useEffect(() => {
     if (typeof window !== 'undefined') {
       // Function to click a marker by name
-      (window as any).__testClickMarkerByName = (poiName: string) => {
+      (window as unknown as Record<string, unknown>).__testClickMarkerByName = (poiName: string) => {
         const poi = markers.find(m => m.name === poiName)
         if (poi) {
           onMarkerClick(poi)
@@ -192,7 +192,7 @@ export function MapContainer({
       }
 
       // Function to click a marker by index
-      (window as any).__testClickMarkerByIndex = (index: number) => {
+      (window as unknown as Record<string, unknown>).__testClickMarkerByIndex = (index: number) => {
         if (index >= 0 && index < markers.length) {
           onMarkerClick(markers[index])
           return true
@@ -201,7 +201,7 @@ export function MapContainer({
       }
 
       // Function to click a marker by key
-      (window as any).__testClickMarkerByKey = (markerKey: string) => {
+      (window as unknown as Record<string, unknown>).__testClickMarkerByKey = (markerKey: string) => {
         const poi = markers.find(m => getMarkerKey(m) === markerKey)
         if (poi) {
           onMarkerClick(poi)
@@ -211,7 +211,7 @@ export function MapContainer({
       }
 
       // Function to get all markers (for test inspection)
-      (window as any).__testGetMarkers = () => {
+      (window as unknown as Record<string, unknown>).__testGetMarkers = () => {
         return markers.map((poi, index) => ({
           index,
           key: getMarkerKey(poi),

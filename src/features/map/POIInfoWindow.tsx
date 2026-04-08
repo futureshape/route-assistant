@@ -51,7 +51,7 @@ function formatURLForDisplay(url: string): string {
     }
     
     return domain + pathAndQuery;
-  } catch (e) {
+  } catch {
     // If URL parsing fails, just truncate
     return url.length > 40 ? url.slice(0, 37) + '...' : url;
   }

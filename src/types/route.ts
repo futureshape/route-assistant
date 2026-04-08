@@ -28,8 +28,8 @@ export interface TrackPoint {
 
 export interface RouteExtra {
   type: string
-  point_of_interest?: any
-  [key: string]: any
+  point_of_interest?: Record<string, unknown>
+  [key: string]: unknown
 }
 
 export interface RouteCoordinate {

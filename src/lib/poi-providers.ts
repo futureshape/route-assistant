@@ -74,7 +74,7 @@ export interface POIProvider {
   description: string;
   searchPOIs(params: POISearchParams): Promise<POIResult[]>;
   getSearchFormComponent(): React.ComponentType<POISearchFormProps>;
-  isEnabled(context?: any): boolean;
+  isEnabled(context?: Record<string, unknown>): boolean;
 }
 
 export interface POISearchFormProps {

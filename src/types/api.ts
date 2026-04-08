@@ -3,7 +3,7 @@
 
 import { Route, RouteWithDetails } from './route'
 import { POI } from './poi'
-import { User, SessionUser } from './user'
+import { SessionUser } from './user'
 
 export interface ApiResponse<T> {
   success: boolean
