@@ -355,6 +355,62 @@ test.describe.serial('Authentication and Route Management', () => {
     console.log(`✓ Test completed: POI renamed and selected`);
   });
 
+  test('POI info window displays distance along route', async () => {
+    // Get all markers to find one to click
+    const markers = await sharedPage.evaluate(() => {
+      return (window as any).__testGetMarkers();
+    });
+    
+    console.log(`✓ Found ${markers.length} total markers on map`);
+    expect(markers.length).toBeGreaterThan(0);
+
+    // Pick any marker (prefer suggested or selected since they're from our searches)
+    const testMarker = markers.find((m: any) => m.state === 'suggested' || m.state === 'selected') || markers[0];
+    console.log(`✓ Selected marker to test: ${testMarker.name} (state: ${testMarker.state})`);
+
+    // Click the marker programmatically
+    const clicked = await sharedPage.evaluate((markerKey: string) => {
+      return (window as any).__testClickMarkerByKey(markerKey);
+    }, testMarker.key);
+    
+    expect(clicked).toBe(true);
+    console.log(`✓ Clicked marker programmatically`);
+
+    // Wait for info window to appear
+    const infoWindow = sharedPage.getByTestId('poi-info-window');
+    await expect(infoWindow).toBeVisible({ timeout: 5000 });
+    console.log(`✓ Info window opened`);
+
+    // Verify the distance along route element is present
+    const distanceElement = sharedPage.getByTestId('poi-route-distance');
+    await expect(distanceElement).toBeVisible({ timeout: 2000 });
+    console.log(`✓ Distance along route element is visible`);
+
+    // Get the distance text and verify format
+    const distanceText = await distanceElement.textContent();
+    console.log(`✓ Distance text: "${distanceText}"`);
+    
+    // Verify format: should be like "~X.X km into route" or "~X km into route"
+    expect(distanceText).toMatch(/~\d+(\.\d+)?\s*km into route/);
+    console.log(`✓ Distance format is correct`);
+
+    // Extract the numeric value and verify it's reasonable
+    const distanceMatch = distanceText?.match(/~(\d+(\.\d+)?)\s*km/);
+    expect(distanceMatch).toBeTruthy();
+    
+    const distanceValue = parseFloat(distanceMatch![1]);
+    expect(distanceValue).toBeGreaterThan(0);
+    expect(distanceValue).toBeLessThan(1000); // Sanity check: should be less than 1000km
+    console.log(`✓ Distance value is reasonable: ${distanceValue} km`);
+
+    // Close the info window
+    await sharedPage.keyboard.press('Escape');
+    await expect(infoWindow).not.toBeVisible();
+    console.log(`✓ Closed info window`);
+    
+    console.log(`✓ Test completed: Distance along route is displayed correctly`);
+  });
+
   test('discarding suggested POIs removes them completely', async () => {
     // Get all markers before discarding
     const markers = await sharedPage.evaluate(() => {
