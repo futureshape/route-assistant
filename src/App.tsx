@@ -643,7 +643,15 @@ export default function App(){
       console.log(`[POI Search] Found ${results.length} POIs from ${provider.name}`);
     } catch (error) {
       console.error('POI search failed:', error);
-      showError(`POI search failed: ${error}`);
+      if ((error as Error & { isOverpassTimeout?: boolean }).isOverpassTimeout) {
+        showAlert(
+          (error as Error).message,
+          'Search Timed Out',
+          { secondaryActionLabel: 'Retry', onSecondaryAction: () => handlePOISearch(provider, params) }
+        );
+      } else {
+        showError(`POI search failed: ${error}`);
+      }
     } finally {
       // Clear loading state
       setLoadingProviderId(null);

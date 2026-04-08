@@ -1119,19 +1119,37 @@ out center;
 
     console.debug('[OSM POI] Overpass query:', overpassQuery.substring(0, 500) + '...');
     
-    // Query Overpass API
-    const overpassUrl = 'https://overpass-api.de/api/interpreter';
-    const overpassResponse = await axios.post(overpassUrl, overpassQuery, {
-      headers: {
-        'Content-Type': 'text/plain'
-      },
-      timeout: 30000 // 30 second timeout
-    });
-    
-    console.info('[OSM POI] Overpass response:', {
-      status: overpassResponse.status,
-      elementCount: overpassResponse.data?.elements?.length || 0
-    });
+    // Query Overpass API with fallback servers
+    const overpassServers = [
+      'https://overpass-api.de/api/interpreter',
+      'https://overpass.private.coffee/api/interpreter',
+    ];
+    let overpassResponse;
+    let lastOverpassError;
+    for (const overpassUrl of overpassServers) {
+      try {
+        overpassResponse = await axios.post(overpassUrl, overpassQuery, {
+          headers: { 'Content-Type': 'text/plain' },
+          timeout: 30000
+        });
+        console.info(`[OSM POI] Overpass response from ${overpassUrl}:`, {
+          status: overpassResponse.status,
+          elementCount: overpassResponse.data?.elements?.length || 0
+        });
+        break; // success — stop trying servers
+      } catch (err) {
+        const status = err?.response?.status;
+        console.warn(`[OSM POI] Overpass server ${overpassUrl} failed (status: ${status ?? 'no response'}), trying next...`);
+        lastOverpassError = err;
+      }
+    }
+    if (!overpassResponse) {
+      const status = lastOverpassError?.response?.status;
+      if (status === 504 || !lastOverpassError?.response) {
+        return res.status(504).json({ error: 'The Overpass server timed out. It may be busy — please try again shortly.' });
+      }
+      throw lastOverpassError;
+    }
     
     // Process and format OSM data into standard POI format
     const elements = overpassResponse.data?.elements || [];
