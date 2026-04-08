@@ -28,8 +28,9 @@ import { ElevationChart } from '@/features/elevation'
 import { POISearch, POISummary } from '@/features/poi'
 import { useAuth, useRoutes, usePOI, useMap, useElevation, useUI, useResetStore } from '@/store/selectors'
 import { useUnsavedChanges } from '@/hooks/use-unsaved-changes'
+import { usePOILocalStorage } from '@/hooks/use-poi-local-storage'
 import { AlertDialogProvider, useAlert } from '@/hooks/use-alert-dialog'
-import type { Route, POI, RouteCoordinate } from '@/store/types'
+import type { Route, POI, RouteCoordinate, MarkerState } from '@/store/types'
 import type { 
   SessionResponse, 
   RoutesResponse, 
@@ -99,6 +100,9 @@ export default function App(){
   
   // Initialize unsaved changes protection
   useUnsavedChanges()
+  
+  // Initialize POI local storage persistence
+  const { savePOIs, loadPOIs, clearPOIs } = usePOILocalStorage()
   
   // Local state for UI control
   const [showEmailDialog, setShowEmailDialog] = useState(false)
@@ -236,6 +240,18 @@ export default function App(){
     }
   }, [setShowIntroScreen])
 
+  // Persist selected POIs to localStorage whenever they change.
+  // Guard with routeFullyLoaded to avoid overwriting saved data during the
+  // clearMarkers() → loadPOIs() sequence inside showRoute().
+  useEffect(() => {
+    if (!selectedRouteId || !routeFullyLoaded) return
+    const selectedPOIs = markers.filter(poi => {
+      const markerKey = getMarkerKey(poi)
+      return markerStates[markerKey] === 'selected'
+    })
+    savePOIs(selectedRouteId, selectedPOIs)
+  }, [markers, markerStates, selectedRouteId, routeFullyLoaded, savePOIs])
+
   // Helper: clear all user-specific data (for logout and unauthenticated state)
   const clearAllUserData = () => {
     console.log('[clearAllUserData] Resetting store to initial state')
@@ -293,6 +309,9 @@ export default function App(){
         
       case 'clear-points':
         // Clear all markers and switch to new route
+        if (selectedRouteId) {
+          clearPOIs(selectedRouteId)
+        }
         clearAllPOIs()
         if (dialog.newRoute) {
           await showRoute(dialog.newRoute.id)
@@ -487,21 +506,41 @@ export default function App(){
     }
     
     // Process existing POIs from the route
+    const existingPOIsForMap: POI[] = []
     if (j.existingPOIs && j.existingPOIs.length > 0) {
       console.log('[showRoute] Processing existing POIs:', j.existingPOIs.length)
-      const existingPOIsForMap: POI[] = j.existingPOIs.map((poi) => ({
-        name: poi.name || 'Unnamed POI',
-        lat: poi.lat,
-        lng: poi.lng,
-        poi_type_name: poi.poi_type_name || 'generic',
-        description: poi.description || '',
-        url: poi.url || '',
-        providerId: 'existing' // Mark as existing POI from route
-      }))
+      j.existingPOIs.forEach((poi) => {
+        existingPOIsForMap.push({
+          name: poi.name || 'Unnamed POI',
+          lat: poi.lat,
+          lng: poi.lng,
+          poi_type_name: poi.poi_type_name || 'generic',
+          description: poi.description || '',
+          url: poi.url || '',
+          providerId: 'existing' // Mark as existing POI from route
+        })
+      })
       
       // Add existing POIs to markers with their state set to 'existing'
             addExistingPOIs(existingPOIsForMap, getMarkerKey)
       console.log('[showRoute] Existing POIs loaded:', existingPOIsForMap.length)
+    }
+    
+    // Restore previously selected POIs from localStorage
+    const savedPOIs = loadPOIs(id)
+    if (savedPOIs.length > 0) {
+      console.log('[showRoute] Restoring', savedPOIs.length, 'saved POI(s) from local storage')
+      // Filter out any saved POIs that already exist as 'existing' markers to avoid duplicates
+      const existingKeys = new Set(existingPOIsForMap.map(poi => getMarkerKey(poi)))
+      const newSavedPOIs = savedPOIs.filter(poi => !existingKeys.has(getMarkerKey(poi)))
+      if (newSavedPOIs.length > 0) {
+        const savedMarkerStates: Record<string, MarkerState> = {}
+        newSavedPOIs.forEach(poi => {
+          savedMarkerStates[getMarkerKey(poi)] = 'selected'
+        })
+        setMarkers(prev => [...prev, ...newSavedPOIs])
+        setMarkerStates(prev => ({ ...prev, ...savedMarkerStates }))
+      }
     }
     
     const enc = j.route && j.route.encoded_polyline
@@ -703,6 +742,9 @@ export default function App(){
           window.open(`https://ridewithgps.com/routes/${selectedRouteId}`, '_blank', 'noopener,noreferrer')
         }
       })
+      
+      // Clear saved POIs from localStorage since they've been successfully sent
+      clearPOIs(selectedRouteId)
       
       // Reload the route to show updated POIs as "existing"
       console.log('[sendPOIsToRideWithGPS] Reloading route to show updated POIs')
