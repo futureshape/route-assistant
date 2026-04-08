@@ -30,6 +30,7 @@ interface MapContainerProps {
   mapZoom: number
   routePath: Array<{ lat: number; lng: number }>
   routeColor: string
+  routeDistance: number | null
   markers: POI[]
   markerStates: MarkerStates
   selectedMarker: POI | null
@@ -83,6 +84,7 @@ export function MapContainer({
   mapZoom,
   routePath,
   routeColor,
+  routeDistance,
   markers,
   markerStates,
   selectedMarker,
@@ -179,6 +181,7 @@ export function MapContainer({
       data-testid="map-container"
       data-route-loaded={routePath.length > 0 ? 'true' : 'false'}
       data-route-points={routePath.length}
+      data-route-distance-km={routeDistance ? (routeDistance / 1000).toFixed(2) : '0'}
       data-poi-count={markers.length}
       data-suggested-count={suggestedCount}
       data-selected-count={selectedCount}

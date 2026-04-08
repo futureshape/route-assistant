@@ -860,6 +860,7 @@ export default function App(){
                 mapZoom={mapZoom}
                 routePath={routePath}
                 routeColor={routeColor}
+                routeDistance={selectedRouteId ? (routes.find(r => r.id === selectedRouteId)?.distance || null) : null}
                 markers={markers}
                 markerStates={markerStates}
                 selectedMarker={selectedMarker}

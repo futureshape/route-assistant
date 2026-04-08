@@ -401,8 +401,13 @@ test.describe.serial('Authentication and Route Management', () => {
     
     const distanceValue = parseFloat(distanceMatch![1]);
     expect(distanceValue).toBeGreaterThan(0);
-    expect(distanceValue).toBeLessThan(1000); // Sanity check: should be less than 1000km
-    console.log(`✓ Distance value is reasonable: ${distanceValue} km`);
+    
+    // Get the actual route distance and verify POI distance is less than it
+    const mapContainer = sharedPage.getByTestId('map-container');
+    const routeDistanceKm = parseFloat(await mapContainer.getAttribute('data-route-distance-km') || '0');
+    expect(routeDistanceKm).toBeGreaterThan(0);
+    expect(distanceValue).toBeLessThan(routeDistanceKm);
+    console.log(`✓ Distance value is reasonable: ${distanceValue} km (route: ${routeDistanceKm} km)`);
 
     // Close the info window
     await sharedPage.keyboard.press('Escape');
