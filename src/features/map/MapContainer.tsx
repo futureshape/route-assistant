@@ -225,15 +225,24 @@ export function MapContainer({
               const markerKey = getMarkerKey(selectedMarker)
               const markerState = markerStates[markerKey] || 'suggested'
               
-              const STREET_VIEW_DEFAULT_HEADING = 0
               const STREET_VIEW_DEFAULT_PITCH = 0
 
               const handleOpenStreetView = () => {
                 const map = mapInstanceRef.current
                 if (!map) return
+
+                // Compute heading from current map center toward the POI so the
+                // Street View camera faces the direction the user was looking at
+                // the POI from on the map.
+                const mapCenter = map.getCenter()
+                const poiLatLng = new window.google.maps.LatLng(selectedMarker.lat, selectedMarker.lng)
+                const heading = mapCenter
+                  ? window.google.maps.geometry.spherical.computeHeading(mapCenter, poiLatLng)
+                  : 0
+
                 const panorama = map.getStreetView()
-                panorama.setPosition({ lat: selectedMarker.lat, lng: selectedMarker.lng })
-                panorama.setPov({ heading: STREET_VIEW_DEFAULT_HEADING, pitch: STREET_VIEW_DEFAULT_PITCH })
+                panorama.setPosition(poiLatLng)
+                panorama.setPov({ heading, pitch: STREET_VIEW_DEFAULT_PITCH })
                 panorama.setVisible(true)
               }
 
