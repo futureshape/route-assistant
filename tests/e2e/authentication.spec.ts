@@ -340,7 +340,8 @@ test.describe.serial('Authentication and Route Management', () => {
     console.log(`✓ Clicked Keep button to select POI`);
 
     // Close the info window
-    await sharedPage.keyboard.press('Escape');
+    const closeButton = sharedPage.getByRole('button', { name: 'Close' });
+    await closeButton.click();
     await expect(infoWindow).not.toBeVisible();
     console.log(`✓ Closed info window`);
 
