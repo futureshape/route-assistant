@@ -1,13 +1,13 @@
 # OSM POI Provider
 
-The OpenStreetMap (OSM) POI Provider allows users to search for cycling-relevant amenities along their routes using data from OpenStreetMap via the Overpass API.
+The OpenStreetMap (OSM) POI Provider allows users to search for cycling-relevant amenities along their routes using data from OpenStreetMap via the Postpass API (a PostGIS-based OSM query service).
 
 ## Features
 
 - **Preset Amenity Types**: 22 carefully selected amenity types relevant to cycling
 - **Multi-selection**: Search for multiple amenity types simultaneously
 - **OpenStreetMap Data**: Free, community-maintained, worldwide coverage
-- **Real-time Search**: Queries live OSM data via Overpass API
+- **Real-time Search**: Queries live OSM data via Postpass API
 
 ## Preset Amenity Types
 
@@ -62,20 +62,23 @@ The OSM provider includes the following preset amenity types optimized for cycli
 
 ### Backend
 
-The OSM provider queries the Overpass API at `https://overpass-api.de/api/interpreter`:
+The OSM provider queries the Postpass API at `https://postpass.geofabrik.de/api/0.2/interpreter` using SQL/PostGIS queries:
 
-```javascript
-// Example Overpass QL query for route-based search
-[out:json][timeout:25];
-(
-  node["amenity"="drinking_water"](around:500,lat1,lng1,lat2,lng2,...);
-  way["amenity"="drinking_water"](around:500,lat1,lng1,lat2,lng2,...);
-  relation["amenity"="drinking_water"](around:500,lat1,lng1,lat2,lng2,...);
-);
-out center;
+```sql
+-- Example Postpass SQL query for route-based search
+SELECT osm_type, osm_id, tags, ST_Centroid(geom) as geom
+FROM postpass_pointpolygon
+WHERE (tags->>'amenity' IN ('drinking_water'))
+AND ST_DWithin(
+  geom,
+  ST_SetSRID(ST_GeomFromText('LINESTRING(lon1 lat1, lon2 lat2, ...)'), 4326),
+  0.005
+)
 ```
 
-The query searches within 500 meters (configurable) on each side of the route, creating an approximate 1km-wide corridor along the route path. This provides more relevant results than a bounding box search.
+The query searches within 0.005 degrees of the route (approximately 555m north/south and ~360m east/west at mid-latitudes) using `ST_DWithin` with geometry type, creating an approximate corridor along the route path. This provides more relevant results than a bounding box search.
+
+Postpass is based on PostGIS and provides faster, more reliable queries than the Overpass API, which was prone to timeouts.
 
 ### Amenity Mapping
 
@@ -103,7 +106,7 @@ See `poi-type-mapping.js` for the complete mapping.
 Request body:
 ```json
 {
-  "amenities": "drinking_water,toilets,cafe",
+  "tags": "amenity=drinking_water,amenity=toilets,amenity=cafe",
   "encodedPolyline": "route_polyline_here"
 }
 ```
@@ -111,7 +114,7 @@ Request body:
 Or fallback to bounding box if route is not available:
 ```json
 {
-  "amenities": "drinking_water,toilets,cafe",
+  "tags": "amenity=drinking_water,amenity=toilets,amenity=cafe",
   "mapBounds": {
     "south": 37.7,
     "west": -122.5,
@@ -121,14 +124,14 @@ Or fallback to bounding box if route is not available:
 }
 ```
 
-Response: Overpass API JSON format with `elements` array
+Response: Standard POI format with `places` array.
 
 **Search Strategy**:
-- **Route-based (preferred)**: Searches within 500m radius along the route points
-  - Samples route to max 50 points for reasonable query size
-  - Creates a corridor ~1km wide along the entire route
+- **Route-based (preferred)**: Searches within 0.005 degrees (~500m) of the route using `ST_DWithin`
+  - Routes under 100 points use all coordinates; longer routes are sampled to ~25% of points
+  - Creates a corridor approximately 1km wide along the route
   - More relevant results for cyclists
-- **Bounding box (fallback)**: Searches within the entire map viewport
+- **Bounding box (fallback)**: Searches within the entire map viewport using `ST_MakeEnvelope`
   - Used when route data is not available
   - May return POIs far from the actual route
 
@@ -148,14 +151,14 @@ ENABLED_POI_PROVIDERS=google,osm,mock
 - **Open Source**: Fully transparent data and queries
 - **Cycling-Friendly**: Many bike-specific amenities
 - **Route-Focused**: Searches along your route, not just map bounds, providing more relevant results
+- **Fast & Reliable**: Postpass is PostGIS-based, avoiding the timeout issues of Overpass
 
 ## Limitations
 
-- **Rate Limits**: Overpass API has usage limits (be reasonable with requests)
+- **Rate Limits**: Postpass API has usage limits (be reasonable with requests)
 - **Data Quality**: Varies by region based on OSM contributor activity
 - **No Reviews**: Unlike commercial providers, no user reviews/ratings
-- **Timeout**: Complex queries may timeout (25 second limit)
-- **Route Sampling**: Long routes are sampled to ~50 points to keep queries manageable
+- **Route Sampling**: Routes over 100 points are sampled to ~25% of points to keep queries manageable
 
 ## Best Practices
 
@@ -167,6 +170,7 @@ ENABLED_POI_PROVIDERS=google,osm,mock
 ## Related Links
 
 - [OpenStreetMap Wiki - Amenity](https://wiki.openstreetmap.org/wiki/Key:amenity)
-- [Overpass API Documentation](https://wiki.openstreetmap.org/wiki/Overpass_API)
-- [Overpass Turbo (Query Testing)](https://overpass-turbo.eu/)
+- [Postpass API](https://postpass.geofabrik.de/)
+- [Postpass Schema Documentation](https://github.com/woodpeck/postpass-ops/blob/main/SCHEMA.md)
+- [Postpass Examples](https://wiki.openstreetmap.org/wiki/Postpass/Examples)
 - [RideWithGPS POI Types](https://github.com/ridewithgps/developers/blob/master/reference/points_of_interest.md)

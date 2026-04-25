@@ -643,7 +643,7 @@ export default function App(){
       console.log(`[POI Search] Found ${results.length} POIs from ${provider.name}`);
     } catch (error) {
       console.error('POI search failed:', error);
-      if ((error as Error & { isOverpassTimeout?: boolean }).isOverpassTimeout) {
+      if ((error as Error & { isOSMTimeout?: boolean }).isOSMTimeout) {
         showAlert(
           (error as Error).message,
           'Search Timed Out',
