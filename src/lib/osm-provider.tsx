@@ -185,8 +185,8 @@ export class OSMProvider implements POIProvider {
     });
 
     if (response.status === 504) {
-      const err = new Error('The Overpass server timed out. It may be busy — please try again.');
-      (err as Error & { isOverpassTimeout: boolean }).isOverpassTimeout = true;
+      const err = new Error('The OSM search server timed out. It may be busy — please try again.');
+      (err as Error & { isOSMTimeout: boolean }).isOSMTimeout = true;
       throw err;
     }
 

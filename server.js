@@ -1006,7 +1006,7 @@ app.post('/api/poi-search/google-maps', csrfProtection, requireAuth, requireAcce
   }
 });
 
-// OSM POI Provider endpoint - queries Overpass API
+// OSM POI Provider endpoint - queries Postpass (PostGIS-based OSM query service)
 app.post('/api/poi-search/osm', csrfProtection, requireAuth, requireAccess, async (req, res) => {
   // Accept `tags` as a comma-separated list of key=value tokens only
   const { tags, encodedPolyline, mapBounds } = req.body || {};
@@ -1042,17 +1042,28 @@ app.post('/api/poi-search/osm', csrfProtection, requireAuth, requireAccess, asyn
         groups.get(k).add(v);
       }
     }
-    
-    // Helper for Overpass escaping
-    const esc = (s) => String(s).replace(/"/g, '\\"');
-    
-    let overpassQuery;
-    
-  if (encodedPolyline) {
-      // Route-based search: decode polyline and search around route points
+
+    if (groups.size === 0) {
+      return res.status(400).send({ error: 'At least one valid key=value tag required' });
+    }
+
+    // Helper for SQL string literal escaping
+    const escSql = (s) => String(s).replace(/'/g, "''");
+
+    // Build SQL tag filter: (tags->>'key' IN ('val1','val2') OR tags->>'key2' IN ('val3'))
+    const tagFilter = Array.from(groups.entries()).map(([key, values]) => {
+      const k = escSql(key);
+      const vals = Array.from(values).map(v => `'${escSql(v)}'`).join(', ');
+      return `tags->>'${k}' IN (${vals})`;
+    }).join(' OR ');
+
+    let postpassQuery;
+
+    if (encodedPolyline) {
+      // Route-based search: decode polyline and use ST_DWithin along route corridor
       const coords = polyline.decode(encodedPolyline);
-      
-      // If route is small, don't sample at all
+
+      // Sample the route to keep the query manageable
       let finalCoords;
       if (coords.length < 100) {
         finalCoords = coords;
@@ -1065,100 +1076,85 @@ app.post('/api/poi-search/osm', csrfProtection, requireAuth, requireAccess, asyn
         finalCoords = coords.filter((_, i) => i % step === 0);
       }
       const sampledCoords = finalCoords;
-      // Search radius in meters (500m on each side of route = ~1km total width)
-      const searchRadius = 500;
-      
-      // Build coordinate list for around operator: radius,lat1,lon1,lat2,lon2,...
-      const coordsList = sampledCoords.map(([lat, lng]) => `${lat},${lng}`).join(',');
-      
-      // Build per-key union blocks using around operator
-      const perKeyBlocks = Array.from(groups.entries()).map(([key, values]) => {
-        return Array.from(values).map(v => 
-`node["${esc(key)}"="${esc(v)}"](around:${searchRadius},${coordsList});
-  way["${esc(key)}"="${esc(v)}"](around:${searchRadius},${coordsList});
-  relation["${esc(key)}"="${esc(v)}"](around:${searchRadius},${coordsList});`
-        ).join('\n  ');
-      }).join('\n  ');
-      
-      overpassQuery = `
-[out:json][timeout:25];
-(
-  ${perKeyBlocks}
-);
-out center;
-`;
-      
-      console.info('[OSM POI] Using route-based search:', { 
+
+      // ~500m corridor: 0.005 degrees ≈ 555m latitude / ~360m longitude at mid-latitudes
+      // Using geometry type (degrees) for performance; geography cast is too slow for long routes
+      const searchRadiusDeg = 0.005;
+
+      // Build LINESTRING WKT — PostGIS uses (longitude latitude) order; polyline gives [lat, lng]
+      // Validate coordinates are finite numbers to prevent SQL injection from malformed polylines
+      const lineStringCoords = sampledCoords.map(([lat, lng]) => {
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+          throw new Error('Invalid coordinate in route polyline');
+        }
+        return `${lng} ${lat}`;
+      });
+      const lineString = `LINESTRING(${lineStringCoords.join(', ')})`;
+
+      postpassQuery = `SELECT osm_type, osm_id, tags, ST_Centroid(geom) as geom
+FROM postpass_pointpolygon
+WHERE (${tagFilter})
+AND ST_DWithin(geom, ST_SetSRID(ST_GeomFromText('${lineString}'), 4326), ${searchRadiusDeg})`;
+
+      console.info('[OSM POI] Using Postpass route-based search:', {
         totalRoutePoints: coords.length,
         sampledPoints: sampledCoords.length,
-        searchRadius: searchRadius + 'm'
+        searchRadiusDeg
       });
     } else {
       // Bounding box search (fallback)
-      const bbox = `${mapBounds.south},${mapBounds.west},${mapBounds.north},${mapBounds.east}`;
-      
-      // Build per-key union blocks for bbox
-      const perKeyBlocks = Array.from(groups.entries()).map(([key, values]) => {
-        return Array.from(values).map(v => 
-`node["${esc(key)}"="${esc(v)}"](${bbox});
-  way["${esc(key)}"="${esc(v)}"](${bbox});
-  relation["${esc(key)}"="${esc(v)}"](${bbox});`
-        ).join('\n  ');
-      }).join('\n  ');
-      
-      overpassQuery = `
-[out:json][timeout:25];
-(
-  ${perKeyBlocks}
-);
-out center;
-`;
-      
-      console.info('[OSM POI] Using bounding box search:', { bbox });
+      const { south, west, north, east } = mapBounds;
+      const [s, w, n, e] = [south, west, north, east].map(parseFloat);
+      if ([s, w, n, e].some(v => !Number.isFinite(v))) {
+        return res.status(400).send({ error: 'Invalid bounding box coordinates' });
+      }
+
+      postpassQuery = `SELECT osm_type, osm_id, tags, ST_Centroid(geom) as geom
+FROM postpass_pointpolygon
+WHERE (${tagFilter})
+AND geom && ST_MakeEnvelope(${w}, ${s}, ${e}, ${n}, 4326)`;
+
+      console.info('[OSM POI] Using Postpass bounding box search:', { south, west, north, east });
     }
 
-    console.debug('[OSM POI] Overpass query:', overpassQuery.substring(0, 500) + '...');
-    
-    // Query Overpass API with fallback servers
-    const overpassServers = [
-      'https://overpass-api.de/api/interpreter',
-      'https://overpass.private.coffee/api/interpreter',
-    ];
-    let overpassResponse;
-    let lastOverpassError;
-    for (const overpassUrl of overpassServers) {
-      try {
-        overpassResponse = await axios.post(overpassUrl, overpassQuery, {
-          headers: { 'Content-Type': 'text/plain' },
-          timeout: 30000
-        });
-        console.info(`[OSM POI] Overpass response from ${overpassUrl}:`, {
-          status: overpassResponse.status,
-          elementCount: overpassResponse.data?.elements?.length || 0
-        });
-        break; // success — stop trying servers
-      } catch (err) {
-        const status = err?.response?.status;
-        console.warn(`[OSM POI] Overpass server ${overpassUrl} failed (status: ${status ?? 'no response'}), trying next...`);
-        lastOverpassError = err;
+    console.debug('[OSM POI] Postpass query:', postpassQuery.substring(0, 500) + '...');
+
+    // Query Postpass API
+    const postpassUrl = 'https://postpass.geofabrik.de/api/0.2/interpreter';
+    let postpassResponse;
+    try {
+      postpassResponse = await axios.post(postpassUrl, new URLSearchParams({ data: postpassQuery }).toString(), {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        timeout: 30000
+      });
+      console.info('[OSM POI] Postpass response:', {
+        status: postpassResponse.status,
+        featureCount: postpassResponse.data?.features?.length || 0
+      });
+    } catch (err) {
+      const status = err?.response?.status;
+      console.warn(`[OSM POI] Postpass server failed (status: ${status ?? 'no response'})`);
+      if (status === 504 || !err?.response) {
+        return res.status(504).json({ error: 'The OSM search server timed out. It may be busy — please try again shortly.' });
       }
+      throw err;
     }
-    if (!overpassResponse) {
-      const status = lastOverpassError?.response?.status;
-      if (status === 504 || !lastOverpassError?.response) {
-        return res.status(504).json({ error: 'The Overpass server timed out. It may be busy — please try again shortly.' });
-      }
-      throw lastOverpassError;
-    }
-    
+
     // Process and format OSM data into standard POI format
-    const elements = overpassResponse.data?.elements || [];
-  const formattedPOIs = elements.map(element => {
-      // Get coordinates - nodes have lat/lon, ways/relations have center
-      const lat = element.lat ?? element.center?.lat ?? 0;
-      const lon = element.lon ?? element.center?.lon ?? 0;
-      
-      const tags = element.tags || {};
+    // Postpass returns GeoJSON FeatureCollection; geometry is a Point (from ST_Centroid)
+    const features = postpassResponse.data?.features || [];
+    const osmTypeMap = { 'N': 'node', 'W': 'way', 'R': 'relation' };
+
+    const formattedPOIs = features.map(feature => {
+      // Coordinates from GeoJSON Point: [longitude, latitude]
+      const coords = feature.geometry?.coordinates || [0, 0];
+      const lon = coords[0];
+      const lat = coords[1];
+
+      const featureTags = feature.properties?.tags || {};
+      const osmType = (feature.properties?.osm_type || '').trim();
+      const osmId = feature.properties?.osm_id;
+
       // Helper to convert underscore/hyphen strings to title case
       const toTitleCase = (s) => {
         return (s || '').toString()
@@ -1167,42 +1163,41 @@ out center;
           .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
           .join(' ');
       };
-      
+
       // Prefer OSM name tag; otherwise generate a descriptive name from the type
-      let name = tags.name;
+      let name = featureTags.name;
       if (!name) {
-        // Generate name from amenity/railway/public_transport type
-        if (tags.amenity) {
-          name = toTitleCase(tags.amenity);
-        } else if (tags.railway) {
-          name = toTitleCase(tags.railway);
-        } else if (tags.public_transport) {
-          name = toTitleCase(tags.public_transport);
-        } else if (tags.shop) {
-          name = toTitleCase(tags.shop);
-        } else if (tags.tourism) {
-          name = toTitleCase(tags.tourism);
-        } else if (tags.leisure) {
-          name = toTitleCase(tags.leisure);
+        if (featureTags.amenity) {
+          name = toTitleCase(featureTags.amenity);
+        } else if (featureTags.railway) {
+          name = toTitleCase(featureTags.railway);
+        } else if (featureTags.public_transport) {
+          name = toTitleCase(featureTags.public_transport);
+        } else if (featureTags.shop) {
+          name = toTitleCase(featureTags.shop);
+        } else if (featureTags.tourism) {
+          name = toTitleCase(featureTags.tourism);
+        } else if (featureTags.leisure) {
+          name = toTitleCase(featureTags.leisure);
         } else {
-          // Last resort fallback
           name = 'POI';
         }
       }
 
       // Build key=value for POI type detection (prefer amenity, railway, public_transport)
       let poiTypeKeyValue = null;
-      if (tags.amenity) poiTypeKeyValue = `amenity=${tags.amenity}`;
-      else if (tags.railway) poiTypeKeyValue = `railway=${tags.railway}`;
-      else if (tags.public_transport) poiTypeKeyValue = `public_transport=${tags.public_transport}`;
+      if (featureTags.amenity) poiTypeKeyValue = `amenity=${featureTags.amenity}`;
+      else if (featureTags.railway) poiTypeKeyValue = `railway=${featureTags.railway}`;
+      else if (featureTags.public_transport) poiTypeKeyValue = `public_transport=${featureTags.public_transport}`;
 
+      const osmTypeName = osmTypeMap[osmType] || 'node';
       return {
         name,
         lat: parseFloat(String(lat)),
         lng: parseFloat(String(lon)),
         poi_type_name: poiTypeKeyValue ? mapOSMAmenityToRideWithGPS(poiTypeKeyValue) : 'generic',
-        description: tags.description || '',
-        url: tags.website || `https://www.openstreetmap.org/${element.type}/${element.id}`
+        description: featureTags.description || '',
+        url: featureTags.website || `https://www.openstreetmap.org/${osmTypeName}/${osmId}`
       };
     }).filter(poi => Number.isFinite(poi.lat) && Number.isFinite(poi.lng));
 
@@ -1211,7 +1206,7 @@ out center;
       sample: formattedPOIs.slice(0, 3)
     });
 
-    // Return formatted POI data in same structure as Google Maps provider
+    // Return formatted POI data in same structure as other providers
     res.json({ places: formattedPOIs });
   } catch (err) {
     logAxiosError('OSM POI search error', err);
@@ -1220,12 +1215,12 @@ out center;
       const status = resp.status;
       const type = resp.headers && resp.headers['content-type'];
       let snippet = '';
-      try { 
-        snippet = (type && type.includes('application/json')) 
-          ? JSON.stringify(resp.data).slice(0, 1000) 
-          : String(resp.data).slice(0, 500); 
-      } catch(e) { 
-        snippet = String(resp.data).slice(0, 200); 
+      try {
+        snippet = (type && type.includes('application/json'))
+          ? JSON.stringify(resp.data).slice(0, 1000)
+          : String(resp.data).slice(0, 500);
+      } catch(e) {
+        snippet = String(resp.data).slice(0, 200);
       }
       return res.status(500).send({ error: 'OSM search failed', details: { status, type, snippet } });
     }
