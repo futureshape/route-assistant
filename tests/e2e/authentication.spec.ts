@@ -417,6 +417,74 @@ test.describe.serial('Authentication and Route Management', () => {
     console.log(`✓ Test completed: Distance along route is displayed correctly`);
   });
 
+  test('route timing settings are applied and shown in POI info window', async () => {
+    // Open route timing settings (first-time setup or edit existing settings)
+    const setTimingButton = sharedPage.getByTestId('route-timing-set-button');
+    const editTimingButton = sharedPage.getByTestId('route-timing-edit-button');
+
+    if (await setTimingButton.isVisible().catch(() => false)) {
+      await setTimingButton.click();
+      console.log('✓ Opened route timing popover via Set route timing button');
+    } else {
+      await editTimingButton.click();
+      console.log('✓ Opened route timing popover via Edit button');
+    }
+
+    const timingPopover = sharedPage.getByTestId('route-timing-popover');
+    await expect(timingPopover).toBeVisible({ timeout: 5000 });
+
+    // Set deterministic timing inputs
+    const startDateTime = '2026-05-12T08:30';
+    await sharedPage.getByTestId('route-timing-start-input').fill(startDateTime);
+    await sharedPage.getByTestId('route-timing-speed-input').fill('20');
+    await sharedPage.getByTestId('route-timing-save-button').click();
+    console.log('✓ Saved route timing settings');
+
+    await expect(timingPopover).not.toBeVisible({ timeout: 5000 });
+
+    // Verify summary shows configured speed
+    const timingSummary = sharedPage.getByTestId('route-timing-summary');
+    await expect(timingSummary).toBeVisible();
+    await expect(timingSummary).toContainText('20');
+    await expect(timingSummary).toContainText('km/h');
+    console.log('✓ Route timing summary updated');
+
+    // Click any available marker and assert time labels are shown
+    const markers = await sharedPage.evaluate(() => {
+      return (window as any).__testGetMarkers();
+    });
+
+    expect(markers.length).toBeGreaterThan(0);
+    const testMarker = markers.find((m: any) => m.state === 'suggested' || m.state === 'selected') || markers[0];
+    console.log(`✓ Selected marker to verify timing labels: ${testMarker.name}`);
+
+    const clicked = await sharedPage.evaluate((markerKey: string) => {
+      return (window as any).__testClickMarkerByKey(markerKey);
+    }, testMarker.key);
+
+    expect(clicked).toBe(true);
+
+    const infoWindow = sharedPage.getByTestId('poi-info-window');
+    await expect(infoWindow).toBeVisible({ timeout: 5000 });
+
+    const relativeTime = sharedPage.getByTestId('poi-route-time-relative');
+    await expect(relativeTime).toBeVisible({ timeout: 5000 });
+    const relativeTimeText = await relativeTime.textContent();
+    expect(relativeTimeText).toMatch(/~\d+(h( \d+min)?|min) into ride/);
+    console.log(`✓ Relative route time displayed: ${relativeTimeText}`);
+
+    const absoluteTime = sharedPage.getByTestId('poi-route-time-absolute');
+    await expect(absoluteTime).toBeVisible({ timeout: 5000 });
+    const absoluteTimeText = await absoluteTime.textContent();
+    expect(absoluteTimeText).toMatch(/at\s+\d{1,2}:\d{2}/);
+    console.log(`✓ Absolute route time displayed: ${absoluteTimeText}`);
+
+    // Close info window to keep shared state clean for subsequent tests
+    await sharedPage.keyboard.press('Escape');
+    await expect(infoWindow).not.toBeVisible({ timeout: 2000 });
+    console.log('✓ Test completed: route timing is reflected in POI info window');
+  });
+
   test('discarding suggested POIs removes them completely', async () => {
     // Get all markers before discarding
     const markers = await sharedPage.evaluate(() => {

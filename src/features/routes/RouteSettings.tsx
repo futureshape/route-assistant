@@ -49,7 +49,7 @@ export function RouteSettings({
   }
 
   const popoverContent = (
-    <PopoverContent className="w-72" align="start">
+    <PopoverContent className="w-72" align="start" data-testid="route-timing-popover">
       <div className="space-y-3">
         <div className="space-y-1">
           <Label className="text-xs text-muted-foreground">Start date &amp; time</Label>
@@ -58,6 +58,7 @@ export function RouteSettings({
             value={draftDateTime}
             onChange={(e) => setDraftDateTime(e.target.value)}
             className="text-xs h-8"
+            data-testid="route-timing-start-input"
           />
         </div>
         <div className="space-y-1">
@@ -70,9 +71,10 @@ export function RouteSettings({
             max={200}
             step={0.5}
             className="text-xs h-8"
+            data-testid="route-timing-speed-input"
           />
         </div>
-        <Button size="sm" className="w-full" onClick={handleSave}>
+        <Button size="sm" className="w-full" onClick={handleSave} data-testid="route-timing-save-button">
           Save
         </Button>
       </div>
@@ -81,14 +83,19 @@ export function RouteSettings({
 
   if (hasTimingSet) {
     return (
-      <div className="px-3 py-2">
+      <div className="px-3 py-2" data-testid="route-timing-summary">
         <div className="flex items-center justify-between gap-2">
           <span className="text-xs text-muted-foreground leading-snug">
             Starting {formatSummaryDateTime(startDateTime)}, {averageSpeedKmh}&nbsp;km/h
           </span>
           <Popover open={open} onOpenChange={handleOpenChange}>
             <PopoverTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-6 text-xs px-2 shrink-0">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 text-xs px-2 shrink-0"
+                data-testid="route-timing-edit-button"
+              >
                 Edit
               </Button>
             </PopoverTrigger>
@@ -103,7 +110,12 @@ export function RouteSettings({
     <div className="px-3 py-2">
       <Popover open={open} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>
-          <Button variant="outline" size="sm" className="w-full gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full gap-2"
+            data-testid="route-timing-set-button"
+          >
             <Timer className="h-4 w-4" />
             Set route timing
           </Button>
