@@ -81,24 +81,26 @@ export function RouteSettings({
 
   if (hasTimingSet) {
     return (
-      <div className="flex items-start justify-between gap-2 px-1">
-        <span className="text-xs text-muted-foreground leading-snug">
-          Starting {formatSummaryDateTime(startDateTime)}, {averageSpeedKmh}&nbsp;km/h
-        </span>
-        <Popover open={open} onOpenChange={handleOpenChange}>
-          <PopoverTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-6 text-xs px-2 shrink-0 -mt-0.5">
-              Edit
-            </Button>
-          </PopoverTrigger>
-          {popoverContent}
-        </Popover>
+      <div className="px-3 py-2">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs text-muted-foreground leading-snug">
+            Starting {formatSummaryDateTime(startDateTime)}, {averageSpeedKmh}&nbsp;km/h
+          </span>
+          <Popover open={open} onOpenChange={handleOpenChange}>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-6 text-xs px-2 shrink-0">
+                Edit
+              </Button>
+            </PopoverTrigger>
+            {popoverContent}
+          </Popover>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="px-1">
+    <div className="px-3 py-2">
       <Popover open={open} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>
           <Button variant="outline" size="sm" className="w-full gap-2">
