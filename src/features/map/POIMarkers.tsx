@@ -5,7 +5,10 @@ import {
   Bike,
   Binoculars,
   Bus,
+  CircleParking,
+  CirclePause,
   Coffee,
+  CreditCard,
   Cross,
   Droplets,
   Flag,
@@ -19,6 +22,7 @@ import {
   Mountain,
   MoveLeft,
   MoveRight,
+  MapPinned,
   SquareParking,
   ShoppingBag,
   ShoppingCart,
@@ -30,8 +34,10 @@ import {
   Trees,
   TriangleAlert,
   UtensilsCrossed,
+  Users,
   Waves,
-  ShieldCheck
+  ShieldCheck,
+  Ship
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -57,23 +63,23 @@ const POI_TYPE_ICONS: Record<RideWithGPSPOIType, LucideIcon> = {
   aid_station: Flag,
   bar: Beer,
   bike_shop: Bike,
-  bike_parking: Bike,
+  bike_parking: CircleParking,
   convenience_store: ShoppingBag,
   first_aid: Cross,
   hospital: Hospital,
-  rest_stop: Trees,
+  rest_stop: CirclePause,
   trailhead: Signpost,
-  geocache: ShoppingBag,
+  geocache: MapPinned,
   water: Droplets,
   control: ShieldCheck,
   winery: Grape,
   start: FlagTriangleRight,
   stop: Square,
   finish: Flag,
-  atm: Landmark,
+  atm: CreditCard,
   caution: TriangleAlert,
   coffee: Coffee,
-  ferry: Bus,
+  ferry: Ship,
   gas: Fuel,
   library: Library,
   monument: Landmark,
@@ -85,11 +91,16 @@ const POI_TYPE_ICONS: Record<RideWithGPSPOIType, LucideIcon> = {
   summit: Mountain,
   swimming: Waves,
   transit: Bus,
-  bikeshare: Bike
+  bikeshare: Users
 }
 
-const iconGlyphCache = new Map<LucideIcon, string>()
-const markerIconCache = new Map<string, google.maps.Icon>()
+const lucideIconSvgCache = new Map<LucideIcon, string>()
+const GLYPH_SIZE = 12
+const GLYPH_STROKE_COLOR = '#ffffff'
+const GLYPH_STROKE_WIDTH = 2.25
+// 24x24 marker canvas; these offsets center a 12x12 glyph near the pin head.
+const GLYPH_X_OFFSET = 6
+const GLYPH_Y_OFFSET = 4
 
 function getMarkerFillColor(state: MarkerState, routeColor: string) {
   if (state === 'existing') return '#6b7280'
@@ -103,15 +114,21 @@ function getPOITypeIcon(poiTypeName?: string): LucideIcon {
 }
 
 function getIconGlyphSvg(icon: LucideIcon) {
-  const cached = iconGlyphCache.get(icon)
+  const cached = lucideIconSvgCache.get(icon)
   if (cached) return cached
 
   const IconComponent = icon
   const glyph = renderToStaticMarkup(
-    <IconComponent width="12" height="12" stroke="#ffffff" strokeWidth={2.25} fill="none" />
-  ).replace('<svg', '<svg x="6" y="4"')
+    <IconComponent
+      width={GLYPH_SIZE}
+      height={GLYPH_SIZE}
+      stroke={GLYPH_STROKE_COLOR}
+      strokeWidth={GLYPH_STROKE_WIDTH}
+      fill="none"
+    />
+  ).replace('<svg', `<svg x="${GLYPH_X_OFFSET}" y="${GLYPH_Y_OFFSET}"`)
 
-  iconGlyphCache.set(icon, glyph)
+  lucideIconSvgCache.set(icon, glyph)
   return glyph
 }
 
@@ -120,11 +137,8 @@ function getMarkerIcon(state: MarkerState, routeColor: string, poiTypeName?: str
   const markerSize = state === 'existing' ? 28 : 32
   const markerFill = getMarkerFillColor(state, routeColor)
   const markerIcon = getPOITypeIcon(poiTypeName)
-  const cacheKey = `${state}_${markerFill}_${poiTypeName || 'generic'}`
-  const cached = markerIconCache.get(cacheKey)
-  if (cached) return cached
 
-  const icon = {
+  return {
     url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
         <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" fill="${markerFill}" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -134,9 +148,6 @@ function getMarkerIcon(state: MarkerState, routeColor: string, poiTypeName?: str
     scaledSize: new window.google.maps.Size(markerSize, markerSize),
     anchor: new window.google.maps.Point(markerSize / 2, markerSize)
   }
-
-  markerIconCache.set(cacheKey, icon)
-  return icon
 }
 
 export function POIMarkers({
