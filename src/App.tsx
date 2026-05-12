@@ -22,13 +22,14 @@ import { IntroScreen } from '@/components/IntroScreen'
 import { EmailCollectionDialog } from '@/components/EmailCollectionDialog'
 import { EmailVerification } from '@/components/EmailVerification'
 import { WaitlistScreen } from '@/components/WaitlistScreen'
-import { RouteSelector, RouteSwitchDialog } from '@/features/routes'
+import { RouteSelector, RouteSwitchDialog, RouteSettings } from '@/features/routes'
 import { MapContainer } from '@/features/map'
 import { ElevationChart } from '@/features/elevation'
 import { POISearch, POISummary } from '@/features/poi'
 import { useAuth, useRoutes, usePOI, useMap, useElevation, useUI, useResetStore } from '@/store/selectors'
 import { useUnsavedChanges } from '@/hooks/use-unsaved-changes'
 import { usePOILocalStorage } from '@/hooks/use-poi-local-storage'
+import { useRouteTimingLocalStorage } from '@/hooks/use-route-timing-local-storage'
 import { AlertDialogProvider, useAlert } from '@/hooks/use-alert-dialog'
 import type { Route, POI, RouteCoordinate, MarkerState } from '@/store/types'
 import type { 
@@ -103,10 +104,15 @@ export default function App(){
   
   // Initialize POI local storage persistence
   const { savePOIs, loadPOIs, clearPOIs } = usePOILocalStorage()
-  
+  const { saveTiming, loadTiming } = useRouteTimingLocalStorage()
+
   // Local state for UI control
   const [showEmailDialog, setShowEmailDialog] = useState(false)
-  
+
+  // Route timing settings (persisted to localStorage keyed by route ID)
+  const [routeStartDateTime, setRouteStartDateTime] = useState<string>('')
+  const [averageSpeedKmh, setAverageSpeedKmh] = useState<number>(15)
+
   const {
     routes,
     routesLoading,
@@ -122,6 +128,14 @@ export default function App(){
     selectRoute,
     clearRouteSelection,
   } = useRoutes()
+
+  const handleTimingSave = (startDateTime: string, speed: number) => {
+    setRouteStartDateTime(startDateTime)
+    setAverageSpeedKmh(speed)
+    if (selectedRouteId) {
+      saveTiming(selectedRouteId, { startDateTime, averageSpeedKmh: speed })
+    }
+  }
   
   const {
     markers,
@@ -186,6 +200,20 @@ export default function App(){
       // ignore in non-browser environments
     }
   }, [setRouteColor])
+
+  // Load route timing settings from localStorage when selected route changes
+  useEffect(() => {
+    if (selectedRouteId) {
+      const saved = loadTiming(selectedRouteId)
+      setRouteStartDateTime(saved?.startDateTime ?? '')
+      setAverageSpeedKmh(saved?.averageSpeedKmh ?? 15)
+    } else {
+      setRouteStartDateTime('')
+      setAverageSpeedKmh(15)
+    }
+  // loadTiming is stable (useCallback with no deps) so omitting it is safe
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedRouteId])
 
   const mapInstanceRef = useRef<google.maps.Map | null>(null)
 
@@ -844,6 +872,19 @@ export default function App(){
               </SidebarGroupContent>
             </SidebarGroup>
           )}
+
+          {authenticated && selectedRouteId && (
+            <SidebarGroup>
+              <SidebarGroupLabel>Route Timing</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <RouteSettings
+                  startDateTime={routeStartDateTime}
+                  averageSpeedKmh={averageSpeedKmh}
+                  onSave={handleTimingSave}
+                />
+              </SidebarGroupContent>
+            </SidebarGroup>
+          )}
           
           <SidebarGroup>
             <SidebarGroupLabel>Search POIs along route</SidebarGroupLabel>
@@ -918,6 +959,8 @@ export default function App(){
                 selectedRouteId={selectedRouteId}
                 routeFullyLoaded={routeFullyLoaded}
                 poiTypeNames={POI_TYPE_NAMES}
+                routeStartDateTime={routeStartDateTime || null}
+                averageSpeedKmh={averageSpeedKmh}
                 onCameraChange={(center, zoom) => {
                   setMapCenter(center)
                   setMapZoom(zoom)

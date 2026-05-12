@@ -18,6 +18,8 @@ interface POIInfoWindowProps {
   markerState: 'suggested' | 'selected' | 'existing'
   poiTypeNames: Record<string, string>
   routeDistanceKm?: number | null
+  routeTimeHours?: number | null
+  routeStartDateTime?: string | null
   onClose: () => void
   onUpdateState: (newState: 'suggested' | 'selected') => void
   onPOIUpdate?: (updatedPOI: Partial<POI>) => void
@@ -68,11 +70,30 @@ function isValidURL(url: string): boolean {
   }
 }
 
+// Helper to format relative time from hours
+function formatRelativeTime(hours: number): string {
+  const h = Math.floor(hours)
+  const m = Math.round((hours - h) * 60)
+  if (h === 0) return `~${m}min`
+  if (m === 0) return `~${h}h`
+  return `~${h}h ${m}min`
+}
+
+// Helper to format absolute time from ISO datetime-local string + elapsed hours
+function formatAbsoluteTime(startDateTimeStr: string, elapsedHours: number): string {
+  const start = new Date(startDateTimeStr)
+  if (isNaN(start.getTime())) return ''
+  const arrival = new Date(start.getTime() + elapsedHours * 60 * 60 * 1000)
+  return arrival.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
 export function POIInfoWindow({
   poi,
   markerState,
   poiTypeNames,
   routeDistanceKm,
+  routeTimeHours,
+  routeStartDateTime,
   onClose,
   onUpdateState,
   onPOIUpdate,
@@ -117,6 +138,17 @@ export function POIInfoWindow({
   const routeDistanceLabel = routeDistanceKm !== null && routeDistanceKm !== undefined
     ? `~${routeDistanceKm.toFixed(1)} km into route`
     : null
+
+  // Format time labels
+  const routeRelativeTimeLabel = routeTimeHours !== null && routeTimeHours !== undefined
+    ? `${formatRelativeTime(routeTimeHours)} into ride`
+    : null
+
+  const routeAbsoluteTimeLabel =
+    routeTimeHours !== null && routeTimeHours !== undefined &&
+    routeStartDateTime
+      ? `at ${formatAbsoluteTime(routeStartDateTime, routeTimeHours)}`
+      : null
 
   // Get all POI type options sorted alphabetically
   const poiTypeOptions = Object.entries(poiTypeNames).sort((a, b) => 
@@ -254,10 +286,20 @@ export function POIInfoWindow({
             </a>
           ) : null}
 
-          {/* Distance along route */}
-          {routeDistanceLabel && (
-            <div className="text-xs text-gray-500 italic" data-testid="poi-route-distance">
-              {routeDistanceLabel}
+          {/* Distance and time along route */}
+          {(routeDistanceLabel || routeRelativeTimeLabel) && (
+            <div className="text-xs text-gray-500 italic space-y-0.5">
+              {routeDistanceLabel && (
+                <div data-testid="poi-route-distance">{routeDistanceLabel}</div>
+              )}
+              {routeRelativeTimeLabel && (
+                <div data-testid="poi-route-time-relative">
+                  {routeRelativeTimeLabel}
+                  {routeAbsoluteTimeLabel && (
+                    <span data-testid="poi-route-time-absolute"> ({routeAbsoluteTimeLabel})</span>
+                  )}
+                </div>
+              )}
             </div>
           )}
           
