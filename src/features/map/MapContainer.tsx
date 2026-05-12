@@ -77,6 +77,8 @@ interface MapContainerProps {
   selectedRouteId: number | null
   routeFullyLoaded: boolean
   poiTypeNames: Record<string, string>
+  routeStartDateTime?: string | null
+  averageSpeedKmh?: number | null
   onCameraChange: (center: { lat: number; lng: number }, zoom: number) => void
   onMarkerClick: (poi: POI) => void
   onCloseInfoWindow: () => void
@@ -131,6 +133,8 @@ export function MapContainer({
   selectedRouteId,
   routeFullyLoaded,
   poiTypeNames,
+  routeStartDateTime,
+  averageSpeedKmh,
   onCameraChange,
   onMarkerClick,
   onCloseInfoWindow,
@@ -143,15 +147,22 @@ export function MapContainer({
 }: MapContainerProps) {
   // Compute distance along route when selectedMarker changes (once per marker selection)
   const [selectedMarkerDistanceKm, setSelectedMarkerDistanceKm] = useState<number | null>(null)
+  const [selectedMarkerTimeHours, setSelectedMarkerTimeHours] = useState<number | null>(null)
   
   useEffect(() => {
     if (selectedMarker && routePath.length > 0) {
       const distance = distanceAlongRoute(selectedMarker, routePath)
       setSelectedMarkerDistanceKm(distance)
+      if (distance !== null && averageSpeedKmh && averageSpeedKmh > 0) {
+        setSelectedMarkerTimeHours(distance / averageSpeedKmh)
+      } else {
+        setSelectedMarkerTimeHours(null)
+      }
     } else {
       setSelectedMarkerDistanceKm(null)
+      setSelectedMarkerTimeHours(null)
     }
-  }, [selectedMarker, routePath])
+  }, [selectedMarker, routePath, averageSpeedKmh])
   // Calculate POI counts by state
   const suggestedCount = markers.filter(poi => {
     const key = getMarkerKey(poi)
@@ -305,6 +316,8 @@ export function MapContainer({
                   markerState={markerState}
                   poiTypeNames={poiTypeNames}
                   routeDistanceKm={selectedMarkerDistanceKm}
+                  routeTimeHours={selectedMarkerTimeHours}
+                  routeStartDateTime={routeStartDateTime}
                   onClose={onCloseInfoWindow}
                   onUpdateState={(newState) => onUpdateMarkerState(markerKey, newState)}
                   onPOIUpdate={onPOIUpdate ? (updatedPOI) => onPOIUpdate(markerKey, updatedPOI) : undefined}

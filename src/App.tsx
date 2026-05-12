@@ -22,7 +22,7 @@ import { IntroScreen } from '@/components/IntroScreen'
 import { EmailCollectionDialog } from '@/components/EmailCollectionDialog'
 import { EmailVerification } from '@/components/EmailVerification'
 import { WaitlistScreen } from '@/components/WaitlistScreen'
-import { RouteSelector, RouteSwitchDialog } from '@/features/routes'
+import { RouteSelector, RouteSwitchDialog, RouteSettings } from '@/features/routes'
 import { MapContainer } from '@/features/map'
 import { ElevationChart } from '@/features/elevation'
 import { POISearch, POISummary } from '@/features/poi'
@@ -106,7 +106,26 @@ export default function App(){
   
   // Local state for UI control
   const [showEmailDialog, setShowEmailDialog] = useState(false)
-  
+
+  // Route timing settings (persisted to localStorage)
+  const [routeStartDateTime, setRouteStartDateTime] = useState<string>(() => {
+    return localStorage.getItem('routeStartDateTime') || ''
+  })
+  const [averageSpeedKmh, setAverageSpeedKmh] = useState<number>(() => {
+    const saved = localStorage.getItem('averageSpeedKmh')
+    return saved ? parseFloat(saved) : 15
+  })
+
+  const handleRouteStartDateTimeChange = (value: string) => {
+    setRouteStartDateTime(value)
+    localStorage.setItem('routeStartDateTime', value)
+  }
+
+  const handleAverageSpeedChange = (value: number) => {
+    setAverageSpeedKmh(value)
+    localStorage.setItem('averageSpeedKmh', String(value))
+  }
+
   const {
     routes,
     routesLoading,
@@ -844,6 +863,20 @@ export default function App(){
               </SidebarGroupContent>
             </SidebarGroup>
           )}
+
+          {authenticated && (
+            <SidebarGroup>
+              <SidebarGroupLabel>Route Timing</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <RouteSettings
+                  startDateTime={routeStartDateTime}
+                  averageSpeedKmh={averageSpeedKmh}
+                  onStartDateTimeChange={handleRouteStartDateTimeChange}
+                  onAverageSpeedChange={handleAverageSpeedChange}
+                />
+              </SidebarGroupContent>
+            </SidebarGroup>
+          )}
           
           <SidebarGroup>
             <SidebarGroupLabel>Search POIs along route</SidebarGroupLabel>
@@ -918,6 +951,8 @@ export default function App(){
                 selectedRouteId={selectedRouteId}
                 routeFullyLoaded={routeFullyLoaded}
                 poiTypeNames={POI_TYPE_NAMES}
+                routeStartDateTime={routeStartDateTime || null}
+                averageSpeedKmh={averageSpeedKmh}
                 onCameraChange={(center, zoom) => {
                   setMapCenter(center)
                   setMapZoom(zoom)
