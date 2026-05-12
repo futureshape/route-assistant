@@ -199,11 +199,21 @@ This is a full-stack web application that helps cyclists explore routes and find
 
 ### Testing Commands
 - `npm run test:e2e`: Run E2E tests (headless)
+- `npm run test:e2e:bootstrap-auth`: Run only Playwright setup chain needed for authenticated state (`create-route` -> `auth`)
+- `npm run test:e2e:cleanup`: Run only Playwright cleanup project to delete test route(s)
 - `npm run test:e2e:ui`: Run E2E tests with Playwright UI
 - `npm run test:e2e:headed`: Run E2E tests with visible browser
 - `npm run test:e2e:debug`: Run E2E tests in debug mode
 - `npm run test:e2e:video`: Run E2E tests with video recording
 - `npm run test:e2e:report`: View HTML test report
+
+### Agent Runbook: Logged-In UI Validation and Screenshots
+- If asked to launch the app and validate or screenshot logged-in features, bootstrap auth first.
+- Run `npm run test:e2e:bootstrap-auth` before taking screenshots or checking authenticated UI states.
+- After screenshot/validation tasks are complete, run `npm run test:e2e:cleanup` to remove created test routes.
+- This uses Playwright project dependencies in `playwright.config.ts` to run setup in order: `create-route` then `auth`.
+- The auth setup calls `/auth/test` (available only when `TEST_MODE=true`) and stores authenticated state in `tests/e2e/.auth/user.json`.
+- Ensure required test env vars are available (especially `TEST_MODE` and `TEST_OAUTH_TOKEN`) when running this flow in CI/agents.
 
 ## Testing
 
