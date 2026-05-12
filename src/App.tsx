@@ -129,17 +129,11 @@ export default function App(){
     clearRouteSelection,
   } = useRoutes()
 
-  const handleRouteStartDateTimeChange = (value: string) => {
-    setRouteStartDateTime(value)
+  const handleTimingSave = (startDateTime: string, speed: number) => {
+    setRouteStartDateTime(startDateTime)
+    setAverageSpeedKmh(speed)
     if (selectedRouteId) {
-      saveTiming(selectedRouteId, { startDateTime: value, averageSpeedKmh })
-    }
-  }
-
-  const handleAverageSpeedChange = (value: number) => {
-    setAverageSpeedKmh(value)
-    if (selectedRouteId) {
-      saveTiming(selectedRouteId, { startDateTime: routeStartDateTime, averageSpeedKmh: value })
+      saveTiming(selectedRouteId, { startDateTime, averageSpeedKmh: speed })
     }
   }
   
@@ -879,15 +873,14 @@ export default function App(){
             </SidebarGroup>
           )}
 
-          {authenticated && (
+          {authenticated && selectedRouteId && (
             <SidebarGroup>
               <SidebarGroupLabel>Route Timing</SidebarGroupLabel>
               <SidebarGroupContent>
                 <RouteSettings
                   startDateTime={routeStartDateTime}
                   averageSpeedKmh={averageSpeedKmh}
-                  onStartDateTimeChange={handleRouteStartDateTimeChange}
-                  onAverageSpeedChange={handleAverageSpeedChange}
+                  onSave={handleTimingSave}
                 />
               </SidebarGroupContent>
             </SidebarGroup>
