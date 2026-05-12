@@ -97,6 +97,7 @@ const POI_TYPE_NAMES: Record<string, string> = {
   transit: 'Transit Center',
   bikeshare: 'Bike Share'
 };
+const DEFAULT_POI_TYPE = 'generic'
 
 export default function App(){
   // Get state and actions from Zustand store - using combined selectors
@@ -301,16 +302,15 @@ export default function App(){
   }
 
   function getPOIType(poi: POI): string {
-    return poi.poi_type_name || 'generic'
+    return poi.poi_type_name || DEFAULT_POI_TYPE
   }
 
   const poiTypeCounts = useMemo(() => {
-    const counts: Record<string, number> = {}
-    markers.forEach((poi) => {
+    return markers.reduce((counts, poi) => {
       const poiType = getPOIType(poi)
       counts[poiType] = (counts[poiType] || 0) + 1
-    })
-    return counts
+      return counts
+    }, {} as Record<string, number>)
   }, [markers])
 
   const filteredMarkers = useMemo(() => {
@@ -963,7 +963,7 @@ export default function App(){
             onValueChange={setActivePOITypeFilter}
             disabled={markers.length === 0}
           >
-            <SelectTrigger className="h-8 w-[180px]" data-testid="poi-type-filter-trigger">
+            <SelectTrigger className="h-8 min-w-[180px] max-w-[240px]" data-testid="poi-type-filter-trigger">
               <SelectValue placeholder="All POI types" />
             </SelectTrigger>
             <SelectContent data-testid="poi-type-filter-content">
