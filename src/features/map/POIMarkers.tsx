@@ -134,7 +134,7 @@ function getIconGlyphSvg(icon: LucideIcon) {
 
 // Helper: get marker icon based on state and POI type
 function getMarkerIcon(state: MarkerState, routeColor: string, poiTypeName?: string) {
-  const markerSize = state === 'existing' ? 28 : 32
+  const markerSize = state === 'existing' ? 30 : 34
   const markerFill = getMarkerFillColor(state, routeColor)
   const markerIcon = getPOITypeIcon(poiTypeName)
 
