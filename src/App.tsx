@@ -464,10 +464,9 @@ export default function App(){
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      const isPOINavigationKey = event.key === 'ArrowDown' || event.key === 'ArrowUp'
       const markerKeyForPoi = (poi: POI) => `${poi.name}_${poi.lat}_${poi.lng}`
       if (!selectedRouteId || !routeFullyLoaded) return
-      if (isEditableTarget(event.target) && !isPOINavigationKey) return
+      if (isEditableTarget(event.target)) return
 
       if ((event.key === 'ArrowRight' || event.key === 'ArrowLeft') && mapInstanceRef.current && routePath.length > 1 && routeCumulativeDistancesKm.length > 1) {
         event.preventDefault()
@@ -505,9 +504,11 @@ export default function App(){
           .map(({ index }) => index)
 
         if (windowIndices.length === 0) {
+          // Ensure bounds always include at least one point near current position.
           windowIndices.push(nearestIndex)
         }
         if (windowIndices.length === 1) {
+          // Ensure bounds contain at least 2 points so fitBounds has an area.
           const onlyIndex = windowIndices[0]
           if (onlyIndex > 0) windowIndices.unshift(onlyIndex - 1)
           if (onlyIndex < routePath.length - 1) windowIndices.push(onlyIndex + 1)
@@ -523,8 +524,9 @@ export default function App(){
         if (suggestedMarkersAlongRoute.length === 0) return
 
         event.preventDefault()
+        const selectedMarkerKey = selectedMarker ? markerKeyForPoi(selectedMarker) : null
         const currentIndex = selectedMarker
-          ? suggestedMarkersAlongRoute.findIndex((poi) => markerKeyForPoi(poi) === markerKeyForPoi(selectedMarker))
+          ? suggestedMarkersAlongRoute.findIndex((poi) => markerKeyForPoi(poi) === selectedMarkerKey)
           : -1
         const direction = event.key === 'ArrowDown' ? 1 : -1
         const targetIndex =

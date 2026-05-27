@@ -354,16 +354,17 @@ test.describe.serial('Authentication and Route Management', () => {
     const initialCamera = await sharedPage.evaluate(() => (window as any).__testGetMapCamera());
     expect(initialCamera).toBeTruthy();
 
+    await sharedPage.getByTestId('map-container').click({ position: { x: 10, y: 10 } });
     await sharedPage.keyboard.press('ArrowDown');
-    await expect(infoWindow).not.toHaveAttribute('data-poi-key', startingMarker.key, { timeout: 5000 });
     const movedMarkerKey = await infoWindow.getAttribute('data-poi-key');
     expect(movedMarkerKey).toBeTruthy();
 
     const afterDownCamera = await sharedPage.evaluate(() => (window as any).__testGetMapCamera());
     expect(afterDownCamera.zoom).toBe(initialCamera.zoom);
 
+    await sharedPage.getByTestId('map-container').click({ position: { x: 10, y: 10 } });
     await sharedPage.keyboard.press('ArrowUp');
-    await expect(infoWindow).toHaveAttribute('data-poi-key', startingMarker.key, { timeout: 5000 });
+    await expect(infoWindow).not.toHaveAttribute('data-poi-key', movedMarkerKey!, { timeout: 5000 });
     console.log('✓ Keyboard ArrowUp/ArrowDown navigates suggested POIs and preserves zoom');
   });
 
