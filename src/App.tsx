@@ -4,6 +4,13 @@ import { getCookie, throttle } from '@/lib/utils'
 import { fetchWithCSRFRetry, fetchCSRFToken, clearCSRFToken } from '@/lib/csrf'
 import { Button } from '@/components/ui/button'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   Sidebar,
   SidebarContent,
   SidebarGroup,
@@ -90,6 +97,7 @@ const POI_TYPE_NAMES: Record<string, string> = {
   transit: 'Transit Center',
   bikeshare: 'Bike Share'
 };
+const DEFAULT_POI_TYPE = 'generic'
 
 export default function App(){
   // Get state and actions from Zustand store - using combined selectors
@@ -108,6 +116,7 @@ export default function App(){
 
   // Local state for UI control
   const [showEmailDialog, setShowEmailDialog] = useState(false)
+  const [activePOITypeFilter, setActivePOITypeFilter] = useState('all')
 
   // Route timing settings (persisted to localStorage keyed by route ID)
   const [routeStartDateTime, setRouteStartDateTime] = useState<string>('')
@@ -292,6 +301,25 @@ export default function App(){
     return `${poi.name}_${poi.lat}_${poi.lng}`
   }
 
+  function getPOIType(poi: POI): string {
+    return poi.poi_type_name || DEFAULT_POI_TYPE
+  }
+
+  const poiTypeCounts = useMemo(() => {
+    return markers.reduce((counts, poi) => {
+      const poiType = getPOIType(poi)
+      counts[poiType] = (counts[poiType] || 0) + 1
+      return counts
+    }, {} as Record<string, number>)
+  }, [markers])
+
+  const filteredMarkers = useMemo(() => {
+    if (activePOITypeFilter === 'all') {
+      return markers
+    }
+    return markers.filter((poi) => getPOIType(poi) === activePOITypeFilter)
+  }, [markers, activePOITypeFilter])
+
   // Helper: get current route name
   function getCurrentRouteName() {
     if (!selectedRouteId) return ''
@@ -347,6 +375,19 @@ export default function App(){
         break
     }
   }
+
+  useEffect(() => {
+    if (activePOITypeFilter !== 'all' && !poiTypeCounts[activePOITypeFilter]) {
+      setActivePOITypeFilter('all')
+    }
+  }, [activePOITypeFilter, poiTypeCounts])
+
+  useEffect(() => {
+    if (!selectedMarker || activePOITypeFilter === 'all') return
+    if (getPOIType(selectedMarker) !== activePOITypeFilter) {
+      setSelectedMarker(null)
+    }
+  }, [selectedMarker, activePOITypeFilter, setSelectedMarker])
 
   // Updated marker click handler for React approach
   const handleMarkerClick = (poi: POI) => {
@@ -917,6 +958,31 @@ export default function App(){
             onSendPOIs={sendPOIsToRideWithGPS}
             sending={sendingPOIs}
           />
+          <Select
+            value={activePOITypeFilter}
+            onValueChange={setActivePOITypeFilter}
+            disabled={markers.length === 0}
+          >
+            <SelectTrigger className="h-8 min-w-[180px] max-w-[240px]" data-testid="poi-type-filter-trigger">
+              <SelectValue placeholder="All POI types" />
+            </SelectTrigger>
+            <SelectContent data-testid="poi-type-filter-content">
+              <SelectItem value="all" data-testid="poi-type-filter-option-all">
+                All POI types ({markers.length})
+              </SelectItem>
+              {Object.keys(poiTypeCounts)
+                .sort((a, b) => (POI_TYPE_NAMES[a] || a).localeCompare(POI_TYPE_NAMES[b] || b))
+                .map((poiType) => (
+                  <SelectItem
+                    key={poiType}
+                    value={poiType}
+                    data-testid={`poi-type-filter-option-${poiType}`}
+                  >
+                    {(POI_TYPE_NAMES[poiType] || poiType)} ({poiTypeCounts[poiType]})
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
           {selectedRouteId && elevationData.length > 0 && (
             <Button
               variant="outline"
@@ -952,7 +1018,7 @@ export default function App(){
                 routePath={routePath}
                 routeColor={routeColor}
                 routeDistance={selectedRouteId ? (routes.find(r => r.id === selectedRouteId)?.distance || null) : null}
-                markers={markers}
+                markers={filteredMarkers}
                 markerStates={markerStates}
                 selectedMarker={selectedMarker}
                 chartHoverPosition={chartHoverPosition}
