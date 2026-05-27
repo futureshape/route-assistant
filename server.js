@@ -129,6 +129,46 @@ function coordsFromTrackPoints(route){
   return out;
 }
 
+function downsampleEncodedPolyline(encodedPolyline, maxPoints = 500) {
+  if (!encodedPolyline || typeof encodedPolyline !== 'string') {
+    return encodedPolyline;
+  }
+
+  try {
+    const coords = polyline.decode(encodedPolyline);
+    if (coords.length <= maxPoints) {
+      return encodedPolyline;
+    }
+
+    const step = Math.max(1, Math.ceil(coords.length / maxPoints));
+    const reduced = [];
+
+    for (let i = 0; i < coords.length; i += step) {
+      reduced.push(coords[i]);
+    }
+
+    const last = coords[coords.length - 1];
+    const finalPoint = reduced[reduced.length - 1];
+    if (!finalPoint || finalPoint[0] !== last[0] || finalPoint[1] !== last[1]) {
+      reduced.push(last);
+    }
+
+    return polyline.encode(reduced);
+  } catch {
+    return encodedPolyline;
+  }
+}
+
+function parsePositiveIntEnv(name, fallback) {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+const GOOGLE_ROUTE_MAX_POINTS = parsePositiveIntEnv('GOOGLE_ROUTE_MAX_POINTS', 500);
+const OSM_ROUTE_MAX_POINTS = parsePositiveIntEnv('OSM_ROUTE_MAX_POINTS', 800);
+
 function logAxiosError(label, err){
   const resp = err?.response;
   if (resp){
@@ -169,7 +209,9 @@ console.log('Enabled POI providers:', ENABLED_POI_PROVIDERS);
 // In production serve built client; in dev Vite middleware will be attached later
 app.use(express.static(clientDist, { index: false }));
 // Note: public static files will be served after Vite middleware in dev mode
-app.use(express.json());
+const requestBodyLimit = process.env.REQUEST_BODY_LIMIT || '2mb';
+app.use(express.json({ limit: requestBodyLimit }));
+app.use(express.urlencoded({ limit: requestBodyLimit, extended: true }));
 app.use(cookieParser());
 app.use(session({
   secret: process.env.SESSION_SECRET || 'dev-secret',
@@ -938,13 +980,21 @@ app.post('/api/poi-search/google-maps', csrfProtection, requireAuth, requireAcce
   const { textQuery, encodedPolyline, routingOrigin } = req.body || {};
   if (!textQuery || !encodedPolyline) return res.status(400).send({ error: 'textQuery and encodedPolyline required' });
   try {
+    const queryPolyline = downsampleEncodedPolyline(encodedPolyline, GOOGLE_ROUTE_MAX_POINTS);
+
     // Debug: log incoming request payload
-    console.info('[Google Maps POI] Incoming search request:', { textQuery, encodedPolylineSnippet: (encodedPolyline || '').slice(0,50) + '...', routingOrigin });
+    console.info('[Google Maps POI] Incoming search request:', {
+      textQuery,
+      encodedPolylineLength: encodedPolyline.length,
+      queryPolylineLength: queryPolyline.length,
+      encodedPolylineSnippet: (encodedPolyline || '').slice(0,50) + '...',
+      routingOrigin
+    });
     const url = 'https://places.googleapis.com/v1/places:searchText';
     const body = {
       textQuery,
       searchAlongRouteParameters: {
-        polyline: { encodedPolyline }
+        polyline: { encodedPolyline: queryPolyline }
       }
     };
     if (routingOrigin) body.routingParameters = { origin: routingOrigin };
@@ -955,7 +1005,7 @@ app.post('/api/poi-search/google-maps', csrfProtection, requireAuth, requireAcce
       'X-Goog-FieldMask': GOOGLE_PLACES_FIELDMASK
     };
     const maskedHeaders = { ...headers, 'X-Goog-Api-Key': headers['X-Goog-Api-Key'] ? '***REDACTED***' : '' };
-    console.debug('[Google Maps POI] Sending request to Google:', { url, headers: maskedHeaders, body: { ...body, searchAlongRouteParameters: { polyline: { encodedPolyline: (encodedPolyline||'').slice(0,50) + '...' } } } });
+    console.debug('[Google Maps POI] Sending request to Google:', { url, headers: maskedHeaders, body: { ...body, searchAlongRouteParameters: { polyline: { encodedPolyline: (queryPolyline||'').slice(0,50) + '...' } } } });
 
     const r = await axios.post(url, body, { headers });
 
@@ -1063,19 +1113,26 @@ app.post('/api/poi-search/osm', csrfProtection, requireAuth, requireAccess, asyn
       // Route-based search: decode polyline and use ST_DWithin along route corridor
       const coords = polyline.decode(encodedPolyline);
 
-      // Sample the route to keep the query manageable
-      let finalCoords;
-      if (coords.length < 100) {
-        finalCoords = coords;
+      // Sample the route to keep the query manageable.
+      // Very long routes can contain tens of thousands of points and create
+      // oversized SQL payloads/timeouts without a hard upper bound.
+      let sampledCoords;
+      const samplePercent = 0.25;
+      const minPoints = 20;
+      const maxPoints = OSM_ROUTE_MAX_POINTS;
+
+      if (coords.length <= maxPoints) {
+        sampledCoords = coords;
       } else {
-        // Sample the route using a percentage-based approach (e.g., 25% of points)
-        const samplePercent = 0.25;
-        const minPoints = 5;
-        const numPoints = Math.max(minPoints, Math.floor(coords.length * samplePercent));
-        const step = Math.max(1, Math.floor(coords.length / numPoints));
-        finalCoords = coords.filter((_, i) => i % step === 0);
+        const targetPoints = Math.min(maxPoints, Math.max(minPoints, Math.floor(coords.length * samplePercent)));
+        const step = Math.max(1, Math.floor(coords.length / targetPoints));
+        sampledCoords = coords.filter((_, i) => i % step === 0);
+        const last = coords[coords.length - 1];
+        const finalPoint = sampledCoords[sampledCoords.length - 1];
+        if (!finalPoint || finalPoint[0] !== last[0] || finalPoint[1] !== last[1]) {
+          sampledCoords.push(last);
+        }
       }
-      const sampledCoords = finalCoords;
 
       // ~500m corridor: 0.005 degrees ≈ 555m latitude / ~360m longitude at mid-latitudes
       // Using geometry type (degrees) for performance; geography cast is too slow for long routes
