@@ -285,6 +285,51 @@ test.describe.serial('Authentication and Route Management', () => {
     expect(poisAdded).toBeGreaterThan(0);
   });
 
+  test('filtering POIs by type updates visible markers on the map', async () => {
+    const mapContainer = sharedPage.getByTestId('map-container');
+    const allMarkers = await sharedPage.evaluate(() => {
+      return (window as any).__testGetMarkers();
+    });
+
+    const totalCount = allMarkers.length;
+    expect(totalCount).toBeGreaterThan(0);
+
+    const poiTypeCounts = allMarkers.reduce((counts: Record<string, number>, marker: any) => {
+      const poiType = marker.poi_type_name || 'generic';
+      counts[poiType] = (counts[poiType] || 0) + 1;
+      return counts;
+    }, {});
+
+    const filterableEntry = Object.entries(poiTypeCounts).find(([, count]) => count < totalCount) || Object.entries(poiTypeCounts)[0];
+    expect(filterableEntry).toBeTruthy();
+
+    const [targetType, targetCount] = filterableEntry;
+    console.log(`✓ Filtering by POI type: ${targetType} (${targetCount}/${totalCount})`);
+
+    await sharedPage.getByTestId('poi-type-filter-trigger').click();
+    await sharedPage.waitForSelector('[data-testid="poi-type-filter-content"]', { timeout: 5000 });
+    await sharedPage.getByTestId(`poi-type-filter-option-${targetType}`).click();
+
+    await expect(mapContainer).toHaveAttribute('data-poi-count', String(targetCount));
+
+    const filteredMarkers = await sharedPage.evaluate(() => {
+      return (window as any).__testGetMarkers();
+    });
+
+    expect(filteredMarkers.length).toBe(targetCount);
+    for (const marker of filteredMarkers) {
+      expect(marker.poi_type_name || 'generic').toBe(targetType);
+    }
+    console.log(`✓ POI type filter shows only ${targetType} markers`);
+
+    await sharedPage.getByTestId('poi-type-filter-trigger').click();
+    await sharedPage.waitForSelector('[data-testid="poi-type-filter-content"]', { timeout: 5000 });
+    await sharedPage.getByTestId('poi-type-filter-option-all').click();
+
+    await expect(mapContainer).toHaveAttribute('data-poi-count', String(totalCount));
+    console.log('✓ POI filter reset to all marker types');
+  });
+
   test('clicking a random marker and changing its name to a unique test ID', async () => {
     // Get all markers via test helper
     const markers = await sharedPage.evaluate(() => {
@@ -622,5 +667,4 @@ test.describe.serial('Authentication and Route Management', () => {
     console.log(`✓ Test completed: POIs successfully sent and persisted after route reload`);
   });
 });
-
 
