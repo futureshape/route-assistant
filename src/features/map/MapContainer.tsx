@@ -233,8 +233,19 @@ export function MapContainer({
           poi_type_name: poi.poi_type_name
         }))
       }
+
+      ;(window as unknown as Record<string, unknown>).__testGetMapCamera = () => {
+        const map = mapInstanceRef.current
+        if (!map) return null
+        const center = map.getCenter()
+        return {
+          lat: center?.lat() ?? null,
+          lng: center?.lng() ?? null,
+          zoom: map.getZoom() ?? null,
+        }
+      }
     }
-  }, [markers, markerStates, onMarkerClick, getMarkerKey])
+  }, [markers, markerStates, onMarkerClick, getMarkerKey, mapInstanceRef])
 
   return (
     <div 

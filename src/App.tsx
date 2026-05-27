@@ -98,6 +98,18 @@ const POI_TYPE_NAMES: Record<string, string> = {
   bikeshare: 'Bike Share'
 };
 const DEFAULT_POI_TYPE = 'generic'
+const ROUTE_NAV_WINDOW_KM = 10
+
+function haversineMetres(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000
+  const toRad = (deg: number) => (deg * Math.PI) / 180
+  const dLat = toRad(lat2 - lat1)
+  const dLng = toRad(lng2 - lng1)
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
 
 export default function App(){
   // Get state and actions from Zustand store - using combined selectors
@@ -225,6 +237,7 @@ export default function App(){
   }, [selectedRouteId])
 
   const mapInstanceRef = useRef<google.maps.Map | null>(null)
+  const routeKeyboardDistanceKmRef = useRef<number | null>(null)
 
   // Fetch Google Maps API key on mount
   useEffect(() => {
@@ -320,6 +333,50 @@ export default function App(){
     return markers.filter((poi) => getPOIType(poi) === activePOITypeFilter)
   }, [markers, activePOITypeFilter])
 
+  const routeCumulativeDistancesKm = useMemo(() => {
+    if (routePath.length === 0) return []
+    const cumulative: number[] = [0]
+    for (let i = 1; i < routePath.length; i++) {
+      const segmentMetres = haversineMetres(
+        routePath[i - 1].lat,
+        routePath[i - 1].lng,
+        routePath[i].lat,
+        routePath[i].lng
+      )
+      cumulative.push(cumulative[i - 1] + segmentMetres / 1000)
+    }
+    return cumulative
+  }, [routePath])
+
+  const suggestedMarkersAlongRoute = useMemo(() => {
+    if (routePath.length === 0 || routeCumulativeDistancesKm.length === 0) return []
+
+    const markerKeyForPoi = (poi: POI) => `${poi.name}_${poi.lat}_${poi.lng}`
+
+    return filteredMarkers
+      .filter((poi) => {
+        const markerKey = markerKeyForPoi(poi)
+        return markerStates[markerKey] !== 'existing'
+      })
+      .map((poi) => {
+        let nearestIndex = 0
+        let nearestMetres = Infinity
+        for (let i = 0; i < routePath.length; i++) {
+          const dist = haversineMetres(poi.lat, poi.lng, routePath[i].lat, routePath[i].lng)
+          if (dist < nearestMetres) {
+            nearestMetres = dist
+            nearestIndex = i
+          }
+        }
+        return {
+          poi,
+          distanceKm: routeCumulativeDistancesKm[nearestIndex] ?? 0,
+        }
+      })
+      .sort((a, b) => a.distanceKm - b.distanceKm)
+      .map((entry) => entry.poi)
+  }, [filteredMarkers, markerStates, routePath, routeCumulativeDistancesKm])
+
   // Helper: get current route name
   function getCurrentRouteName() {
     if (!selectedRouteId) return ''
@@ -389,10 +446,113 @@ export default function App(){
     }
   }, [selectedMarker, activePOITypeFilter, setSelectedMarker])
 
+  useEffect(() => {
+    routeKeyboardDistanceKmRef.current = null
+  }, [selectedRouteId, routePath])
+
   // Updated marker click handler for React approach
   const handleMarkerClick = (poi: POI) => {
     setSelectedMarker(poi)
   }
+
+  useEffect(() => {
+    const isEditableTarget = (target: EventTarget | null): boolean => {
+      if (!(target instanceof HTMLElement)) return false
+      if (target.isContentEditable) return true
+      const tagName = target.tagName.toLowerCase()
+      return tagName === 'input' || tagName === 'textarea' || tagName === 'select'
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const isPOINavigationKey = event.key === 'ArrowDown' || event.key === 'ArrowUp'
+      const markerKeyForPoi = (poi: POI) => `${poi.name}_${poi.lat}_${poi.lng}`
+      if (!selectedRouteId || !routeFullyLoaded) return
+      if (isEditableTarget(event.target) && !isPOINavigationKey) return
+
+      if ((event.key === 'ArrowRight' || event.key === 'ArrowLeft') && mapInstanceRef.current && routePath.length > 1 && routeCumulativeDistancesKm.length > 1) {
+        event.preventDefault()
+
+        const map = mapInstanceRef.current
+        const center = map.getCenter()
+        let nearestIndex = 0
+        let nearestMetres = Infinity
+
+        if (center) {
+          const centerLat = center.lat()
+          const centerLng = center.lng()
+          for (let i = 0; i < routePath.length; i++) {
+            const dist = haversineMetres(centerLat, centerLng, routePath[i].lat, routePath[i].lng)
+            if (dist < nearestMetres) {
+              nearestMetres = dist
+              nearestIndex = i
+            }
+          }
+        }
+
+        const currentDistanceKm =
+          routeKeyboardDistanceKmRef.current ?? (routeCumulativeDistancesKm[nearestIndex] ?? 0)
+        const maxDistanceKm = routeCumulativeDistancesKm[routeCumulativeDistancesKm.length - 1] ?? 0
+        const direction = event.key === 'ArrowRight' ? 1 : -1
+        const nextDistanceKm = Math.max(0, Math.min(maxDistanceKm, currentDistanceKm + direction * ROUTE_NAV_WINDOW_KM))
+        routeKeyboardDistanceKmRef.current = nextDistanceKm
+
+        const startKm = Math.max(0, Math.min(nextDistanceKm, maxDistanceKm))
+        const endKm = Math.min(maxDistanceKm, startKm + ROUTE_NAV_WINDOW_KM)
+
+        const windowIndices = routeCumulativeDistancesKm
+          .map((distKm, index) => ({ distKm, index }))
+          .filter(({ distKm }) => distKm >= startKm && distKm <= endKm)
+          .map(({ index }) => index)
+
+        if (windowIndices.length === 0) {
+          windowIndices.push(nearestIndex)
+        }
+        if (windowIndices.length === 1) {
+          const onlyIndex = windowIndices[0]
+          if (onlyIndex > 0) windowIndices.unshift(onlyIndex - 1)
+          if (onlyIndex < routePath.length - 1) windowIndices.push(onlyIndex + 1)
+        }
+
+        const bounds = new window.google.maps.LatLngBounds()
+        windowIndices.forEach((index) => bounds.extend(routePath[index]))
+        map.fitBounds(bounds, 50)
+        return
+      }
+
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        if (suggestedMarkersAlongRoute.length === 0) return
+
+        event.preventDefault()
+        const currentIndex = selectedMarker
+          ? suggestedMarkersAlongRoute.findIndex((poi) => markerKeyForPoi(poi) === markerKeyForPoi(selectedMarker))
+          : -1
+        const direction = event.key === 'ArrowDown' ? 1 : -1
+        const targetIndex =
+          currentIndex === -1
+            ? direction > 0
+              ? 0
+              : suggestedMarkersAlongRoute.length - 1
+            : (currentIndex + direction + suggestedMarkersAlongRoute.length) % suggestedMarkersAlongRoute.length
+
+        const targetPOI = suggestedMarkersAlongRoute[targetIndex]
+        setSelectedMarker(targetPOI)
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.panTo({ lat: targetPOI.lat, lng: targetPOI.lng })
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [
+    routeCumulativeDistancesKm,
+    routeFullyLoaded,
+    routePath,
+    selectedMarker,
+    selectedRouteId,
+    setSelectedMarker,
+    suggestedMarkersAlongRoute,
+  ])
 
   // Handler for discarding a POI (removes it completely)
   const handleDiscardPOI = (markerKey: string) => {
