@@ -329,15 +329,15 @@ export default function App(){
 
   // Helper: handle route switching with confirmation if needed
   async function handleRouteSwitch(newRoute: Route) {
-    const selectedCount = Object.values(markerStates).filter(state => state === 'selected').length
+    const poiCount = Object.values(markerStates).length
     
-    if (selectedCount > 0 && selectedRouteId) {
+    if (poiCount > 0 && selectedRouteId) {
       // Show confirmation dialog
       setRouteSwitchDialog({
         show: true,
         newRoute,
         currentRouteName: getCurrentRouteName(),
-        selectedCount
+        poiCount
       })
     } else {
       // No uncommitted POIs, switch directly
@@ -348,7 +348,7 @@ export default function App(){
   // Handle route switch dialog actions
   const handleRouteSwitchAction = async (action: 'keep-editing' | 'keep-points' | 'clear-points') => {
     const dialog = routeSwitchDialog
-    setRouteSwitchDialog({show: false, newRoute: null, currentRouteName: '', selectedCount: 0})
+    setRouteSwitchDialog({show: false, newRoute: null, currentRouteName: '', poiCount: 0})
     
     switch (action) {
       case 'keep-editing':
@@ -357,8 +357,16 @@ export default function App(){
         break
         
       case 'keep-points':
-        // Switch route but keep the selected POIs (they'll become orphaned but still selected)
+        // Transfer all POIs (suggested, selected, and existing) to the new route as 'selected'.
+        // Strip providerId='existing' so they're treated as new POIs on the destination route.
+        // showRoute will deduplicate against any POIs already on the new route.
         if (dialog.newRoute) {
+          if (markers.length > 0) {
+            const poisToTransfer = markers.map(poi =>
+              poi.providerId === 'existing' ? { ...poi, providerId: 'transferred' } : poi
+            )
+            savePOIs(dialog.newRoute.id, poisToTransfer)
+          }
           await showRoute(dialog.newRoute.id)
         }
         break
@@ -1072,7 +1080,7 @@ export default function App(){
         show={routeSwitchDialog.show}
         newRouteName={routeSwitchDialog.newRoute?.name || ''}
         currentRouteName={routeSwitchDialog.currentRouteName}
-        selectedCount={routeSwitchDialog.selectedCount}
+        poiCount={routeSwitchDialog.poiCount}
         onAction={handleRouteSwitchAction}
       />
     </SidebarProvider>

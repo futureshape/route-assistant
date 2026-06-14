@@ -16,7 +16,7 @@ export interface RouteSwitchDialogState {
   show: boolean
   newRoute: RouteType | null
   currentRouteName: string
-  selectedCount: number
+  poiCount: number
 }
 
 // Re-export POIProvider from lib
