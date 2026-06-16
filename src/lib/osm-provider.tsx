@@ -1,11 +1,17 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { fetchWithCSRFRetry } from '@/lib/csrf';
-import { Loader2, X, ChevronsUpDown } from 'lucide-react';
+import { ChevronDown, Loader2, MapPin, X, ChevronsUpDown } from 'lucide-react';
 import { POIProvider, POISearchParams, POIResult, POISearchFormProps } from '@/lib/poi-providers';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 // Preset OSM tags relevant for cycling, using key=value consistently
 // amenity=* reference: https://wiki.openstreetmap.org/wiki/Key:amenity
@@ -54,8 +60,8 @@ const OSMSearchForm: React.FC<POISearchFormProps> = ({ onSearch, disabled, loadi
     setSelectedTags(prev => prev.filter(a => a !== tag));
   };
 
-  const handleSearch = () => {
-    onSearch({ textQuery: selectedTags.join(',') });
+  const handleSearch = (visibleAreaOnly = false) => {
+    onSearch({ textQuery: selectedTags.join(','), visibleAreaOnly });
   };
 
   const selectedTagObjects = selectedTags.map(value => 
@@ -134,21 +140,49 @@ const OSMSearchForm: React.FC<POISearchFormProps> = ({ onSearch, disabled, loadi
         </div>
       )}
 
-      <Button 
-        onClick={handleSearch} 
-        size="sm" 
-        disabled={disabled || loading || selectedTags.length === 0} 
-        data-testid="osm-poi-search-button"
-      >
-        {loading ? (
-          <>
-            <Loader2 className="animate-spin mr-2 h-4 w-4" />
-            Searching...
-          </>
-        ) : (
-          'Search'
+      <div className="flex gap-0">
+        <Button
+          onClick={() => handleSearch(false)}
+          size="sm"
+          className="rounded-r-none flex-1"
+          disabled={disabled || loading || selectedTags.length === 0}
+          data-testid="osm-poi-search-button"
+        >
+          {loading ? (
+            <>
+              <Loader2 className="animate-spin mr-2 h-4 w-4" />
+              Searching...
+            </>
+          ) : (
+            'Search'
+          )}
+        </Button>
+        {!loading && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                size="sm"
+                className="rounded-l-none border-l border-l-primary-foreground/20 px-2"
+                disabled={disabled || selectedTags.length === 0}
+                data-testid="osm-poi-search-dropdown"
+              >
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => handleSearch(true)} data-testid="osm-poi-search-visible-area">
+                <MapPin className="mr-2 h-4 w-4" />
+                Search in visible area only
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
-      </Button>
+        {loading && (
+          <Button size="sm" className="rounded-l-none px-2" disabled>
+            <ChevronDown className="h-4 w-4" />
+          </Button>
+        )}
+      </div>
     </div>
   );
 };

@@ -13,6 +13,7 @@ export interface POISearchParams {
     latitude: number;
     longitude: number;
   };
+  visibleAreaOnly?: boolean;
 }
 
 // Valid RideWithGPS POI type names

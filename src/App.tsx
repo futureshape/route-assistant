@@ -738,25 +738,40 @@ export default function App(){
   // Prepare search parameters with context data each provider might need
   async function prepareSearchParams(_provider: POIProvider, params: POISearchParams): Promise<POISearchParams> {
     const enhancedParams = { ...params };
-    
-    // Add route data if available (for Google Maps provider)
-    if (routePath.length > 0) {
-      enhancedParams.encodedPolyline = window.lastFetchedEncodedPolyline || undefined;
-    }
-    
-    // Add map bounds if map is available (for Mock provider)
+
+    // Get current map bounds (always include for providers that can use them)
+    let mapBounds: { north: number; south: number; east: number; west: number } | undefined;
     if (mapInstanceRef.current) {
       const bounds = mapInstanceRef.current.getBounds();
       if (bounds) {
-        enhancedParams.mapBounds = {
+        mapBounds = {
           north: bounds.getNorthEast().lat(),
           south: bounds.getSouthWest().lat(),
           east: bounds.getNorthEast().lng(),
           west: bounds.getSouthWest().lng()
         };
+        enhancedParams.mapBounds = mapBounds;
       }
     }
-    
+
+    if (params.visibleAreaOnly && mapBounds && routePath.length > 0) {
+      // Clip the route to only points within the visible map area, then re-encode
+      const { north, south, east, west } = mapBounds;
+      const visiblePoints = routePath.filter(
+        p => p.lat >= south && p.lat <= north && p.lng >= west && p.lng <= east
+      );
+      if (visiblePoints.length > 1 && window.google?.maps?.geometry?.encoding) {
+        const latLngs = visiblePoints.map(p => new window.google.maps.LatLng(p.lat, p.lng));
+        enhancedParams.encodedPolyline = window.google.maps.geometry.encoding.encodePath(latLngs);
+      } else {
+        // No route points in view — fall back to bounds-only search (works for OSM)
+        enhancedParams.encodedPolyline = undefined;
+      }
+    } else if (routePath.length > 0) {
+      // Normal full-route search
+      enhancedParams.encodedPolyline = window.lastFetchedEncodedPolyline || undefined;
+    }
+
     return enhancedParams;
   }
 

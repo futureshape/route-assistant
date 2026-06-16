@@ -2,9 +2,15 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { fetchWithCSRFRetry } from '@/lib/csrf';
-import { Loader2 } from 'lucide-react';
+import { ChevronDown, Loader2, MapPin } from 'lucide-react';
 import { POIProvider, POISearchParams, POIResult, POISearchFormProps } from '@/lib/poi-providers';
 import { useAlert } from '@/hooks/use-alert-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 // Note: Google type mapping and description building is now handled on the backend
 // This keeps the frontend simple and eliminates duplication
@@ -14,12 +20,12 @@ const GoogleMapsSearchForm: React.FC<POISearchFormProps> = ({ onSearch, disabled
   const [query, setQuery] = useState('');
   const { showAlert } = useAlert();
 
-  const handleSearch = () => {
+  const handleSearch = (visibleAreaOnly = false) => {
     if (!query.trim()) {
       showAlert('Please enter a search term');
       return;
     }
-    onSearch({ textQuery: query });
+    onSearch({ textQuery: query, visibleAreaOnly });
   };
 
   return (
@@ -32,10 +38,11 @@ const GoogleMapsSearchForm: React.FC<POISearchFormProps> = ({ onSearch, disabled
         disabled={disabled || loading}
         data-testid="google-poi-search-input"
       />
-      <div className="flex gap-2">
-        <Button 
-          onClick={handleSearch} 
-          size="sm" 
+      <div className="flex gap-0">
+        <Button
+          onClick={() => handleSearch(false)}
+          size="sm"
+          className="rounded-r-none flex-1"
           disabled={disabled || loading || !query.trim()}
           data-testid="google-poi-search-button"
         >
@@ -48,6 +55,31 @@ const GoogleMapsSearchForm: React.FC<POISearchFormProps> = ({ onSearch, disabled
             'Search'
           )}
         </Button>
+        {!loading && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                size="sm"
+                className="rounded-l-none border-l border-l-primary-foreground/20 px-2"
+                disabled={disabled || !query.trim()}
+                data-testid="google-poi-search-dropdown"
+              >
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => handleSearch(true)} data-testid="google-poi-search-visible-area">
+                <MapPin className="mr-2 h-4 w-4" />
+                Search in visible area only
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+        {loading && (
+          <Button size="sm" className="rounded-l-none px-2" disabled>
+            <ChevronDown className="h-4 w-4" />
+          </Button>
+        )}
       </div>
     </div>
   );
