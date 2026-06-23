@@ -336,6 +336,55 @@ test.describe.serial('Authentication and Route Management', () => {
     console.log('✓ POI filter reset to all marker types');
   });
 
+  test('keyboard navigation moves between suggested POIs without changing zoom', async () => {
+    const markers = await sharedPage.evaluate(() => (window as any).__testGetMarkers());
+    const suggestedMarkers = markers.filter((m: any) => m.state === 'suggested' || m.state === 'selected');
+    expect(suggestedMarkers.length).toBeGreaterThan(1);
+
+    const startingMarker = suggestedMarkers[0];
+    const clicked = await sharedPage.evaluate((markerKey: string) => {
+      return (window as any).__testClickMarkerByKey(markerKey);
+    }, startingMarker.key);
+    expect(clicked).toBe(true);
+
+    const infoWindow = sharedPage.getByTestId('poi-info-window');
+    await expect(infoWindow).toBeVisible({ timeout: 5000 });
+    await expect(infoWindow).toHaveAttribute('data-poi-key', startingMarker.key);
+
+    const initialCamera = await sharedPage.evaluate(() => (window as any).__testGetMapCamera());
+    expect(initialCamera).toBeTruthy();
+
+    await sharedPage.getByTestId('map-container').click({ position: { x: 10, y: 10 } });
+    await sharedPage.keyboard.press('ArrowDown');
+    const movedMarkerKey = await infoWindow.getAttribute('data-poi-key');
+    expect(movedMarkerKey).toBeTruthy();
+
+    const afterDownCamera = await sharedPage.evaluate(() => (window as any).__testGetMapCamera());
+    expect(afterDownCamera.zoom).toBe(initialCamera.zoom);
+
+    await sharedPage.getByTestId('map-container').click({ position: { x: 10, y: 10 } });
+    await sharedPage.keyboard.press('ArrowUp');
+    await expect(infoWindow).not.toHaveAttribute('data-poi-key', movedMarkerKey!, { timeout: 5000 });
+    console.log('✓ Keyboard ArrowUp/ArrowDown navigates suggested POIs and preserves zoom');
+  });
+
+  test('keyboard route stepping changes map camera', async () => {
+    const before = await sharedPage.evaluate(() => (window as any).__testGetMapCamera());
+    expect(before).toBeTruthy();
+
+    await sharedPage.keyboard.press('ArrowRight');
+
+    await expect
+      .poll(async () => {
+        const camera = await sharedPage.evaluate(() => (window as any).__testGetMapCamera());
+        if (!camera || !before) return false;
+        return camera.lat !== before.lat || camera.lng !== before.lng;
+      }, { timeout: 5000 })
+      .toBe(true);
+
+    console.log('✓ Keyboard ArrowRight steps forward along the route');
+  });
+
   test('clicking a random marker and changing its name to a unique test ID', async () => {
     // Get all markers via test helper
     const markers = await sharedPage.evaluate(() => {
