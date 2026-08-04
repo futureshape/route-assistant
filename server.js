@@ -228,6 +228,8 @@ const sessionOptions = {
   cookie: {
     httpOnly: true,
     sameSite: 'lax',
+    // Secure in production when API Gateway's forwarded HTTPS protocol is present;
+    // keep HTTP local development and Playwright sessions functional.
     secure: 'auto',
   },
 };
