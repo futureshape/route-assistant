@@ -9,8 +9,10 @@ const polyline = require('@mapbox/polyline');
 const qs = require('qs');
 const path = require('path');
 const crypto = require('crypto');
+const serverless = require('serverless-http');
+const DynamoDBStore = require('connect-dynamodb')(session);
 const { getRideWithGPSTypeId, mapGoogleTypeToRideWithGPS, mapOSMAmenityToRideWithGPS } = require('./poi-type-mapping');
-const { getDatabase } = require('./db');
+const { getDatabase, isAws } = require('./db');
 const userService = require('./user-service');
 const emailService = require('./email-service');
 
@@ -166,6 +168,12 @@ function parsePositiveIntEnv(name, fallback) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function getPublicBaseUrl(req) {
+  if (process.env.BASE_URL) return process.env.BASE_URL;
+  const host = req.get('x-route-assistant-host') || req.get('host');
+  return `${req.protocol}://${host}`;
+}
+
 const GOOGLE_ROUTE_MAX_POINTS = parsePositiveIntEnv('GOOGLE_ROUTE_MAX_POINTS', 500);
 const OSM_ROUTE_MAX_POINTS = parsePositiveIntEnv('OSM_ROUTE_MAX_POINTS', 800);
 
@@ -213,10 +221,24 @@ const requestBodyLimit = process.env.REQUEST_BODY_LIMIT || '2mb';
 app.use(express.json({ limit: requestBodyLimit }));
 app.use(express.urlencoded({ limit: requestBodyLimit, extended: true }));
 app.use(cookieParser());
-app.use(session({
+const sessionOptions = {
   secret: process.env.SESSION_SECRET || 'dev-secret',
   resave: false,
   saveUninitialized: true, // Enable session creation for CSRF tokens
+  cookie: {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: isProd,
+  },
+};
+if (isAws) {
+  sessionOptions.store = new DynamoDBStore({
+    table: process.env.SESSION_TABLE,
+    initialized: true,
+  });
+}
+app.use(session({
+  ...sessionOptions,
 }));
 
 // Test Mode Authentication Endpoint
@@ -251,26 +273,22 @@ if (process.env.TEST_MODE === 'true') {
       };
       
       // Find or create user in database using userService
-      let dbUser = userService.findUserByRwgpsId(rwgpsUser.id);
+      let dbUser = await userService.findUserByRwgpsId(rwgpsUser.id);
       
       if (!dbUser) {
         console.log(`[TestMode] Creating new test user: ${rwgpsUser.name}`);
         // Create user with active status for testing
-        dbUser = userService.createUser(rwgpsUser.id, rwgpsUser.email, 'active', 'user');
+        dbUser = await userService.createUser(rwgpsUser.id, rwgpsUser.email, 'active', 'user');
         
         // Always verify email for test users (bypass email verification requirement)
-        const db = getDatabase();
-        const updateResult = db.prepare('UPDATE users SET email_verified = 1 WHERE rwgps_user_id = ?').run(rwgpsUser.id);
-        console.log(`[TestMode] Email auto-verified for test user, updated ${updateResult.changes} rows`);
-        dbUser = userService.findUserByRwgpsId(rwgpsUser.id);
+        dbUser = await userService.setEmailVerified(rwgpsUser.id, true);
+        console.log('[TestMode] Email auto-verified for test user');
       } else {
         console.log(`[TestMode] User already exists: ${rwgpsUser.name}`);
         // Also verify email for existing test users if not already verified
         if (!dbUser.email_verified) {
-          const db = getDatabase();
-          const updateResult = db.prepare('UPDATE users SET email_verified = 1 WHERE rwgps_user_id = ?').run(rwgpsUser.id);
-          console.log(`[TestMode] Email auto-verified for existing test user, updated ${updateResult.changes} rows`);
-          dbUser = userService.findUserByRwgpsId(rwgpsUser.id);
+          dbUser = await userService.setEmailVerified(rwgpsUser.id, true);
+          console.log('[TestMode] Email auto-verified for existing test user');
         }
       }
       
@@ -313,7 +331,7 @@ const csrfProtection = (req, res, next) => next(); // No-op since lusca handles 
 
 // RideWithGPS OAuth endpoints
 app.get('/auth/ridewithgps', (req, res) => {
-  const redirectUri = process.env.RWGPS_REDIRECT_URI || `${req.protocol}://${req.get('host')}/auth/ridewithgps/callback`;
+  const redirectUri = process.env.RWGPS_REDIRECT_URI || `${getPublicBaseUrl(req)}/auth/ridewithgps/callback`;
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: process.env.RWGPS_CLIENT_ID,
@@ -326,7 +344,7 @@ app.get('/auth/ridewithgps/callback', async (req, res) => {
   const code = req.query.code;
   if (!code) return res.status(400).send('Missing code');
   try {
-    const redirectUri = process.env.RWGPS_REDIRECT_URI || `${req.protocol}://${req.get('host')}/auth/ridewithgps/callback`;
+    const redirectUri = process.env.RWGPS_REDIRECT_URI || `${getPublicBaseUrl(req)}/auth/ridewithgps/callback`;
     // First attempt: client credentials in POST body
     let tokenRes;
     try{
@@ -389,12 +407,12 @@ app.get('/auth/ridewithgps/callback', async (req, res) => {
     console.log(`[OAuth] RideWithGPS user ID: ${rwgpsUserId}, name: ${rwgpsUser.name}`);
     
     // Check if user exists in our database
-    let dbUser = userService.findUserByRwgpsId(rwgpsUserId);
+    let dbUser = await userService.findUserByRwgpsId(rwgpsUserId);
     
     if (!dbUser) {
       // Create new user in waitlist status
       console.log(`[OAuth] Creating new user record for RWGPS ID: ${rwgpsUserId}`);
-      dbUser = userService.createUser(rwgpsUserId, null, 'waitlist', 'user');
+      dbUser = await userService.createUser(rwgpsUserId, null, 'waitlist', 'user');
     }
     
     console.log(`[OAuth] User status: ${dbUser.status}, role: ${dbUser.role}, has email: ${!!dbUser.email}`);
@@ -667,12 +685,12 @@ function requireAuth(req, res, next) {
   next();
 }
 
-function requireAccess(req, res, next) {
+async function requireAccess(req, res, next) {
   if (!req.session.user) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
   
-  const dbUser = userService.findUserByRwgpsId(req.session.user.rwgpsUserId);
+  const dbUser = await userService.findUserByRwgpsId(req.session.user.rwgpsUserId);
   if (!dbUser || !userService.hasAccess(dbUser)) {
     let message = 'Access to this application is restricted.';
     
@@ -699,12 +717,12 @@ function requireAccess(req, res, next) {
   next();
 }
 
-function requireAdmin(req, res, next) {
+async function requireAdmin(req, res, next) {
   if (!req.session.user) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
   
-  const dbUser = userService.findUserByRwgpsId(req.session.user.rwgpsUserId);
+  const dbUser = await userService.findUserByRwgpsId(req.session.user.rwgpsUserId);
   if (!dbUser || !userService.isAdmin(dbUser)) {
     return res.status(403).json({ error: 'Admin access required' });
   }
@@ -722,7 +740,7 @@ app.get('/api/session', (req, res) => {
   
   // Refresh user data from database to ensure latest status/role
   if (req.session.user && req.session.user.rwgpsUserId) {
-    const dbUser = userService.findUserByRwgpsId(req.session.user.rwgpsUserId);
+    const dbUser = await userService.findUserByRwgpsId(req.session.user.rwgpsUserId);
     if (dbUser) {
       // Update session with latest user data
       req.session.user.status = dbUser.status;
@@ -802,10 +820,10 @@ app.post('/api/user/email', csrfProtection, requireAuth, async (req, res) => {
     const verificationToken = crypto.randomBytes(32).toString('hex');
     
     // Update user email with verification token
-    const updatedUser = userService.updateUserEmail(rwgpsUserId, email, verificationToken);
+    const updatedUser = await userService.updateUserEmail(rwgpsUserId, email, verificationToken);
     
     // Build verification URL
-    const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
+    const baseUrl = getPublicBaseUrl(req);
     const verificationUrl = `${baseUrl}/verify-email?token=${verificationToken}`;
     
     // Send email verification
@@ -849,7 +867,7 @@ app.get('/api/verify-email', async (req, res) => {
     }
     
     // Find user with this token
-    const user = userService.findUserByVerificationToken(token);
+    const user = await userService.findUserByVerificationToken(token);
     
     if (!user) {
       // Token not found - could be invalid or already used
@@ -869,7 +887,7 @@ app.get('/api/verify-email', async (req, res) => {
     }
     
     // Verify the email
-    const verifiedUser = userService.verifyEmail(token);
+    const verifiedUser = await userService.verifyEmail(token);
     
     if (!verifiedUser) {
       return res.status(400).json({ error: 'Failed to verify email' });
@@ -901,7 +919,7 @@ app.post('/api/resend-verification', csrfProtection, async (req, res) => {
       return res.status(401).json({ error: 'Not authenticated' });
     }
     
-    const dbUser = userService.findUserByRwgpsId(req.session.user.rwgpsUserId);
+    const dbUser = await userService.findUserByRwgpsId(req.session.user.rwgpsUserId);
     
     if (!dbUser) {
       return res.status(404).json({ error: 'User not found' });
@@ -919,7 +937,7 @@ app.post('/api/resend-verification', csrfProtection, async (req, res) => {
     }
     
     // Build verification URL
-    const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
+    const baseUrl = getPublicBaseUrl(req);
     const verificationUrl = `${baseUrl}/verify-email?token=${dbUser.email_verification_token}`;
     
     // Send verification email
@@ -942,7 +960,7 @@ app.post('/api/resend-verification', csrfProtection, async (req, res) => {
 // Admin: Get all users
 app.get('/api/admin/users', requireAdmin, async (req, res) => {
   try {
-    const users = userService.getAllUsers();
+    const users = await userService.getAllUsers();
     res.json({ users });
   } catch (err) {
     console.error('Failed to fetch users:', err);
@@ -956,7 +974,7 @@ app.patch('/api/admin/users/:rwgpsUserId', csrfProtection, requireAdmin, async (
     const rwgpsUserId = parseInt(req.params.rwgpsUserId);
     const updates = req.body;
     
-    const updatedUser = userService.updateUser(rwgpsUserId, updates);
+    const updatedUser = await userService.updateUser(rwgpsUserId, updates);
     res.json({ success: true, user: updatedUser });
   } catch (err) {
     console.error('Failed to update user:', err);
@@ -1394,8 +1412,10 @@ app.post('/api/poi-from-place-id', csrfProtection, requireAuth, requireAccess, a
 // Start server; in dev attach Vite middleware for a single unified server
 async function start(){
   // Initialize database on startup
-  console.log('[Server] Initializing database...');
-  getDatabase();
+  if (!isAws) {
+    console.log('[Server] Initializing database...');
+    getDatabase();
+  }
   
   if (!isProd){
     try{
@@ -1450,4 +1470,12 @@ async function start(){
   app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT} (${isProd ? 'prod' : 'dev'})`));
 }
 
-start();
+if (require.main === module) {
+  start();
+}
+
+module.exports = {
+  app,
+  handler: serverless(app),
+  start,
+};

@@ -34,6 +34,7 @@ tmp/
 .env
 .env.*
 !.env.example
+!.env.aws.example
 
 # Playwright test artifacts
 tests/e2e/.auth/

@@ -1,15 +1,24 @@
 const Database = require('better-sqlite3');
 const path = require('path');
+const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
+const { DynamoDBDocumentClient } = require('@aws-sdk/lib-dynamodb');
 
 // Database file path - configurable via environment variable
 // Default: project root for development
 // Production: set DB_PATH env var to point to mounted persistent storage
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'route-assistant.db');
+const isAws = process.env.AWS_EXECUTION_ENV && process.env.USER_TABLE;
+const dynamoDb = isAws
+  ? DynamoDBDocumentClient.from(new DynamoDBClient({}))
+  : null;
 
 // Initialize database connection
 let db = null;
 
 function getDatabase() {
+  if (isAws) {
+    throw new Error('SQLite is unavailable in AWS Lambda; use user-service instead');
+  }
   if (!db) {
     db = new Database(DB_PATH, { verbose: console.log });
     initializeSchema();
@@ -87,5 +96,7 @@ function closeDatabase() {
 module.exports = {
   getDatabase,
   closeDatabase,
-  DB_PATH
+  DB_PATH,
+  isAws,
+  dynamoDb
 };

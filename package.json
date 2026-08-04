@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "deploy-check": "npm run build && echo '✅ Build successful - ready to tag and deploy!'",
     "deploy": "./scripts/deploy.sh",
+    "deploy:aws": "./scripts/deploy-aws.sh",
     "test:e2e": "playwright test",
     "test:e2e:bootstrap-auth": "playwright test --project=auth",
     "test:e2e:cleanup": "playwright test --project=cleanup-route",
@@ -22,6 +23,8 @@
     "lint:fix": "eslint . --fix"
   },
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.1102.0",
+    "@aws-sdk/lib-dynamodb": "^3.1102.0",
     "@mapbox/polyline": "^1.1.1",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -44,6 +47,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "concurrently": "^8.2.2",
+    "connect-dynamodb": "^3.0.5",
     "cookie-parser": "^1.4.7",
     "csrf-csrf": "^4.0.3",
     "dotenv": "^16.0.3",
@@ -57,6 +61,7 @@
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.13.0",
     "recharts": "^2.15.4",
+    "serverless-http": "^4.0.0",
     "tailwind-merge": "^3.3.1",
     "zustand": "^5.0.8"
   },

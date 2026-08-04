@@ -1,0 +1,268 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Route Assistant low-cost serverless deployment
+
+Parameters:
+  RwgpsClientId:
+    Type: String
+  RwgpsClientSecret:
+    Type: String
+    NoEcho: true
+  GoogleApiKey:
+    Type: String
+    NoEcho: true
+  SessionSecret:
+    Type: String
+    NoEcho: true
+  MailerSendApiKey:
+    Type: String
+    NoEcho: true
+    Default: ''
+  MailerSendVerificationTemplateId:
+    Type: String
+    Default: ''
+  MailerSendBetaAccessTemplateId:
+    Type: String
+    Default: ''
+  MailerSendFromEmail:
+    Type: String
+    Default: noreply@example.com
+  MailerSendFromName:
+    Type: String
+    Default: Route Assistant
+  EnabledPoiProviders:
+    Type: String
+    Default: google,osm
+
+Resources:
+  SiteBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  SiteBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref SiteBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub '${SiteBucket.Arn}/*'
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${SiteDistribution}'
+
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: rwgps_user_id
+          AttributeType: N
+        - AttributeName: email
+          AttributeType: S
+        - AttributeName: email_verification_token
+          AttributeType: S
+      KeySchema:
+        - AttributeName: rwgps_user_id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: email-index
+          KeySchema:
+            - AttributeName: email
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+        - IndexName: verification-token-index
+          KeySchema:
+            - AttributeName: email_verification_token
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      SSESpecification:
+        SSEEnabled: true
+
+  SessionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: expires
+        Enabled: true
+      SSESpecification:
+        SSEEnabled: true
+
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: $default
+
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: lambda.handler
+      Runtime: nodejs22.x
+      MemorySize: 512
+      Timeout: 35
+      ReservedConcurrentExecutions: 5
+      Environment:
+        Variables:
+          NODE_ENV: production
+          TRUST_PROXY: '1'
+          USER_TABLE: !Ref UsersTable
+          SESSION_TABLE: !Ref SessionsTable
+          RWGPS_CLIENT_ID: !Ref RwgpsClientId
+          RWGPS_CLIENT_SECRET: !Ref RwgpsClientSecret
+          GOOGLE_API_KEY: !Ref GoogleApiKey
+          SESSION_SECRET: !Ref SessionSecret
+          MAILERSEND_API_KEY: !Ref MailerSendApiKey
+          MAILERSEND_VERIFICATION_TEMPLATE_ID: !Ref MailerSendVerificationTemplateId
+          MAILERSEND_BETA_ACCESS_TEMPLATE_ID: !Ref MailerSendBetaAccessTemplateId
+          MAILERSEND_FROM_EMAIL: !Ref MailerSendFromEmail
+          MAILERSEND_FROM_NAME: !Ref MailerSendFromName
+          ENABLED_POI_PROVIDERS: !Ref EnabledPoiProviders
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UsersTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref SessionsTable
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /{proxy+}
+            Method: ANY
+
+  ApiCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: !Sub '${AWS::StackName}-api-no-cache'
+        DefaultTTL: 0
+        MaxTTL: 0
+        MinTTL: 0
+        ParametersInCacheKeyAndForwardedToOrigin:
+          CookiesConfig:
+            CookieBehavior: all
+          HeadersConfig:
+            HeaderBehavior: whitelist
+            Headers:
+              - Content-Type
+              - Origin
+              - Referer
+              - User-Agent
+              - X-CSRF-Token
+              - X-Route-Assistant-Host
+          QueryStringsConfig:
+            QueryStringBehavior: all
+
+  SiteDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: index.html
+        Origins:
+          - Id: site
+            DomainName: !GetAtt SiteBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt SiteOriginAccessControl.Id
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+          - Id: api
+            DomainName: !Sub '${HttpApi}.execute-api.${AWS::Region}.amazonaws.com'
+            CustomOriginConfig:
+              HTTPSPort: 443
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols: [TLSv1.2]
+        DefaultCacheBehavior:
+          TargetOriginId: site
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD, OPTIONS]
+          Compress: true
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt ViewerHostFunction.FunctionMetadata.FunctionARN
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+        CacheBehaviors:
+          - PathPattern: /api/*
+            TargetOriginId: api
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT]
+            CachedMethods: [GET, HEAD, OPTIONS]
+            CachePolicyId: !Ref ApiCachePolicy
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt ViewerHostFunction.FunctionMetadata.FunctionARN
+          - PathPattern: /auth/*
+            TargetOriginId: api
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT]
+            CachedMethods: [GET, HEAD, OPTIONS]
+            CachePolicyId: !Ref ApiCachePolicy
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt ViewerHostFunction.FunctionMetadata.FunctionARN
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 0
+
+  ViewerHostFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      AutoPublish: true
+      FunctionConfig:
+        Comment: Preserve the viewer host for OAuth callbacks and verification links.
+        Runtime: cloudfront-js-1.0
+      FunctionCode: |
+        function handler(event) {
+          var request = event.request;
+          request.headers['x-route-assistant-host'] = { value: request.headers.host.value };
+          return request;
+        }
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 0
+
+  SiteOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub '${AWS::StackName}-site-oac'
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+Outputs:
+  SiteUrl:
+    Description: Temporary HTTPS URL. Configure this host in RideWithGPS before testing OAuth.
+    Value: !Sub 'https://${SiteDistribution.DomainName}'
+  OAuthCallbackUrl:
+    Description: Set this exact value as the RideWithGPS OAuth redirect URI.
+    Value: !Sub 'https://${SiteDistribution.DomainName}/auth/ridewithgps/callback'
+  SiteBucketName:
+    Value: !Ref SiteBucket
+  UsersTableName:
+    Value: !Ref UsersTable
