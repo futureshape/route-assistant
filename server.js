@@ -228,7 +228,7 @@ const sessionOptions = {
   cookie: {
     httpOnly: true,
     sameSite: 'lax',
-    secure: isProd,
+    secure: 'auto',
   },
 };
 if (isAws) {
