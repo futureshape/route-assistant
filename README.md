@@ -66,6 +66,9 @@ A full-stack web application that helps cyclists explore routes and discover Poi
 2. Start production server: `npm start`
 3. Ensure environment variables are configured in your hosting environment
 
+### AWS Serverless Deployment
+AWS SAM infrastructure and a repeatable deployment command are included. They create a private S3/CloudFront frontend, Lambda/API Gateway backend, and DynamoDB user/session tables. See [AWS deployment instructions](docs/AWS_DEPLOYMENT.md).
+
 ## API Requirements
 
 ### Google Cloud Platform

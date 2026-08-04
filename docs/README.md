@@ -9,6 +9,7 @@ This directory contains detailed technical documentation for developers working 
 - **`POI_PROVIDER_ARCHITECTURE.md`**: POI provider system architecture and implementation guidelines
 - **`OSM_PROVIDER.md`**: OpenStreetMap POI provider documentation and usage guide
 - **`DEPLOYMENT_STRATEGY.md`**: Source control strategy, release management, and deployment procedures
+- **`AWS_DEPLOYMENT.md`**: Serverless AWS deployment and SQLite user migration
 - **`ADMIN_GUIDE.md`**: User management and admin operations guide
 - **`../.github/copilot-instructions.md`**: Complete architecture and development guidelines
 
@@ -21,6 +22,7 @@ This directory contains detailed technical documentation for developers working 
 - **POI Provider Development**: See `POI_PROVIDER_ARCHITECTURE.md`
 - **OSM POI Provider**: See `OSM_PROVIDER.md`
 - **Deployment and Release**: See `DEPLOYMENT_STRATEGY.md`
+- **AWS serverless deployment**: See `AWS_DEPLOYMENT.md`
 - **User Management**: See `ADMIN_GUIDE.md`
 
 ## For New Developers

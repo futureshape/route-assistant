@@ -55,4 +55,4 @@ echo
 aws cloudformation describe-stacks --stack-name "$STACK_NAME" --region "$REGION" \
   --query "Stacks[0].Outputs[?OutputKey=='SiteUrl' || OutputKey=='OAuthCallbackUrl'].[OutputKey,OutputValue]" \
   --output table
-echo "Configure the displayed OAuthCallbackUrl in RideWithGPS, then set BASE_URL and RWGPS_REDIRECT_URI in .env.aws and deploy again."
+echo "Configure the displayed OAuthCallbackUrl in RideWithGPS before testing OAuth."

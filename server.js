@@ -383,9 +383,7 @@ app.get('/auth/ridewithgps/callback', async (req, res) => {
       return res.status(500).send('OAuth token exchange failed: missing access token');
     }
 
-    // Log successful token exchange (with FULL token for debugging)
-    const token = tokenRes.data.access_token;
-    console.log(`[OAuth] Token exchange successful. FULL Access token: ${token}`);
+    console.log('[OAuth] Token exchange successful.');
     console.log(`[OAuth] Token data keys:`, Object.keys(tokenRes.data));
     if (tokenRes.data.expires_in) {
       console.log(`[OAuth] Token expires in: ${tokenRes.data.expires_in} seconds`);
@@ -731,7 +729,7 @@ async function requireAdmin(req, res, next) {
 }
 
 // Expose session info for debugging
-app.get('/api/session', (req, res) => {
+app.get('/api/session', async (req, res) => {
   const authenticated = !!(req.session.rwgps && req.session.rwgps.access_token);
   
   if (!authenticated) {

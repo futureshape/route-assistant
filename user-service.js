@@ -85,12 +85,12 @@ async function createUser(rwgpsUserId, email = null, status = 'waitlist', role =
   const user = {
     rwgps_user_id: userId,
     id: userId,
-    email,
     email_verified: false,
     status,
     role,
     created_at: timestamp,
     updated_at: timestamp,
+    ...(email ? { email } : {}),
   };
   await dynamoDb.send(new PutCommand({
     TableName: userTable,

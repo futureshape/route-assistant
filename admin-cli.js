@@ -60,12 +60,12 @@ if (!command) {
   process.exit(1);
 }
 
-// Initialize database
-getDatabase();
+async function main() {
+if (!process.env.AWS_EXECUTION_ENV) getDatabase();
 
 switch (command) {
   case 'list': {
-    const users = userService.getAllUsers();
+    const users = await userService.getAllUsers();
     console.log('\n=== All Users ===\n');
     console.table(users.map(u => ({
       ID: u.id,
@@ -87,13 +87,13 @@ switch (command) {
       process.exit(1);
     }
 
-    const user = userService.findUserByRwgpsId(rwgpsUserId);
+    const user = await userService.findUserByRwgpsId(rwgpsUserId);
     if (!user) {
       console.error(`Error: User with RWGPS ID ${rwgpsUserId} not found`);
       process.exit(1);
     }
 
-    const updated = userService.updateUserStatus(rwgpsUserId, 'beta');
+    const updated = await userService.updateUserStatus(rwgpsUserId, 'beta');
     console.log(`✓ User approved (RWGPS ID: ${rwgpsUserId})`);
     console.log(`  Email: ${updated.email || '(not provided)'}`);
     console.log(`  Email Verified: ${updated.email_verified ? 'Yes' : 'No'}`);
@@ -119,13 +119,13 @@ switch (command) {
       process.exit(1);
     }
 
-    const user = userService.findUserByRwgpsId(rwgpsUserId);
+    const user = await userService.findUserByRwgpsId(rwgpsUserId);
     if (!user) {
       console.error(`Error: User with RWGPS ID ${rwgpsUserId} not found`);
       process.exit(1);
     }
 
-    const updated = userService.updateUserStatus(rwgpsUserId, status);
+    const updated = await userService.updateUserStatus(rwgpsUserId, status);
     console.log(`✓ User status updated (RWGPS ID: ${rwgpsUserId})`);
     console.log(`  Email: ${updated.email || '(not provided)'}`);
     console.log(`  Email Verified: ${updated.email_verified ? 'Yes' : 'No'}`);
@@ -151,13 +151,13 @@ switch (command) {
       process.exit(1);
     }
 
-    const user = userService.findUserByRwgpsId(rwgpsUserId);
+    const user = await userService.findUserByRwgpsId(rwgpsUserId);
     if (!user) {
       console.error(`Error: User with RWGPS ID ${rwgpsUserId} not found`);
       process.exit(1);
     }
 
-    const updated = userService.updateUserRole(rwgpsUserId, role);
+    const updated = await userService.updateUserRole(rwgpsUserId, role);
     console.log(`✓ User role updated (RWGPS ID: ${rwgpsUserId})`);
     console.log(`  Email: ${updated.email || '(not provided)'}`);
     console.log(`  Email Verified: ${updated.email_verified ? 'Yes' : 'No'}`);
@@ -172,7 +172,7 @@ switch (command) {
       process.exit(1);
     }
 
-    const user = userService.findUserByRwgpsId(rwgpsUserId);
+    const user = await userService.findUserByRwgpsId(rwgpsUserId);
     if (!user) {
       console.error(`Error: User with RWGPS ID ${rwgpsUserId} not found`);
       process.exit(1);
@@ -183,17 +183,7 @@ switch (command) {
       process.exit(1);
     }
 
-    // Manually mark email as verified
-    const { getDatabase } = require('./db');
-    const db = getDatabase();
-    const stmt = db.prepare(`
-      UPDATE users 
-      SET email_verified = 1, email_verification_token = NULL, updated_at = datetime('now')
-      WHERE rwgps_user_id = ?
-    `);
-    stmt.run(rwgpsUserId);
-
-    const updated = userService.findUserByRwgpsId(rwgpsUserId);
+    const updated = await userService.setEmailVerified(rwgpsUserId, true);
     console.log(`✓ Email verified for user (RWGPS ID: ${rwgpsUserId})`);
     console.log(`  Email: ${updated.email}`);
     console.log(`  Email Verified: Yes`);
@@ -207,7 +197,7 @@ switch (command) {
       process.exit(1);
     }
 
-    const user = userService.findUserByRwgpsId(rwgpsUserId);
+    const user = await userService.findUserByRwgpsId(rwgpsUserId);
     if (!user) {
       console.error(`Error: User with RWGPS ID ${rwgpsUserId} not found`);
       process.exit(1);
@@ -218,17 +208,7 @@ switch (command) {
       process.exit(1);
     }
 
-    // Reset email verification
-    const { getDatabase } = require('./db');
-    const db = getDatabase();
-    const stmt = db.prepare(`
-      UPDATE users 
-      SET email_verified = 0, email_verification_token = NULL, updated_at = datetime('now')
-      WHERE rwgps_user_id = ?
-    `);
-    stmt.run(rwgpsUserId);
-
-    const updated = userService.findUserByRwgpsId(rwgpsUserId);
+    const updated = await userService.setEmailVerified(rwgpsUserId, false);
     console.log(`✓ Email verification reset for user (RWGPS ID: ${rwgpsUserId})`);
     console.log(`  Email: ${updated.email}`);
     console.log(`  Email Verified: No`);
@@ -242,7 +222,7 @@ switch (command) {
       process.exit(1);
     }
 
-    const user = userService.findUserByRwgpsId(rwgpsUserId);
+    const user = await userService.findUserByRwgpsId(rwgpsUserId);
     if (!user) {
       console.error(`Error: User with RWGPS ID ${rwgpsUserId} not found`);
       process.exit(1);
@@ -289,7 +269,7 @@ switch (command) {
       process.exit(1);
     }
 
-    const user = userService.findUserByEmail(email);
+    const user = await userService.findUserByEmail(email);
     if (!user) {
       console.log(`No user found with email: ${email}`);
       process.exit(0);
@@ -310,7 +290,7 @@ switch (command) {
   }
 
   case 'stats': {
-    const users = userService.getAllUsers();
+    const users = await userService.getAllUsers();
     const stats = {
       total: users.length,
       byStatus: {},
@@ -377,7 +357,7 @@ switch (command) {
       process.exit(1);
     }
 
-    const user = userService.findUserByRwgpsId(rwgpsUserId);
+    const user = await userService.findUserByRwgpsId(rwgpsUserId);
     if (!user) {
       console.error(`Error: User with RWGPS ID ${rwgpsUserId} not found`);
       process.exit(1);
@@ -398,10 +378,10 @@ switch (command) {
       output: process.stdout
     });
 
-    rl.question('\nAre you sure you want to delete this user? This cannot be undone. (yes/no): ', (answer) => {
+    rl.question('\nAre you sure you want to delete this user? This cannot be undone. (yes/no): ', async (answer) => {
       if (answer.toLowerCase() === 'yes' || answer.toLowerCase() === 'y') {
         // Delete the user using the service
-        const deleted = userService.deleteUser(rwgpsUserId);
+        const deleted = await userService.deleteUser(rwgpsUserId);
 
         if (deleted) {
           console.log(`✓ User deleted successfully (RWGPS ID: ${rwgpsUserId})`);
@@ -421,3 +401,9 @@ switch (command) {
     console.error(`Error: Unknown command '${command}'`);
     process.exit(1);
 }
+}
+
+main().catch(error => {
+  console.error('Admin command failed:', error.message);
+  process.exit(1);
+});
