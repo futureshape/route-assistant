@@ -9,6 +9,116 @@
    npm install
    ```
 
+2. **Copy and fill in local secrets**:
+   ```bash
+   cp .dev.vars.example .dev.vars
+   # Edit .dev.vars with your RWGPS, Google API, and other credentials
+   ```
+
+3. **Apply the D1 schema locally**:
+   ```bash
+   npm run d1:migrate
+   ```
+
+4. **Start the dev server**:
+   ```bash
+   npm run dev
+   ```
+   This starts the Cloudflare Vite plugin which runs the Worker alongside the React dev server on port 3001.
+
+### First User Setup (Bootstrap Admin)
+
+1. Sign in with your RideWithGPS account
+2. Provide your email when prompted
+3. Check your user ID in the local D1:
+   ```bash
+   wrangler d1 execute route-assistant-db --command "SELECT rwgps_user_id, email, status, role FROM users"
+   ```
+4. Grant yourself admin + beta access:
+   ```bash
+   wrangler d1 execute route-assistant-db --command \
+     "UPDATE users SET status='beta', role='admin', email_verified=1, updated_at=datetime('now') WHERE rwgps_user_id=YOUR_ID"
+   ```
+5. Refresh the page
+
+## For Admins
+
+All user management uses `wrangler d1 execute`. Add `--remote` for production.
+
+See [ADMIN_GUIDE.md](./ADMIN_GUIDE.md) for the full command reference.
+
+## User Experience
+
+### New User Journey
+
+1. **Sign In**: User clicks "Sign in with RideWithGPS"
+2. **OAuth**: Redirected to RideWithGPS for authorization
+3. **Email Collection**: Prompted to provide email (required)
+4. **Email Verification**: Verification email sent automatically
+5. **Verification Required**: User must verify email before accessing app
+6. **Waitlist**: If status is `waitlist`, sees waitlist message
+7. **Approval**: Admin sets `status=beta`
+8. **Access Granted**: Full access once both verified and approved
+
+**Admins** bypass email verification requirement but still need approved status.
+
+## Database Management
+
+### Query the local D1 database
+
+```bash
+# List all users
+wrangler d1 execute route-assistant-db --command "SELECT * FROM users"
+
+# Count by status
+wrangler d1 execute route-assistant-db --command \
+  "SELECT status, COUNT(*) as count FROM users GROUP BY status"
+```
+
+### Query production D1
+
+```bash
+wrangler d1 execute route-assistant-db --remote --command "SELECT * FROM users"
+```
+
+### Reset local database
+
+```bash
+# Delete local D1 state and re-apply migrations
+rm -rf .wrangler/state/v3/d1
+npm run d1:migrate
+```
+
+## Troubleshooting
+
+### User can't access app after approval
+
+1. Verify status: `wrangler d1 execute route-assistant-db --remote --command "SELECT status, email_verified FROM users WHERE rwgps_user_id=X"`
+2. Ensure status is `beta` or `active`
+3. Ensure `email_verified = 1`
+4. Ask user to log out and back in
+
+### API returns 403 for authenticated user
+
+Session may be stale. Ask user to log out and back in — the session middleware refreshes DB state on each protected request.
+
+### Email verification link not received
+
+```bash
+# Manually verify via D1
+wrangler d1 execute route-assistant-db --remote --command \
+  "UPDATE users SET email_verified=1, email_verification_token=NULL WHERE rwgps_user_id=X"
+```
+
+## Security Notes
+
+- No secrets are stored in code — all in `.dev.vars` (local) or Cloudflare secrets (production)
+- `.dev.vars` is gitignored
+- Session data stored in Cloudflare KV (not client-accessible cookies)
+- Session cookie is `HttpOnly; Secure; SameSite=Lax`
+- OAuth tokens never logged in production
+
+
 2. **Configure environment** (no changes needed):
    - The existing `.env` file already has all required variables
    - No additional configuration needed for the user system

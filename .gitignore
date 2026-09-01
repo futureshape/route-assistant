@@ -70,3 +70,8 @@ research/
 test-email-service.js
 test-email-workflow.js
 test-verification.js
+# Cloudflare Worker local secrets
+.dev.vars
+
+# Local D1 state
+.wrangler/

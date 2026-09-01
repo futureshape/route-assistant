@@ -1,7 +1,110 @@
-# Branch-Based Deployment Strategy
+# Cloudflare Workers Deployment
 
 ## Overview
-Simple deployment workflow using a `production` branch that your platform deploys from automatically.
+Route Assistant runs on Cloudflare Workers with D1 (database), KV (sessions), and static asset serving. A single `npm run deploy` builds and deploys everything.
+
+## Architecture
+- **Worker**: `src/worker/index.ts` — handles `/api/*` and `/auth/*`
+- **Static assets**: React SPA built to `dist/client/` by Vite
+- **Database**: Cloudflare D1 (`route-assistant-db`)
+- **Sessions**: Cloudflare KV (`sessions` namespace)
+
+## One-Time Setup
+
+### 1. Install Wrangler and authenticate
+```bash
+npm install
+npx wrangler login
+```
+
+### 2. Set production secrets
+```bash
+wrangler secret put RWGPS_CLIENT_ID
+wrangler secret put RWGPS_CLIENT_SECRET
+wrangler secret put GOOGLE_API_KEY
+wrangler secret put BASE_URL              # https://your-worker.workers.dev
+wrangler secret put MAILERSEND_API_KEY    # optional
+wrangler secret put MAILERSEND_FROM_EMAIL # optional
+wrangler secret put MAILERSEND_FROM_NAME  # optional
+wrangler secret put MAILERSEND_VERIFICATION_TEMPLATE_ID  # optional
+wrangler secret put MAILERSEND_BETA_ACCESS_TEMPLATE_ID   # optional
+```
+
+### 3. Apply D1 schema to production
+```bash
+npm run d1:migrate:remote
+```
+
+## Daily Development Workflow
+
+```bash
+# Copy secrets template and fill in values
+cp .dev.vars.example .dev.vars
+
+# Apply local D1 schema (first time only)
+npm run d1:migrate
+
+# Start local dev server (Workers runtime + React hot reload)
+npm run dev
+```
+
+## Deploying to Production
+
+```bash
+# Single command: build + deploy
+npm run deploy
+
+# Or manually:
+npm run build
+wrangler deploy --config dist/route_assistant/wrangler.json
+```
+
+## Database Migrations
+
+Migrations live in `migrations/` and are applied with:
+
+```bash
+# Local dev
+npm run d1:migrate
+
+# Production
+npm run d1:migrate:remote
+```
+
+Create a new migration:
+```bash
+# Add a new file: migrations/0002_your_change.sql
+# Then apply it
+```
+
+## Rollback
+
+Cloudflare Workers supports instant rollback via the dashboard:
+1. Go to Workers & Pages → route-assistant → Deployments
+2. Click the previous deployment → "Roll back to this deployment"
+
+For data changes (D1), restore from a backup or write a reverting migration.
+
+## Environment Variables Reference
+
+| Variable | Where Set | Required |
+|---|---|---|
+| `RWGPS_CLIENT_ID` | `wrangler secret put` | Yes |
+| `RWGPS_CLIENT_SECRET` | `wrangler secret put` | Yes |
+| `GOOGLE_API_KEY` | `wrangler secret put` | Yes |
+| `BASE_URL` | `wrangler secret put` | Recommended |
+| `MAILERSEND_API_KEY` | `wrangler secret put` | No |
+| `ENABLED_POI_PROVIDERS` | `wrangler.toml [vars]` | Has default |
+| `TEST_MODE` | `wrangler.toml [vars]` | Dev only |
+| `TEST_OAUTH_TOKEN` | `.dev.vars` | E2E tests |
+
+## Key Principles
+1. `npm run dev` for local development
+2. `npm run deploy` for production
+3. Secrets in Cloudflare (never in code)
+4. D1 migrations are versioned in `migrations/`
+5. Rollback via Cloudflare dashboard
+
 
 ## Branch Structure
 - **`main`** - Development branch (work here)

@@ -113,12 +113,7 @@ export default defineConfig({
     stdout: 'ignore',
     stderr: 'pipe',
     timeout: 120000, // 2 minutes for server to start
-    env: {
-      NODE_ENV: 'test',
-      TEST_MODE: 'true',
-      TEST_OAUTH_TOKEN: process.env.TEST_OAUTH_TOKEN || '',
-      DB_PATH: '.test-data/test-db.sqlite', // Persistent test database (not :memory:)
-      SESSION_SECRET: 'test-session-secret',
-    },
+    // TEST_MODE and TEST_OAUTH_TOKEN come from wrangler.toml [vars] and .dev.vars respectively
+    env: {},
   },
 });

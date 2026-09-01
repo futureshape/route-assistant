@@ -4,9 +4,11 @@
 This is a full-stack web application that helps cyclists explore routes and find Points of Interest (POIs) along cycling routes using RideWithGPS integration and Google Maps.
 
 ## Architecture
-- **Single-server setup**: Express.js backend serves both API endpoints and the React frontend
+- **Workers with Static Assets**: Cloudflare Worker handles `/api/*` and `/auth/*`; everything else is served as static CDN assets (React SPA)
 - **Frontend**: React with Vite, TypeScript, Tailwind CSS, and shadcn/ui components
-- **Backend**: Express.js with session-based OAuth authentication
+- **Backend**: Cloudflare Worker with Hono HTTP router
+- **Database**: Cloudflare D1 (SQLite-compatible)
+- **Sessions**: Cloudflare KV (replaces express-session; 30-day TTL)
 - **Authentication**: RideWithGPS OAuth integration
 - **Maps**: Google Maps JavaScript API for route visualization and POI search
 - **Modular Design**: Feature-based component architecture for better maintainability
@@ -14,53 +16,63 @@ This is a full-stack web application that helps cyclists explore routes and find
 ## File Structure
 ```
 /
-├── server.js                 # Main Express server (serves both API and frontend)
-├── poi-type-mapping.js       # Google Places to RideWithGPS POI type mapping
+├── wrangler.toml             # Cloudflare Worker config (D1, KV, assets)
+├── migrations/
+│   └── 0001_initial.sql      # D1 schema
 ├── components.json           # shadcn/ui configuration
-├── package.json              # Node.js dependencies and scripts
-├── public/                   # Static assets served by Express
-├── src/                      # React frontend source
-│   ├── App.tsx              # Main application orchestrator (680 lines)
+├── package.json              # dependencies and scripts
+├── .dev.vars                 # local secrets (gitignored; copy from .dev.vars.example)
+├── .dev.vars.example         # secrets template
+├── public/                   # Static assets served directly
+├── src/
+│   ├── worker/               # Cloudflare Worker backend
+│   │   ├── index.ts          # Hono app entry point
+│   │   ├── types.ts          # Env, SessionData, DbUser, AppEnv types
+│   │   ├── lib/
+│   │   │   ├── poi-type-mapping.ts  # Google/OSM → RWGPS type mapping
+│   │   │   ├── utils.ts             # polyline helpers, crypto, etc.
+│   │   │   └── polyline.d.ts        # @mapbox/polyline type declaration
+│   │   ├── services/
+│   │   │   ├── user.ts       # Async D1 user service
+│   │   │   └── email.ts      # Mailersend REST API email service
+│   │   ├── middleware/
+│   │   │   ├── session.ts    # KV-backed session middleware
+│   │   │   ├── csrf.ts       # CSRF token validation middleware
+│   │   │   └── auth.ts       # requireAuth, requireAccess, requireAdmin
+│   │   └── routes/
+│   │       ├── auth.ts       # /auth/ridewithgps, /auth/test
+│   │       └── api/
+│   │           ├── session.ts # GET /api/session, POST /api/logout, GET /api/csrf-token
+│   │           ├── user.ts    # POST /api/user/email, GET /api/verify-email
+│   │           ├── routes.ts  # GET /api/routes, GET /api/route/:id, PATCH .../pois
+│   │           ├── poi.ts     # POST /api/poi-search/*, POST /api/poi-from-place-id
+│   │           └── admin.ts   # GET /api/admin/users, PATCH /api/admin/users/:id
+│   ├── App.tsx              # Main application orchestrator
 │   ├── main.tsx             # React entry point
 │   ├── index.css            # Global styles with CSS variables
 │   ├── features/            # Feature-based component organization
 │   │   ├── routes/          # Route management components
-│   │   │   ├── RouteSelector.tsx      # Route dropdown with search
-│   │   │   ├── RouteSwitchDialog.tsx  # Route switching confirmation
-│   │   │   └── index.ts               # Feature exports
 │   │   ├── map/             # Map visualization components
-│   │   │   ├── MapContainer.tsx       # Main map wrapper
-│   │   │   ├── RoutePolyline.tsx      # Route path rendering
-│   │   │   ├── POIMarkers.tsx         # POI marker display
-│   │   │   ├── POIInfoWindow.tsx      # POI detail popup
-│   │   │   └── index.ts               # Feature exports
 │   │   ├── poi/             # POI search and management
-│   │   │   ├── POISearch.tsx          # Provider-based POI search
-│   │   │   ├── POISummary.tsx         # Selected POIs summary
-│   │   │   └── index.ts               # Feature exports
 │   │   └── elevation/       # Elevation profile functionality
-│   │       ├── ElevationChart.tsx     # Interactive elevation chart
-│   │       └── index.ts               # Feature exports
 │   ├── components/
 │   │   ├── AuthHeader.tsx   # Authentication UI component
 │   │   ├── IntroScreen.tsx  # Welcome/help dialog
 │   │   └── ui/              # shadcn/ui components
 │   ├── hooks/               # Custom React hooks
-│   │   ├── use-mobile.tsx   # Mobile detection hook
-│   │   └── use-alert-dialog.tsx  # Alert dialog hook (replaces native alerts)
-│   └── lib/                 # Shared utilities and services
-│       ├── utils.ts         # Utility functions (cn classname helper)
-│       ├── poi-providers.ts # POI provider interface definitions
-│       ├── provider-registry.ts # POI provider registration
-│       ├── google-maps-provider.tsx # Google Maps POI provider
-│       └── mock-provider.tsx        # Mock POI provider for testing
+│   ├── lib/                 # Shared frontend utilities and services
+│   ├── store/               # Zustand store
+│   └── types/               # Shared TypeScript types
 └── tailwind.config.js       # Tailwind CSS configuration
 ```
 
 ## Key Technologies & Dependencies
 - **React**: Frontend framework with TypeScript
-- **Vite**: Build tool and dev server
-- **Express.js**: Backend server
+- **Vite** + **@cloudflare/vite-plugin**: Build tool; dev server runs Worker + React together
+- **Cloudflare Workers**: Serverless backend (replaces Express.js)
+- **Hono**: Lightweight HTTP router for Workers (replaces Express)
+- **Cloudflare D1**: SQLite-compatible database (replaces better-sqlite3)
+- **Cloudflare KV**: Session storage (replaces express-session)
 - **Tailwind CSS**: Utility-first CSS framework
 - **shadcn/ui**: Pre-built accessible React components
 - **Radix UI**: Headless UI primitives (used by shadcn/ui)
@@ -84,10 +96,12 @@ This is a full-stack web application that helps cyclists explore routes and find
 
 ### API Patterns
 - REST endpoints under `/api/` prefix
-- Session-based authentication using Express sessions
-- Routes: `/api/session`, `/api/routes`, `/api/route/:id`, `/api/search-along-route`
+- Session-based authentication using Cloudflare KV sessions
+- Routes: `/api/session`, `/api/routes`, `/api/route/:id`, `/api/poi-search/*`
 - **POI Integration**: PATCH `/api/route/:id/pois` for adding POIs to routes
 - **Pagination**: Route fetching supports pagination for large datasets
+- **Worker code lives in `src/worker/`**: Never mix Worker and frontend code
+- **D1 queries are async**: All user service calls return Promises; always `await` them
 
 ### Styling Conventions
 - Use Tailwind utility classes
@@ -176,7 +190,7 @@ This is a full-stack web application that helps cyclists explore routes and find
 - **Component composition**: Features receive props and callbacks from App.tsx
 - **Type safety**: All components have proper TypeScript interfaces
 ## Important Notes
-- **Single server**: Don't create separate frontend/backend - server.js handles both
+- **Worker + Assets**: Worker handles `/api/*` and `/auth/*`; static assets handle everything else
 - **shadcn/ui**: Always use official shadcn components, don't create custom versions
 - **Import aliases**: Use `@/` for imports, not relative paths
 - **Width matching**: Popover components should match trigger width using `--radix-popover-trigger-width`
@@ -184,18 +198,33 @@ This is a full-stack web application that helps cyclists explore routes and find
 - **Maps integration**: Google Maps loads via script tag with callback
 - **Feature structure**: Follow the established pattern when adding new features
 - **Component size**: Keep components focused and under ~200 lines when possible
+- **No Node.js APIs in Worker**: Use Web APIs (`fetch`, `crypto.randomUUID()`, `URL`, etc.)
+- **Session mutations**: Mutate `c.get('session')` directly; the session middleware auto-saves after each request
+- **D1 migrations**: Add new `.sql` files to `migrations/` and run `npm run d1:migrate` (local) or `npm run d1:migrate:remote` (production)
 
 ## Environment Variables
-- `RIDEWITHGPS_CLIENT_ID`: RideWithGPS OAuth client ID
-- `RIDEWITHGPS_CLIENT_SECRET`: RideWithGPS OAuth client secret
-- `GOOGLE_MAPS_API_KEY`: Google Maps JavaScript API key
-- `SESSION_SECRET`: Express session secret
-- `DB_PATH`: Database file path (optional - defaults to project root, set for production mounted storage)
+
+Local development: set in `.dev.vars` (gitignored; copy from `.dev.vars.example`)  
+Production: set via `wrangler secret put <NAME>`
+
+- `RWGPS_CLIENT_ID`: RideWithGPS OAuth client ID
+- `RWGPS_CLIENT_SECRET`: RideWithGPS OAuth client secret
+- `GOOGLE_API_KEY`: Google Maps JavaScript + Places API key
+- `BASE_URL`: Public URL for email verification links (e.g. `https://your-worker.workers.dev`)
+- `MAILERSEND_API_KEY`: Optional — email notifications
+- `MAILERSEND_FROM_EMAIL`, `MAILERSEND_FROM_NAME`: Optional — email sender
+- `MAILERSEND_VERIFICATION_TEMPLATE_ID`: Optional — email template ID
+- `MAILERSEND_BETA_ACCESS_TEMPLATE_ID`: Optional — email template ID
+- `TEST_OAUTH_TOKEN`: Local dev only — real RWGPS token for E2E tests (in `.dev.vars`)
+- `TEST_MODE`: Set to `"true"` in `wrangler.toml [vars]` for local dev; absent in production
 
 ## Development Commands
-- `npm run dev`: Start development server (Vite + Express)
-- `npm run build`: Build for production
-- `npm run preview`: Preview production build
+- `npm run dev`: Start development server (Cloudflare Vite plugin — Worker + React on port 3001)
+- `npm run build`: Build Worker + React app for production
+- `npm run deploy`: Build and deploy to Cloudflare Workers
+- `npm run d1:migrate`: Apply D1 migrations locally
+- `npm run d1:migrate:remote`: Apply D1 migrations to production
+- `npm run preview`: Preview production build locally
 
 ### Testing Commands
 - `npm run test:e2e`: Run E2E tests (headless)
@@ -212,8 +241,8 @@ This is a full-stack web application that helps cyclists explore routes and find
 - Run `npm run test:e2e:bootstrap-auth` before taking screenshots or checking authenticated UI states.
 - After screenshot/validation tasks are complete, run `npm run test:e2e:cleanup` to remove created test routes.
 - This uses Playwright project dependencies in `playwright.config.ts` to run setup in order: `create-route` then `auth`.
-- The auth setup calls `/auth/test` (available only when `TEST_MODE=true`) and stores authenticated state in `tests/e2e/.auth/user.json`.
-- Ensure required test env vars are available (especially `TEST_MODE` and `TEST_OAUTH_TOKEN`) when running this flow in CI/agents.
+- The auth setup calls `/auth/test` (available only when `TEST_MODE=true` in `wrangler.toml [vars]`) and stores authenticated state in `tests/e2e/.auth/user.json`.
+- Ensure `TEST_OAUTH_TOKEN` is set in `.dev.vars` when running E2E tests.
 
 ## Testing
 
@@ -224,7 +253,7 @@ The project uses **Playwright** for end-to-end testing with real RideWithGPS OAu
 - Real OAuth token authentication (no mocking)
 - **Automatic test route creation**: Each test run creates a unique route in RideWithGPS
 - **Automatic cleanup**: Test routes are deleted after all tests complete
-- Persistent test database (`.test-data/test-db.sqlite`)
+- Local D1 state persists across runs (in `.wrangler/state/v3/d1/`)
 - Sequential test execution with shared page context
 - Video recording support
 - 11 comprehensive tests (2 setup + 8 tests + 1 teardown) covering complete user journey

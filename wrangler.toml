@@ -1,0 +1,32 @@
+name = "route-assistant"
+main = "src/worker/index.ts"
+compatibility_date = "2026-08-20"
+
+[assets]
+directory = "./dist"
+not_found_handling = "single-page-application"
+binding = "ASSETS"
+run_worker_first = ["/api/*", "/auth/*"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "route-assistant-db"
+database_id = "d81a6c65-f8dc-4e17-9ed3-6962151ced1f"
+
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = "b78f7cd25a154f29891eb264cd521f57"
+preview_id = "9d0b3dc7faec4390bfffd60f1487d8c0"
+
+[vars]
+ENABLED_POI_PROVIDERS = "google,osm"
+# TEST_MODE enables the /auth/test endpoint for E2E tests in local dev
+TEST_MODE = "true"
+
+[env.production]
+[env.production.vars]
+ENABLED_POI_PROVIDERS = "google,osm"
+# TEST_MODE is intentionally absent in production
+
+[dev]
+port = 3001

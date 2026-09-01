@@ -1,7 +1,57 @@
 # CSRF Protection Implementation
 
 ## Overview
-Cross-Site Request Forgery (CSRF) protection has been implemented to prevent malicious websites from making unauthorized requests to the Route Assistant API on behalf of authenticated users.
+Cross-Site Request Forgery (CSRF) protection prevents malicious websites from making unauthorized requests to the Route Assistant API on behalf of authenticated users.
+
+## Implementation Details
+
+### Backend (Worker — `src/worker/middleware/csrf.ts`)
+- **Pattern**: Synchronizer token stored in the KV session
+- **Validation**: Token in `X-CSRF-Token` request header compared against session token
+- **Protected Methods**: All POST, PUT, PATCH, DELETE requests to `/api/*` and `/auth/*`
+- **Token Endpoint**: `GET /api/csrf-token` returns the session token (generates one if absent)
+- **Dependencies**: Requires the session middleware to run first (token stored in session)
+
+### Session Integration
+The CSRF token is stored as `session.csrfToken` in the KV-backed session. It is generated lazily on the first call to `GET /api/csrf-token` and persists for the lifetime of the session.
+
+### Protected Endpoints
+All state-changing endpoints require a valid CSRF token:
+- `PATCH /api/route/:id/pois`
+- `POST /api/user/email`
+- `POST /api/logout`
+- `POST /api/resend-verification`
+- `POST /api/poi-search/*`
+- `POST /api/poi-from-place-id`
+- `PATCH /api/admin/users/:rwgpsUserId`
+
+### Frontend (`src/lib/csrf.ts`)
+Unchanged from previous implementation:
+- **`fetchWithCSRFRetry`**: Drop-in fetch replacement with automatic token injection and retry
+- **`X-CSRF-Token`** header is sent with all state-changing requests
+- Clears cached token on 403 and retries once with a fresh token
+
+## Security Notes
+
+- The token is tied to the user's KV session, not to any cookie (double-submit pattern is not used)
+- Token does not rotate per-request (stable for the session lifetime)
+- Session cookie is `HttpOnly; Secure; SameSite=Lax` — not accessible to JavaScript
+- Cloudflare handles TLS termination; all traffic in production is HTTPS
+
+## Usage
+
+Frontend developers should use `fetchWithCSRFRetry()` for all state-changing requests:
+
+```typescript
+import { fetchWithCSRFRetry } from '@/lib/csrf';
+
+const response = await fetchWithCSRFRetry('/api/route/123/pois', {
+  method: 'PATCH',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ pois }),
+});
+```
+
 
 ## Implementation Details
 

@@ -31,40 +31,37 @@ A full-stack web application that helps cyclists explore routes and discover Poi
 ## Quick Start
 
 ### Prerequisites
-- Node.js 16+ 
+- Node.js 18+
 - RideWithGPS account and OAuth application
 - Google Cloud Platform account with Maps and Places APIs enabled
+- Cloudflare account (free tier is sufficient)
 
 ### Installation
 1. Clone the repository
-2. Copy `.env.example` to `.env` and configure:
+2. `npm install`
+3. Copy `.dev.vars.example` to `.dev.vars` and fill in your credentials:
    ```
    RWGPS_CLIENT_ID=your_ridewithgps_client_id
    RWGPS_CLIENT_SECRET=your_ridewithgps_client_secret
    GOOGLE_API_KEY=your_google_maps_api_key
-   SESSION_SECRET=your_session_secret
+   BASE_URL=http://localhost:3001
    
    # Optional: Configure Mailersend for email notifications
    MAILERSEND_API_KEY=your_mailersend_api_key
    MAILERSEND_VERIFICATION_TEMPLATE_ID=your_verification_template_id
    MAILERSEND_BETA_ACCESS_TEMPLATE_ID=your_beta_access_template_id
 
-  # Optional: Tune rate limiting (defaults are 15 minutes / 100 requests in production)
-  RATE_LIMIT_WINDOW_MINUTES=15
-  RATE_LIMIT_MAX=100
-  RATE_LIMIT_DEBUG=0
-
-  # Optional: Configure Express trust proxy when behind load balancers/CDNs
-  TRUST_PROXY=true
+   # E2E test authentication token
+   TEST_OAUTH_TOKEN=your_test_oauth_token
    ```
-3. Install dependencies: `npm install`
-4. Start development server: `npm run dev`
-5. Open http://localhost:3001
+4. Apply the local D1 database schema: `npm run d1:migrate`
+5. Start development server: `npm run dev`
+6. Open http://localhost:3001
 
 ### Production Deployment
-1. Build the application: `npm run build`
-2. Start production server: `npm start`
-3. Ensure environment variables are configured in your hosting environment
+1. Set Cloudflare secrets: `wrangler secret put RWGPS_CLIENT_ID` (repeat for each secret)
+2. Apply the remote D1 schema: `npm run d1:migrate:remote`
+3. Build and deploy: `npm run deploy`
 
 ## API Requirements
 
@@ -97,14 +94,15 @@ For email notifications and verification:
 
 ## Architecture
 
-This application uses a **single-server architecture** where Express.js serves both the API endpoints and the React frontend. The frontend is built with Vite and served statically in production, with development mode providing hot module reloading.
+This application uses **Cloudflare Workers** with static assets serving — a single deployment unit where `/api/*` and `/auth/*` requests are handled by the Worker, and everything else is served as static files from the Vite-built React app.
 
 ### Technology Stack
 - **Frontend**: React, TypeScript, Tailwind CSS, shadcn/ui, Google Maps JavaScript API
-- **Backend**: Node.js, Express.js, session-based authentication
-- **Database**: SQLite (better-sqlite3) for user management
+- **Backend**: Cloudflare Workers, Hono (HTTP router)
+- **Database**: Cloudflare D1 (SQLite-compatible)
+- **Sessions**: Cloudflare KV (replaces server-side express-session)
 - **State Management**: Zustand for client-side state
-- **Build Tools**: Vite for frontend bundling and development server
+- **Build Tools**: Vite with `@cloudflare/vite-plugin`
 
 ## User Management
 
@@ -119,23 +117,23 @@ During the beta phase, Route Assistant uses a waitlist system:
 
 ### Admin Operations
 
-Admins can manage users using the CLI tool:
+Admins manage users via `wrangler d1 execute`:
 
 ```bash
 # List all users
-node admin-cli.js list
+wrangler d1 execute route-assistant-db --command "SELECT id, rwgps_user_id, email, email_verified, status, role, created_at FROM users ORDER BY created_at DESC"
 
-# Approve a user for beta access
-node admin-cli.js approve <rwgps_user_id>
-
-# Change user status
-node admin-cli.js set-status <rwgps_user_id> <status>
+# Approve a user (set status to beta)
+wrangler d1 execute route-assistant-db --command "UPDATE users SET status='beta' WHERE rwgps_user_id=12345"
 
 # Grant admin role
-node admin-cli.js set-role <rwgps_user_id> admin
+wrangler d1 execute route-assistant-db --command "UPDATE users SET role='admin' WHERE rwgps_user_id=12345"
+
+# Manually verify email
+wrangler d1 execute route-assistant-db --command "UPDATE users SET email_verified=1 WHERE rwgps_user_id=12345"
 ```
 
-See [docs/ADMIN_GUIDE.md](docs/ADMIN_GUIDE.md) for detailed admin operations.
+Add `--remote` to run against the production D1 database.
 
 ### User Statuses
 

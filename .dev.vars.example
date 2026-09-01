@@ -1,0 +1,17 @@
+# Worker secrets and local-dev overrides — copy to .dev.vars and fill in values
+# .dev.vars is gitignored and read by wrangler for local development
+
+RWGPS_CLIENT_ID=your_ridewithgps_client_id
+RWGPS_CLIENT_SECRET=your_ridewithgps_client_secret
+GOOGLE_API_KEY=your_google_maps_api_key
+BASE_URL=http://localhost:3001
+
+# Email (optional — app works without these)
+MAILERSEND_API_KEY=
+MAILERSEND_FROM_EMAIL=noreply@yourdomain.com
+MAILERSEND_FROM_NAME=Route Assistant
+MAILERSEND_VERIFICATION_TEMPLATE_ID=
+MAILERSEND_BETA_ACCESS_TEMPLATE_ID=
+
+# E2E test authentication token (from RideWithGPS)
+TEST_OAUTH_TOKEN=your_test_oauth_token

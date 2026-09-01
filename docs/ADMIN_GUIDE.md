@@ -2,7 +2,144 @@
 
 ## Overview
 
-This guide explains how to manage users in the Route Assistant application during the beta phase.
+User management is done via `wrangler d1 execute` — direct SQL against the Cloudflare D1 database. Append `--remote` to run against production; omit it for local dev.
+
+## User Statuses
+
+- **`waitlist`**: Signed up, not yet approved (default for new users)
+- **`beta`**: Beta tester with full access
+- **`active`**: Regular active user (for future use)
+- **`inactive`**: Account disabled
+
+## User Roles
+
+- **`user`**: Regular user (default)
+- **`admin`**: Administrator; automatic access regardless of status
+
+## Managing Users via D1
+
+All commands below target the local D1 database. Add `--remote` for production.
+
+### List All Users
+
+```bash
+wrangler d1 execute route-assistant-db --command "
+SELECT id, rwgps_user_id, email, email_verified, status, role, created_at
+FROM users ORDER BY created_at DESC"
+```
+
+### Approve a User (Beta Access)
+
+```bash
+wrangler d1 execute route-assistant-db --remote --command "
+UPDATE users SET status='beta', updated_at=datetime('now')
+WHERE rwgps_user_id=12345"
+```
+
+### Change User Status
+
+```bash
+# Disable a user
+wrangler d1 execute route-assistant-db --remote --command "
+UPDATE users SET status='inactive', updated_at=datetime('now')
+WHERE rwgps_user_id=12345"
+
+# Reactivate a user
+wrangler d1 execute route-assistant-db --remote --command "
+UPDATE users SET status='beta', updated_at=datetime('now')
+WHERE rwgps_user_id=12345"
+```
+
+### Grant Admin Access
+
+```bash
+wrangler d1 execute route-assistant-db --remote --command "
+UPDATE users SET role='admin', updated_at=datetime('now')
+WHERE rwgps_user_id=12345"
+```
+
+### Manually Verify Email
+
+```bash
+wrangler d1 execute route-assistant-db --remote --command "
+UPDATE users SET email_verified=1, email_verification_token=NULL, updated_at=datetime('now')
+WHERE rwgps_user_id=12345"
+```
+
+### Find User by Email
+
+```bash
+wrangler d1 execute route-assistant-db --command "
+SELECT * FROM users WHERE email='user@example.com'"
+```
+
+### User Statistics
+
+```bash
+wrangler d1 execute route-assistant-db --command "
+SELECT status, COUNT(*) as count FROM users GROUP BY status"
+```
+
+## Managing Users via Admin API
+
+Authenticated admins can also use the REST API:
+
+```
+GET  /api/admin/users                  — List all users
+PATCH /api/admin/users/:rwgpsUserId    — Update user fields
+```
+
+PATCH body (all fields optional):
+```json
+{ "status": "beta", "role": "admin", "email": "user@example.com" }
+```
+
+Note: Promoting a user from `waitlist` to `beta`/`active` via the API automatically sends a beta access notification email (if Mailersend is configured).
+
+## User Authentication Flow
+
+1. User authenticates with RideWithGPS OAuth
+2. Worker creates user record with `status=waitlist`
+3. User provides email → verification email sent automatically
+4. User must verify email before accessing the app
+5. Admin approves user: sets `status=beta`
+6. User refreshes → full access granted
+
+**Admins** bypass email verification but still need approved status.
+
+## Bootstrap: First Admin Setup
+
+1. Sign in with your RideWithGPS account
+2. Provide your email when prompted
+3. Find your user record:
+   ```bash
+   wrangler d1 execute route-assistant-db --remote --command "
+   SELECT rwgps_user_id, email, status, role FROM users ORDER BY created_at LIMIT 5"
+   ```
+4. Grant yourself admin access and approve:
+   ```bash
+   wrangler d1 execute route-assistant-db --remote --command "
+   UPDATE users SET status='beta', role='admin', email_verified=1, updated_at=datetime('now')
+   WHERE rwgps_user_id=YOUR_ID"
+   ```
+5. Refresh the page
+
+## Batch Approve Users
+
+```bash
+for id in 12345 67890 11111; do
+  wrangler d1 execute route-assistant-db --remote --command \
+    "UPDATE users SET status='beta', updated_at=datetime('now') WHERE rwgps_user_id=$id"
+  echo "Approved $id"
+done
+```
+
+## Security Notes
+
+- `--remote` mutations are immediate and irreversible
+- Admin API endpoints require authentication and admin role
+- D1 console in Cloudflare dashboard provides a SQL editor as an alternative
+
 
 ## User Statuses
 

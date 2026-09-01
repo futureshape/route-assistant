@@ -1,23 +1,23 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { cloudflare } from '@cloudflare/vite-plugin'
 import path from 'path'
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    cloudflare(),
+    react(),
+  ],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      '@': path.resolve(__dirname, './src'),
     },
   },
   build: {
     outDir: 'dist',
-    assetsDir: 'assets'
+    assetsDir: 'assets',
   },
   server: {
-    port: 5173,
-    proxy: {
-      '/api': 'http://localhost:3000',
-      '/auth': 'http://localhost:3000'
-    }
-  }
+    port: 3001,
+  },
 })
