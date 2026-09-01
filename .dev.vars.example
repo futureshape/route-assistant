@@ -15,3 +15,4 @@ MAILERSEND_BETA_ACCESS_TEMPLATE_ID=
 
 # E2E test authentication token (from RideWithGPS)
 TEST_OAUTH_TOKEN=your_test_oauth_token
+TEST_MODE=true
